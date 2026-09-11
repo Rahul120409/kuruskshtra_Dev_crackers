@@ -28,18 +28,14 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCustomer } from '../../context/CustomerContext';
-import { DEMO_HAIRSTYLES } from '../../services/mockData';
 import { 
   styleService, 
   StyleTypeResponse, 
-  SpecificStyleResponse,
-  DEFAULT_STYLE_TYPES,
-  DEFAULT_SPECIFIC_STYLES 
+  SpecificStyleResponse
 } from '../../services/styleService';
 import {
   staffService,
   StaffResponse,
-  DEFAULT_STAFF,
   StaffStatus
 } from '../../services/staffService';
 
@@ -54,11 +50,11 @@ function FullPageBookingContent() {
   const urlWaitMins = Number(searchParams.get('wait')) || 18;
 
   // Real-time Style Types & Specific Styles state
-  const [styleTypes, setStyleTypes] = useState<StyleTypeResponse[]>(DEFAULT_STYLE_TYPES);
-  const [specificStyles, setSpecificStyles] = useState<SpecificStyleResponse[]>(DEFAULT_SPECIFIC_STYLES);
+  const [styleTypes, setStyleTypes] = useState<StyleTypeResponse[]>([]);
+  const [specificStyles, setSpecificStyles] = useState<SpecificStyleResponse[]>([]);
   const [isLoadingStyles, setIsLoadingStyles] = useState<boolean>(true);
-  const [selectedStyleTypeId, setSelectedStyleTypeId] = useState<string>('st-01');
-  const [selectedSpecificStyleId, setSelectedSpecificStyleId] = useState<string>('spec-01');
+  const [selectedStyleTypeId, setSelectedStyleTypeId] = useState<string>('');
+  const [selectedSpecificStyleId, setSelectedSpecificStyleId] = useState<string>('');
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
 
   // Booking details state
@@ -72,14 +68,13 @@ function FullPageBookingContent() {
 
   const TIME_SLOTS = ['10:30 AM', '11:45 AM', '01:15 PM', '02:30 PM', '04:00 PM', '05:30 PM', '07:00 PM'];
 
-  const [staffMembers, setStaffMembers] = useState<StaffResponse[]>(DEFAULT_STAFF);
-  const [isLoadingStaff, setIsLoadingStaff] = useState<boolean>(false);
+  const [staffMembers, setStaffMembers] = useState<StaffResponse[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState<boolean>(true);
 
-  // Fetch real-time style types, specific styles, and staff from backend API
+  // Fetch real-time style types and specific styles from backend DB
   const fetchRealTimeData = async () => {
     setIsLoadingStyles(true);
     setIsLoadingStaff(true);
-    console.log("💈 [BOOKING FULL-PAGE] Fetching real-time Style Types, Specific Styles, and Salon Staff from API...");
     try {
       const [typesData, stylesData, staffData] = await Promise.allSettled([
         styleService.getStyleTypes(),
@@ -87,26 +82,25 @@ function FullPageBookingContent() {
         staffService.getStaffBySalon(urlSalonId),
       ]);
 
-      if (typesData.status === 'fulfilled' && typesData.value.length > 0) {
+      if (typesData.status === 'fulfilled') {
         setStyleTypes(typesData.value);
-        if (!typesData.value.some(t => t.id === selectedStyleTypeId)) {
+        if (typesData.value.length > 0 && !typesData.value.some(t => t.id === selectedStyleTypeId)) {
           setSelectedStyleTypeId(typesData.value[0].id);
         }
       }
 
-      if (stylesData.status === 'fulfilled' && stylesData.value.length > 0) {
+      if (stylesData.status === 'fulfilled') {
         setSpecificStyles(stylesData.value);
-        if (!stylesData.value.some(s => s.id === selectedSpecificStyleId)) {
+        if (stylesData.value.length > 0 && !stylesData.value.some(s => s.id === selectedSpecificStyleId)) {
           setSelectedSpecificStyleId(stylesData.value[0].id);
         }
       }
 
-      if (staffData.status === 'fulfilled' && staffData.value.length > 0) {
-        console.log(`✅ [BOOKING FULL-PAGE] Loaded ${staffData.value.length} live staff for salon:`, staffData.value);
+      if (staffData.status === 'fulfilled') {
         setStaffMembers(staffData.value);
       }
     } catch (err) {
-      console.warn("⚠️ [BOOKING FULL-PAGE] Using defaults due to network status:", err);
+      console.warn("Could not load booking data from backend:", err);
     } finally {
       setIsLoadingStyles(false);
       setIsLoadingStaff(false);

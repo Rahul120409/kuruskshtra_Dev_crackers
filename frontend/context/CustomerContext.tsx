@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, QueueToken, Notification, Hairstyle, Appointment } from '../types';
-import { DEMO_USER } from '../services/mockData';
 import { customerService } from '../services/customerService';
 import { authService, AuthResponse } from '../services/authService';
 

@@ -44,6 +44,8 @@ import {
   Navigation,
   Pencil,
   Edit3,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   loginUser,
@@ -161,6 +163,22 @@ export default function AdminPortal() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "location" | "salon" | "users" | "revenue">("dashboard");
   const [currentTime, setCurrentTime] = useState<string>("");
 
+  // Theme State: Dark / Light Mode
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("salonflow_theme") as "dark" | "light" | null;
+    if (saved) {
+      setTheme(saved);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("salonflow_theme", next);
+  };
+
   // Authentication State
   const [currentUser, setCurrentUser] = useState<UserData | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -259,48 +277,7 @@ export default function AdminPortal() {
   const [editUserError, setEditUserError] = useState("");
 
   // Live Queue CRUD State
-  const [queueItems, setQueueItems] = useState<QueueItem[]>([
-    {
-      id: "q-1",
-      token: "#108",
-      customerName: "Vikram Malhotra",
-      service: "Textured Crop + Beard Grooming",
-      salonBranch: "Aura Luxe (Pune)",
-      waitEstimate: "12 mins",
-      status: "CALLED",
-      createdAt: "10:30 AM",
-    },
-    {
-      id: "q-2",
-      token: "#109",
-      customerName: "Ananya Sharma",
-      service: "Balayage Color & Conditioning",
-      salonBranch: "Velvet & Blade (Mumbai)",
-      waitEstimate: "24 mins",
-      status: "WAITING",
-      createdAt: "10:45 AM",
-    },
-    {
-      id: "q-3",
-      token: "#110",
-      customerName: "Rohan Deshmukh",
-      service: "Executive Haircut & Beard Trim",
-      salonBranch: "Aura Luxe (Pune)",
-      waitEstimate: "35 mins",
-      status: "WAITING",
-      createdAt: "11:00 AM",
-    },
-    {
-      id: "q-4",
-      token: "#106",
-      customerName: "Karan Johar",
-      service: "Royal Shave & Facial",
-      salonBranch: "Crown Royale (Bengaluru)",
-      waitEstimate: "In Chair",
-      status: "IN_SERVICE",
-      createdAt: "10:15 AM",
-    },
-  ]);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
 
   const [showAddQueueModal, setShowAddQueueModal] = useState(false);
   const [newQueueCustomer, setNewQueueCustomer] = useState("");
@@ -319,58 +296,7 @@ export default function AdminPortal() {
   const [queueSearch, setQueueSearch] = useState("");
 
   // Services Catalog CRUD State
-  const [servicesList, setServicesList] = useState<SalonServiceItem[]>([
-    {
-      id: "srv-1",
-      name: "Signature AI Haircut & Styling",
-      category: "Haircut & Styling",
-      price: 650,
-      durationMinutes: 30,
-      genderTarget: "UNISEX",
-      status: "ACTIVE",
-      popularityShare: 44,
-    },
-    {
-      id: "srv-2",
-      name: "Balayage Color & Hair Spa Treatment",
-      category: "Color & Spa",
-      price: 2800,
-      durationMinutes: 75,
-      genderTarget: "FEMALE_ONLY",
-      status: "ACTIVE",
-      popularityShare: 26,
-    },
-    {
-      id: "srv-3",
-      name: "Royal Beard Sculpture & Detailing",
-      category: "Beard & Shave",
-      price: 450,
-      durationMinutes: 25,
-      genderTarget: "MALE_ONLY",
-      status: "ACTIVE",
-      popularityShare: 18,
-    },
-    {
-      id: "srv-4",
-      name: "Hydra Radiance Facial & De-tan",
-      category: "Facial & Skincare",
-      price: 1500,
-      durationMinutes: 45,
-      genderTarget: "UNISEX",
-      status: "ACTIVE",
-      popularityShare: 12,
-    },
-    {
-      id: "srv-5",
-      name: "Keratin Silk Protein Treatment",
-      category: "Treatments",
-      price: 3500,
-      durationMinutes: 90,
-      genderTarget: "UNISEX",
-      status: "ACTIVE",
-      popularityShare: 8,
-    },
-  ]);
+  const [servicesList, setServicesList] = useState<SalonServiceItem[]>([]);
 
   const [showAddServiceModal, setShowAddServiceModal] = useState(false);
   const [newServiceName, setNewServiceName] = useState("");
@@ -402,136 +328,15 @@ export default function AdminPortal() {
   const [timeRange, setTimeRange] = useState<"realtime" | "1h" | "24h">("realtime");
 
   // Initial Seed Data: Users
-  const [appUsers, setAppUsers] = useState<AppUser[]>([
-    {
-      id: "usr-1",
-      name: "Prapti Meher",
-      email: "praptimeher04@gmail.com",
-      mobileNumber: "9876543210",
-      dob: "1998-05-15",
-      gender: "FEMALE",
-      role: "ADMIN",
-      status: "ACTIVE",
-      createdAt: "2026-09-01",
-    },
-    {
-      id: "usr-2",
-      name: "Alex Rivera",
-      email: "alex.stylist@salonflow.ai",
-      mobileNumber: "9823011223",
-      dob: "1995-08-20",
-      gender: "MALE",
-      role: "STAFF",
-      status: "ACTIVE",
-      createdAt: "2026-09-02",
-    },
-    {
-      id: "usr-3",
-      name: "Priya Sharma",
-      email: "priya.s@salonflow.ai",
-      mobileNumber: "9811223344",
-      dob: "1996-11-12",
-      gender: "FEMALE",
-      role: "STAFF",
-      status: "ACTIVE",
-      createdAt: "2026-09-02",
-    },
-    {
-      id: "usr-4",
-      name: "Vikram Malhotra",
-      email: "vikram.m@gmail.com",
-      mobileNumber: "9765432100",
-      dob: "1992-03-10",
-      gender: "MALE",
-      role: "CUSTOMER",
-      status: "ACTIVE",
-      createdAt: "2026-09-05",
-    },
-    {
-      id: "usr-5",
-      name: "Ananya Sharma",
-      email: "ananya.sh@gmail.com",
-      mobileNumber: "9899001122",
-      dob: "1999-07-25",
-      gender: "FEMALE",
-      role: "CUSTOMER",
-      status: "ACTIVE",
-      createdAt: "2026-09-08",
-    },
-    {
-      id: "usr-6",
-      name: "Karan Johar",
-      email: "karan.j@gmail.com",
-      mobileNumber: "9988776655",
-      dob: "1988-12-05",
-      gender: "MALE",
-      role: "CUSTOMER",
-      status: "ACTIVE",
-      createdAt: "2026-09-10",
-    },
-  ]);
+  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
 
   // Initial Seed Data: Location
-  const [states, setStates] = useState<StateItem[]>([
-    { id: "st-1", code: "MH", name: "Maharashtra", createdAt: "2026-09-01" },
-    { id: "st-2", code: "KA", name: "Karnataka", createdAt: "2026-09-02" },
-    { id: "st-3", code: "DL", name: "Delhi NCR", createdAt: "2026-09-03" },
-    { id: "st-4", code: "GJ", name: "Gujarat", createdAt: "2026-09-05" },
-  ]);
+  const [states, setStates] = useState<StateItem[]>([]);
 
-  const [cities, setCities] = useState<CityItem[]>([
-    { id: "ct-1", code: "PUN", name: "Pune", stateCode: "MH", createdAt: "2026-09-01" },
-    { id: "ct-2", code: "MUM", name: "Mumbai", stateCode: "MH", createdAt: "2026-09-01" },
-    { id: "ct-3", code: "BLR", name: "Bengaluru", stateCode: "KA", createdAt: "2026-09-02" },
-    { id: "ct-4", code: "DEL", name: "New Delhi", stateCode: "DL", createdAt: "2026-09-03" },
-    { id: "ct-5", code: "AHM", name: "Ahmedabad", stateCode: "GJ", createdAt: "2026-09-05" },
-  ]);
+  const [cities, setCities] = useState<CityItem[]>([]);
 
   // Initial Seed Data: Salons with Type (UNISEX, MALE_ONLY, FEMALE_ONLY)
-  const [salons, setSalons] = useState<SalonItem[]>([
-    {
-      id: "sl-101",
-      name: "Aura Luxe Salon & AI Spa",
-      type: "UNISEX",
-      stateCode: "MH",
-      cityName: "Pune",
-      address: "Lane 7, Koregaon Park",
-      phone: "+91 98230 44120",
-      openingTime: "09:00 AM",
-      closingTime: "09:30 PM",
-      activeStylists: 6,
-      status: "OPEN",
-      todayRevenue: 48500,
-    },
-    {
-      id: "sl-102",
-      name: "Velvet & Blade Grooming Studio",
-      type: "MALE_ONLY",
-      stateCode: "MH",
-      cityName: "Mumbai",
-      address: "Pali Hill, Bandra West",
-      phone: "+91 98112 33455",
-      openingTime: "10:00 AM",
-      closingTime: "10:00 PM",
-      activeStylists: 8,
-      status: "BUSY",
-      todayRevenue: 62400,
-    },
-    {
-      id: "sl-103",
-      name: "Crown Royale AI Salon",
-      type: "FEMALE_ONLY",
-      stateCode: "KA",
-      cityName: "Bengaluru",
-      address: "100ft Road, Indiranagar",
-      phone: "+91 97410 88900",
-      openingTime: "09:30 AM",
-      closingTime: "09:00 PM",
-      activeStylists: 5,
-      status: "OPEN",
-      todayRevenue: 39800,
-    },
-  ]);
+  const [salons, setSalons] = useState<SalonItem[]>([]);
 
   // Salon modal form state (including complete API fields)
   const [showAddSalonModal, setShowAddSalonModal] = useState(false);
@@ -783,82 +588,73 @@ export default function AdminPortal() {
         apiGetAllCities(),
       ]);
 
-      if (statesRes.status === "fulfilled" && statesRes.value.success && statesRes.value.data) {
-        if (statesRes.value.data.length > 0) {
-          setStates(
-            statesRes.value.data
-              .filter((s) => !deletedStateIds.has(s.id) && !deletedStateIds.has(s.code))
-              .map((s) => ({
-                id: s.id,
-                code: s.code,
-                name: s.name,
-                cityCount: s.cityCount,
-                createdAt: s.createdAt ? s.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
-              }))
-          );
-        }
+      if (statesRes.status === "fulfilled" && statesRes.value && Array.isArray(statesRes.value.data)) {
+        setStates(
+          statesRes.value.data
+            .filter((s) => !deletedStateIds.has(s.id) && !deletedStateIds.has(s.code))
+            .map((s) => ({
+              id: s.id,
+              code: s.code,
+              name: s.name,
+              cityCount: s.cityCount,
+              createdAt: s.createdAt ? s.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+            }))
+        );
       }
 
-      if (citiesRes.status === "fulfilled" && citiesRes.value.success && citiesRes.value.data) {
-        if (citiesRes.value.data.length > 0) {
-          setCities(
-            citiesRes.value.data
-              .filter((c) => !deletedCityIds.has(c.id) && !deletedCityIds.has(c.code))
-              .map((c) => ({
-                id: c.id,
-                code: c.code,
-                name: c.name,
-                stateId: c.stateId,
-                stateCode: c.stateCode || "",
-                stateName: c.stateName || "",
-                createdAt: c.createdAt ? c.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
-              }))
-          );
-        }
+      if (citiesRes.status === "fulfilled" && citiesRes.value && Array.isArray(citiesRes.value.data)) {
+        setCities(
+          citiesRes.value.data
+            .filter((c) => !deletedCityIds.has(c.id) && !deletedCityIds.has(c.code))
+            .map((c) => ({
+              id: c.id,
+              code: c.code,
+              name: c.name,
+              stateId: c.stateId,
+              stateCode: c.stateCode || "",
+              stateName: c.stateName || "",
+              createdAt: c.createdAt ? c.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+            }))
+        );
       }
     } catch (err) {
-      console.warn("Could not fetch location data from backend, using current local cache:", err);
+      console.warn("Could not fetch location data from backend:", err);
     }
   };
 
   // Fetch Salons from Database API: GET /api/salons
   const fetchSalons = async () => {
-    console.log("🔄 [ADMIN: fetchSalons] Querying GET /api/salons from backend database...");
     try {
       const res = await apiGetAllSalons();
-      console.log("📦 [ADMIN: fetchSalons] API Response received:", res);
-      if (res.success && Array.isArray(res.data)) {
-        console.log(`✅ [ADMIN: fetchSalons] Successfully retrieved ${res.data.length} salons from DB:`, res.data);
-        if (res.data.length > 0) {
-          setSalons(
-            res.data
-              .filter((s) => !deletedSalonIds.has(s.id))
-              .map((s) => ({
-                id: s.id,
-                name: s.salonName || "Style Studio",
-                ownerName: s.ownerName || "Salon Owner",
-                email: s.email || "",
-                phone: s.phoneNumber || "",
-                type: s.type || "UNISEX",
-                stateCode: s.stateCode || (s.city?.toLowerCase() === "pune" || s.city?.toLowerCase() === "mumbai" ? "MH" : s.city?.toLowerCase() === "bengaluru" ? "KA" : "MH"),
-                cityName: s.city || "Pune",
-                address: s.salonAddress || "",
-                pincode: s.pincode || "",
-                salonLogo: s.salonLogo || "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500",
-                salonDescription: s.salonDescription || "",
-                locationLink: s.locationLink || "",
-                openingTime: s.openingTime || "09:00",
-                closingTime: s.closingTime || "21:00",
-                activeStylists: s.activeStylists || 6,
-                status: (s.status as any) || "ACTIVE",
-                todayRevenue: s.todayRevenue || 48500,
-                createdAt: s.createdAt ? s.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
-              }))
-          );
-        }
+      if (res && Array.isArray(res.data)) {
+        setSalons(
+          res.data
+            .filter((s) => !deletedSalonIds.has(s.id))
+            .map((s) => ({
+              id: s.id,
+              name: s.salonName || "Style Studio",
+              ownerName: s.ownerName || "Salon Owner",
+              email: s.email || "",
+              phone: s.phoneNumber || "",
+              type: s.type || "UNISEX",
+              stateCode: s.stateCode || (s.city?.toLowerCase() === "pune" || s.city?.toLowerCase() === "mumbai" ? "MH" : s.city?.toLowerCase() === "bengaluru" ? "KA" : "MH"),
+              cityName: s.city || "Pune",
+              address: s.salonAddress || "",
+              pincode: s.pincode || "",
+              salonLogo: s.salonLogo || "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500",
+              salonDescription: s.salonDescription || "",
+              locationLink: s.locationLink || "",
+              openingTime: s.openingTime || "09:00",
+              closingTime: s.closingTime || "21:00",
+              activeStylists: s.activeStylists || 0,
+              status: (s.status as any) || "ACTIVE",
+              todayRevenue: s.todayRevenue || 0,
+              createdAt: s.createdAt ? s.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+            }))
+        );
       }
     } catch (err) {
-      console.warn("❌ [ADMIN: fetchSalons] Could not fetch salon data from backend DB, using current local cache:", err);
+      console.warn("Could not fetch salon data from backend DB:", err);
     }
   };
 
@@ -874,7 +670,7 @@ export default function AdminPortal() {
   const fetchStaff = async () => {
     try {
       const res = await getAllStaffApi();
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+      if (res && Array.isArray(res.data)) {
         setDbStaffMembers(res.data);
       }
     } catch (err) {
@@ -886,25 +682,71 @@ export default function AdminPortal() {
   const fetchUsers = async () => {
     try {
       const res = await getAllUsersApi();
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        setAppUsers(
-          res.data
-            .filter((u) => !deletedUserIds.has(u.id))
-            .map((u) => ({
-              id: u.id,
-              name: u.name,
-              email: u.email,
-              mobileNumber: u.mobileNumber || u.phone || "",
-              dob: u.dob || "1998-05-15",
-              gender: (u.gender as any) || "MALE",
-              role: (u.role as any) || "CUSTOMER",
-              status: "ACTIVE",
-              createdAt: u.createdAt ? u.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
-            }))
+      if (res && Array.isArray(res.data)) {
+        const userList: AppUser[] = res.data
+          .filter((u) => !deletedUserIds.has(u.id))
+          .map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            mobileNumber: u.mobileNumber || u.phone || "",
+            dob: u.dob || "1998-05-15",
+            gender: (u.gender as any) || "MALE",
+            role: (u.role as any) || "CUSTOMER",
+            status: "ACTIVE",
+            createdAt: u.createdAt ? u.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+          }));
+
+        setAppUsers(userList);
+
+        // Find the verified ADMIN user from the database (e.g. prapti)
+        const dbAdmin = userList.find(
+          (u) => u.role?.toUpperCase() === "ADMIN" || u.role?.toUpperCase() === "ROLE_ADMIN"
         );
+
+        const savedUserStr = localStorage.getItem("salonflow_user") || localStorage.getItem("salonflow_auth_user");
+        let activeAdminUser: UserData | null = null;
+        if (savedUserStr) {
+          try {
+            const parsed = JSON.parse(savedUserStr);
+            if (parsed && (parsed.role?.toUpperCase() === "ADMIN" || parsed.role?.toUpperCase() === "ROLE_ADMIN")) {
+              const matchedInDb = userList.find(
+                (u) => u.email?.toLowerCase() === parsed.email?.toLowerCase() || u.id === parsed.id
+              );
+              if (matchedInDb) {
+                activeAdminUser = {
+                  id: matchedInDb.id,
+                  name: matchedInDb.name,
+                  email: matchedInDb.email,
+                  phone: matchedInDb.mobileNumber,
+                  role: "ADMIN",
+                };
+              } else {
+                activeAdminUser = parsed;
+              }
+            }
+          } catch {
+            // Ignore
+          }
+        }
+
+        if (!activeAdminUser && dbAdmin) {
+          activeAdminUser = {
+            id: dbAdmin.id,
+            name: dbAdmin.name,
+            email: dbAdmin.email,
+            phone: dbAdmin.mobileNumber,
+            role: "ADMIN",
+          };
+        }
+
+        if (activeAdminUser) {
+          setCurrentUser(activeAdminUser);
+          localStorage.setItem("salonflow_user", JSON.stringify(activeAdminUser));
+        }
       }
     } catch (err) {
-      console.warn("Could not fetch user data from backend, using current local cache:", err);
+      console.warn("Could not fetch user data from backend:", err);
     }
   };
 
@@ -975,7 +817,7 @@ export default function AdminPortal() {
     // 2. Cascade delete all cities belonging to this state
     const linkedCityIds = cities.filter((c) => c.stateCode === code || (c.stateId && c.stateId === id)).map((c) => c.id);
     setCities((prev) => prev.filter((c) => c.stateCode !== code && (!c.stateId || c.stateId !== id)));
-    
+
     // 3. Mark in deleted sets so background fetch never resurrects them
     setDeletedStateIds((prev) => new Set([...prev, id, code]));
     setDeletedCityIds((prev) => new Set([...prev, ...linkedCityIds]));
@@ -1468,13 +1310,13 @@ export default function AdminPortal() {
       prev.map((q) =>
         q.id === editingQueueItem.id
           ? {
-              ...q,
-              customerName: editQueueCustomer.trim(),
-              service: editQueueService.trim(),
-              salonBranch: editQueueBranch.trim(),
-              waitEstimate: editQueueWait.trim(),
-              status: editQueueStatus,
-            }
+            ...q,
+            customerName: editQueueCustomer.trim(),
+            service: editQueueService.trim(),
+            salonBranch: editQueueBranch.trim(),
+            waitEstimate: editQueueWait.trim(),
+            status: editQueueStatus,
+          }
           : q
       )
     );
@@ -1534,14 +1376,14 @@ export default function AdminPortal() {
       prev.map((s) =>
         s.id === editingService.id
           ? {
-              ...s,
-              name: editServiceName.trim(),
-              category: editServiceCategory,
-              price: Number(editServicePrice) || s.price,
-              durationMinutes: Number(editServiceDuration) || s.durationMinutes,
-              genderTarget: editServiceGender,
-              status: editServiceStatus,
-            }
+            ...s,
+            name: editServiceName.trim(),
+            category: editServiceCategory,
+            price: Number(editServicePrice) || s.price,
+            durationMinutes: Number(editServiceDuration) || s.durationMinutes,
+            genderTarget: editServiceGender,
+            status: editServiceStatus,
+          }
           : s
       )
     );
@@ -1773,16 +1615,20 @@ export default function AdminPortal() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#090b10] text-zinc-100 flex flex-col font-sans selection:bg-amber-500/30 selection:text-amber-200">
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${
+      theme === "dark"
+        ? "bg-[#090b10] text-zinc-100 selection:bg-amber-500/30 selection:text-amber-200"
+        : "bg-slate-100 text-slate-900 selection:bg-amber-500/20 selection:text-amber-900"
+    }`}>
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 animate-bounce">
           <div
             className={`px-5 py-3 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-3 border ${toastMessage.type === "success"
-                ? "bg-emerald-950/90 border-emerald-500/40 text-emerald-200"
-                : toastMessage.type === "error"
-                  ? "bg-rose-950/90 border-rose-500/40 text-rose-200"
-                  : "bg-amber-950/90 border-amber-500/40 text-amber-200"
+              ? "bg-emerald-950/90 border-emerald-500/40 text-emerald-200"
+              : toastMessage.type === "error"
+                ? "bg-rose-950/90 border-rose-500/40 text-rose-200"
+                : "bg-amber-950/90 border-amber-500/40 text-amber-200"
               }`}
           >
             {toastMessage.type === "success" ? (
@@ -1798,47 +1644,73 @@ export default function AdminPortal() {
       )}
 
       {/* Global Top Bar */}
-      <header className="h-14 bg-[#0d1017] border-b border-[#1f2533] px-4 flex items-center justify-between z-30 shrink-0">
+      <header className={`h-14 border-b px-4 flex items-center justify-between z-30 shrink-0 transition-colors duration-300 ${
+        theme === "dark" ? "bg-[#0d1017] border-[#1f2533]" : "bg-white border-slate-200 shadow-sm"
+      }`}>
         <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-2 pr-3 border-r border-[#232a3b]">
+          <div className={`flex items-center gap-2 pr-3 border-r ${theme === "dark" ? "border-[#232a3b]" : "border-slate-200"}`}>
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-600 p-0.5 flex items-center justify-center">
-              <div className="w-full h-full bg-[#0d1017] rounded-[6px] flex items-center justify-center">
-                <Scissors className="w-3.5 h-3.5 text-amber-400" />
+              <div className={`w-full h-full rounded-[6px] flex items-center justify-center ${theme === "dark" ? "bg-[#0d1017]" : "bg-white"}`}>
+                <Scissors className="w-3.5 h-3.5 text-amber-500" />
               </div>
             </div>
-            <span className="font-bold text-white tracking-tight">SalonFlow AI</span>
+            <span className={`font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>SalonFlow AI</span>
           </div>
 
-          <div className="flex items-center gap-2 text-zinc-400 font-medium">
+          <div className={`flex items-center gap-2 font-medium ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
             <span>DevCrackers</span>
             <span>/</span>
-            <span className="text-zinc-200 font-mono">admin</span>
-            <Link
-              href="/salon"
-              className="ml-2 px-2.5 py-1 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-300 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
-            >
-              <Store className="w-3 h-3 text-amber-400" />
-              <span>Open Salon Panel</span>
-            </Link>
+            <span className={`font-mono ${theme === "dark" ? "text-zinc-200" : "text-slate-800"}`}>admin</span>
           </div>
         </div>
 
         {/* Top Right Auth & Info */}
-        <div className="flex items-center gap-3 text-xs">
-          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#131822] border border-[#222938] text-zinc-300 font-mono">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
+        <div className="flex items-center gap-2.5 text-xs">
+          <div className={`hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-xl border font-mono ${
+            theme === "dark" ? "bg-[#131822] border-[#222938] text-zinc-300" : "bg-slate-50 border-slate-200 text-slate-700"
+          }`}>
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
             <span>{currentTime || "12:30:00 PM"}</span>
           </div>
 
+          {/* Theme Switcher Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`px-2.5 py-1 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              theme === "dark"
+                ? "bg-[#141926] hover:bg-[#1f2638] border-[#222938] text-amber-300 hover:text-amber-200"
+                : "bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-700 shadow-sm"
+            }`}
+            title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline text-[11px] font-medium text-zinc-300">Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline text-[11px] font-medium text-slate-700">Dark</span>
+              </>
+            )}
+          </button>
+
           {currentUser ? (
-            <div className="flex items-center gap-2 bg-[#141926] border border-amber-500/30 pl-3 pr-1 py-1 rounded-xl">
-              <div className="text-right">
-                <span className="text-xs font-bold text-white block">{currentUser.name}</span>
-                <span className="text-[10px] text-amber-300 font-mono">{currentUser.role}</span>
+            <div className={`flex items-center gap-2.5 pl-3 pr-1.5 py-1 rounded-xl border shadow-sm ${
+              theme === "dark" ? "bg-[#141926] border-amber-500/30" : "bg-slate-50 border-amber-400/40"
+            }`}>
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-400 to-amber-600 text-black font-extrabold flex items-center justify-center text-xs shadow">
+                {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : "A"}
+              </div>
+              <div className="text-left">
+                <span className={`text-xs font-bold block capitalize ${theme === "dark" ? "text-white" : "text-slate-900"}`}>{currentUser.name}</span>
+                <span className="text-[10px] text-amber-500 font-mono font-bold tracking-wider">{currentUser.role || "ADMIN"}</span>
               </div>
               <button
                 onClick={handleLogoutClick}
-                className="px-2.5 py-1 text-xs font-semibold text-rose-300 hover:text-white bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/30 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                className="ml-1.5 px-2.5 py-1 text-xs font-semibold text-rose-500 hover:text-white bg-rose-500/10 hover:bg-rose-500 border border-rose-500/30 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
                 title="Logout"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -1856,14 +1728,6 @@ export default function AdminPortal() {
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Login / Register</span>
-              </button>
-              <button
-                onClick={handleLogoutClick}
-                className="px-3 py-1.5 rounded-xl bg-[#141926] hover:bg-rose-500/15 border border-[#263044] hover:border-rose-500/40 text-zinc-300 hover:text-rose-300 font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Sign out of current admin session"
-              >
-                <LogOut className="w-3.5 h-3.5 text-rose-400" />
-                <span>Logout</span>
               </button>
             </div>
           )}
@@ -1903,10 +1767,14 @@ export default function AdminPortal() {
       {/* Main Body Layout: Left Sidebar + Right Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* ===================== LEFT SIDEBAR ===================== */}
-        <aside className="w-64 bg-[#0d1017] border-r border-[#1f2533] flex flex-col justify-between shrink-0 select-none">
+        <aside className={`w-64 border-r flex flex-col justify-between shrink-0 select-none transition-colors duration-300 ${
+          theme === "dark" ? "bg-[#0d1017] border-[#1f2533]" : "bg-white border-slate-200"
+        }`}>
           <div className="p-3 space-y-6 overflow-y-auto">
             <div>
-              <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-500 flex items-center justify-between">
+              <div className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${
+                theme === "dark" ? "text-zinc-500" : "text-slate-400"
+              }`}>
                 <span>Admin Operations</span>
                 <Sparkles className="w-3 h-3 text-amber-400/60" />
               </div>
@@ -1920,19 +1788,21 @@ export default function AdminPortal() {
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer ${isActive
-                          ? "bg-amber-400/15 text-amber-300 border border-amber-400/30 shadow-sm"
-                          : "text-zinc-400 hover:text-zinc-100 hover:bg-[#151a24] border border-transparent"
+                        ? "bg-amber-400/15 text-amber-500 dark:text-amber-300 border border-amber-400/40 shadow-sm"
+                        : theme === "dark"
+                          ? "text-zinc-400 hover:text-zinc-100 hover:bg-[#151a24] border border-transparent"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent"
                         }`}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className={`w-4 h-4 ${isActive ? "text-amber-400" : "text-zinc-500"}`} />
+                        <Icon className={`w-4 h-4 ${isActive ? "text-amber-500" : theme === "dark" ? "text-zinc-500" : "text-slate-400"}`} />
                         <span>{tab.label}</span>
                       </div>
                       {tab.badge && (
                         <span
                           className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold ${isActive
-                              ? "bg-amber-400/25 text-amber-200 border border-amber-400/40"
-                              : "bg-[#181e2b] text-zinc-400"
+                            ? "bg-amber-400/25 text-amber-600 dark:text-amber-200 border border-amber-400/40"
+                            : theme === "dark" ? "bg-[#181e2b] text-zinc-400" : "bg-slate-100 text-slate-500"
                             }`}
                         >
                           {tab.badge}
@@ -1944,28 +1814,32 @@ export default function AdminPortal() {
               </nav>
             </div>
 
-            <div className="p-3 rounded-xl bg-[#121622] border border-[#1f2533]">
-              <div className="flex items-center justify-between text-[11px] text-zinc-400">
+            <div className={`p-3 rounded-xl border ${
+              theme === "dark" ? "bg-[#121622] border-[#1f2533]" : "bg-slate-50 border-slate-200"
+            }`}>
+              <div className={`flex items-center justify-between text-[11px] ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
                 <span>API Status (Port 8081)</span>
-                <span className="text-emerald-400 font-bold font-mono">Live</span>
+                <span className="text-emerald-500 font-bold font-mono">Live</span>
               </div>
-              <div className="mt-2 text-xs text-white font-medium">
+              <div className={`mt-2 text-xs font-medium ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                 {appUsers.length} Users • {salons.length} Salons
               </div>
             </div>
           </div>
 
-          <div className="p-3 border-t border-[#1f2533] bg-[#0b0e14] space-y-2">
-            <div className="flex items-center gap-3 p-2 rounded-xl bg-[#131722] border border-[#202738]">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-yellow-300 p-0.5 shrink-0 flex items-center justify-center font-bold text-black text-xs">
-                {currentUser ? currentUser.name.charAt(0).toUpperCase() : "P3"}
+          <div className={`p-3 border-t space-y-2 ${theme === "dark" ? "border-[#1f2533] bg-[#0b0e14]" : "border-slate-200 bg-slate-50"}`}>
+            <div className={`flex items-center gap-3 p-2 rounded-xl border ${
+              theme === "dark" ? "bg-[#131722] border-[#202738]" : "bg-white border-slate-200 shadow-sm"
+            }`}>
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-yellow-300 p-0.5 shrink-0 flex items-center justify-center font-bold text-black text-xs shadow">
+                {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "A"}
               </div>
               <div className="overflow-hidden flex-1">
-                <div className="text-xs font-bold text-white truncate">
-                  {currentUser ? currentUser.name : "Administrator"}
+                <div className={`text-xs font-bold truncate capitalize ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                  {currentUser?.name || "prapti"}
                 </div>
-                <div className="text-[10px] text-amber-400/90 font-mono truncate">
-                  {currentUser ? `Role: ${currentUser.role}` : "Role: Person 3 Admin"}
+                <div className="text-[10px] text-amber-500 font-mono truncate font-semibold">
+                  Role: {currentUser?.role || "ADMIN"}
                 </div>
               </div>
             </div>
@@ -1973,17 +1847,19 @@ export default function AdminPortal() {
             {/* Dedicated Sidebar Logout Button with Confirmation Trigger */}
             <button
               onClick={handleLogoutClick}
-              className="w-full py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 hover:border-rose-500/50 text-rose-300 hover:text-rose-200 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+              className="w-full py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 hover:border-rose-500/50 text-rose-500 dark:text-rose-300 hover:text-rose-600 dark:hover:text-rose-200 text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               title="Click to logout"
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <LogOut className="w-3.5 h-3.5 text-rose-500" />
               <span>Log Out</span>
             </button>
           </div>
         </aside>
 
         {/* ===================== RIGHT MAIN CONTENT ===================== */}
-        <main className="flex-1 bg-[#070B12] overflow-y-auto p-6 lg:p-8 grid-pattern">
+        <main className={`flex-1 overflow-y-auto p-6 lg:p-8 transition-colors duration-300 ${
+          theme === "dark" ? "bg-[#070B12] grid-pattern" : "bg-slate-100/70"
+        }`}>
           {/* ======================= TAB 1: DASHBOARD ======================= */}
           {activeTab === "dashboard" && (
             <div className="space-y-6 animate-fadeIn max-w-[1520px] mx-auto">
@@ -1992,7 +1868,7 @@ export default function AdminPortal() {
                 <div>
                   <div className="flex items-center gap-3">
                     {/* Amber 4-square grid icon */}
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
                       <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
                         <rect height="7" rx="1.5" width="7" x="3" y="3"></rect>
                         <rect height="7" rx="1.5" width="7" x="14" y="3"></rect>
@@ -2001,50 +1877,53 @@ export default function AdminPortal() {
                       </svg>
                     </div>
                     <div className="flex items-center gap-3">
-                      <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Dashboard Overview</h1>
-                      <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/25 text-[11px] font-mono-num text-emerald-400">
+                      <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        Dashboard Overview
+                      </h1>
+                      <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/25 text-[11px] font-mono-num text-emerald-500">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> LIVE OPS
                       </span>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-400 mt-1 font-normal">
+                  <p className={`text-sm mt-1 font-normal ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                     Multi-salon operations, live wait queues, and AI congestion telemetry.
                   </p>
                 </div>
                 {/* Live Telemetry Sync Pill & Quick Toggles */}
                 <div className="flex items-center gap-3 self-start md:self-auto">
-                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0F1726] border border-[#1E293B] text-xs text-slate-300 font-mono-num shadow-sm">
+                  <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-mono-num shadow-sm ${
+                    theme === "dark" ? "bg-[#0F1726] border-[#1E293B] text-slate-300" : "bg-white border-slate-200 text-slate-700"
+                  }`}>
                     <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span>Telemetry: <strong className="text-white font-medium">Synced 2s ago</strong></span>
+                    <span>Telemetry: <strong className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Synced 2s ago</strong></span>
                   </div>
-                  <div className="hidden sm:flex items-center gap-1.5 p-1 bg-[#0F1726] border border-[#1E293B] rounded-xl text-xs font-mono-num">
+                  <div className={`hidden sm:flex items-center gap-1.5 p-1 border rounded-xl text-xs font-mono-num ${
+                    theme === "dark" ? "bg-[#0F1726] border-[#1E293B]" : "bg-white border-slate-200 shadow-sm"
+                  }`}>
                     <button
                       onClick={() => setTimeRange("realtime")}
-                      className={`px-2.5 py-1 rounded-lg transition text-[11px] font-semibold cursor-pointer ${
-                        timeRange === "realtime"
-                          ? "bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold"
-                          : "text-slate-400 hover:text-white"
-                      }`}
+                      className={`px-2.5 py-1 rounded-lg transition text-[11px] font-semibold cursor-pointer ${timeRange === "realtime"
+                          ? "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-semibold"
+                          : theme === "dark" ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       REALTIME
                     </button>
                     <button
                       onClick={() => setTimeRange("1h")}
-                      className={`px-2.5 py-1 rounded-lg transition text-[11px] font-semibold cursor-pointer ${
-                        timeRange === "1h"
-                          ? "bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold"
-                          : "text-slate-400 hover:text-white"
-                      }`}
+                      className={`px-2.5 py-1 rounded-lg transition text-[11px] font-semibold cursor-pointer ${timeRange === "1h"
+                          ? "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-semibold"
+                          : theme === "dark" ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       1H
                     </button>
                     <button
                       onClick={() => setTimeRange("24h")}
-                      className={`px-2.5 py-1 rounded-lg transition text-[11px] font-semibold cursor-pointer ${
-                        timeRange === "24h"
-                          ? "bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold"
-                          : "text-slate-400 hover:text-white"
-                      }`}
+                      className={`px-2.5 py-1 rounded-lg transition text-[11px] font-semibold cursor-pointer ${timeRange === "24h"
+                          ? "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-semibold"
+                          : theme === "dark" ? "text-slate-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       24H
                     </button>
@@ -2055,7 +1934,11 @@ export default function AdminPortal() {
 
               {/* BEGIN: AIOperationsIntelligenceBanner */}
               {!congestionResolved && (
-                <section className="w-full rounded-2xl bg-gradient-to-r from-[#0F1728] via-[#141C30] to-[#0F1826] border border-amber-500/30 p-5 md:p-6 glow-amber-subtle relative overflow-hidden" data-purpose="ai-operations-alert">
+                <section className={`w-full rounded-2xl p-5 md:p-6 relative overflow-hidden transition-all ${
+                  theme === "dark"
+                    ? "bg-gradient-to-r from-[#0F1728] via-[#141C30] to-[#0F1826] border border-amber-500/30 glow-amber-subtle text-white"
+                    : "bg-gradient-to-r from-amber-50 via-amber-100/50 to-orange-50 border border-amber-300 text-slate-900 shadow-md"
+                }`} data-purpose="ai-operations-alert">
                   {/* Ambient glowing backdrop effect */}
                   <div className="absolute -right-16 -top-16 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
                   <div className="absolute left-1/3 -bottom-20 w-80 h-40 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
@@ -2063,29 +1946,29 @@ export default function AdminPortal() {
                     {/* Left content: Icon, Badges, Title & Recommendation */}
                     <div className="flex items-start gap-4 md:gap-5 max-w-4xl">
                       {/* AI Flash Icon container with golden border */}
-                      <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/40 flex-shrink-0 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
-                        <svg className="w-6 h-6 fill-current text-amber-400" viewBox="0 0 24 24">
+                      <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/40 flex-shrink-0 flex items-center justify-center text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                        <svg className="w-6 h-6 fill-current text-amber-500" viewBox="0 0 24 24">
                           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
                         </svg>
                       </div>
                       <div className="space-y-2">
                         {/* Badges line */}
                         <div className="flex flex-wrap items-center gap-2.5">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400 text-[11px] font-bold tracking-wider uppercase border border-amber-500/30">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-500 dark:text-amber-400 text-[11px] font-bold tracking-wider uppercase border border-amber-500/30">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
                             AI OPERATIONS INTELLIGENCE
                           </span>
-                          <span className="text-xs font-mono-num text-slate-400">
-                            Model: <span className="text-slate-300 font-medium">WaitTime-Congestion-v1</span>
+                          <span className={`text-xs font-mono-num ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                            Model: <span className={`font-medium ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>WaitTime-Congestion-v1</span>
                           </span>
                         </div>
                         {/* Congestion Prediction Heading */}
-                        <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">
+                        <h2 className={`text-lg md:text-xl font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                           Peak Congestion Predicted at Koregaon Park Branch (6:30 PM)
                         </h2>
                         {/* Congestion Explanation and Recommendation */}
-                        <p className="text-sm text-slate-300 leading-relaxed">
-                          AI predicts an influx of +35% walk-ins for haircut services during evening rush. <strong className="text-amber-400 font-semibold">Recommendation:</strong> Reallocate Stylist &apos;Alex R.&apos; to Haircut Station #3 to keep wait times under 18 mins.
+                        <p className={`text-sm leading-relaxed ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>
+                          AI predicts an influx of +35% walk-ins for haircut services during evening rush. <strong className="text-amber-500 dark:text-amber-400 font-semibold">Recommendation:</strong> Reallocate Stylist &apos;Alex R.&apos; to Haircut Station #3 to keep wait times under 18 mins.
                         </p>
                       </div>
                     </div>
@@ -2107,7 +1990,11 @@ export default function AdminPortal() {
                       <button
                         onClick={() => setCongestionResolved(true)}
                         aria-label="Dismiss alert"
-                        className="w-9 h-9 rounded-xl bg-[#0F1726] border border-[#1E293B] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition flex items-center justify-center cursor-pointer"
+                        className={`w-9 h-9 rounded-xl border transition flex items-center justify-center cursor-pointer ${
+                          theme === "dark"
+                            ? "bg-[#0F1726] border-[#1E293B] hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                            : "bg-white border-slate-300 hover:bg-slate-100 text-slate-500 hover:text-slate-800 shadow-sm"
+                        }`}
                         type="button"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -2123,10 +2010,16 @@ export default function AdminPortal() {
               {/* BEGIN: KPICardsGrid */}
               <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5" data-purpose="kpi-metrics-grid">
                 {/* Metric Card 1: Total Registered Users */}
-                <div className="bg-[#0F1726] border border-[#1E293B] hover:border-amber-500/40 rounded-2xl p-5 transition-all relative overflow-hidden group shadow-lg">
+                <div className={`border rounded-2xl p-5 transition-all relative overflow-hidden group shadow-md ${
+                  theme === "dark"
+                    ? "bg-[#0F1726] border-[#1E293B] hover:border-amber-500/40"
+                    : "bg-white border-slate-200 hover:border-amber-400 shadow-sm hover:shadow-md"
+                }`}>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">TOTAL REGISTERED USERS</span>
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                      TOTAL REGISTERED USERS
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 group-hover:scale-105 transition-transform">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" strokeLinecap="round" strokeLinejoin="round"></path>
                       </svg>
@@ -2134,24 +2027,32 @@ export default function AdminPortal() {
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-baseline justify-between">
-                      <div className="text-3xl font-extrabold text-white font-mono-num tracking-tight">{appUsers.length}</div>
+                      <div className={`text-3xl font-extrabold font-mono-num tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        {appUsers.length}
+                      </div>
                       {/* Sparkline SVG */}
-                      <svg className="w-20 h-7 text-amber-400 overflow-visible" fill="none" viewBox="0 0 80 28">
+                      <svg className="w-20 h-7 text-amber-500 overflow-visible" fill="none" viewBox="0 0 80 28">
                         <path d="M2 22 L20 18 L38 23 L56 12 L78 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
                         <circle className="animate-pulse" cx="78" cy="5" fill="#FBBF24" r="3"></circle>
                       </svg>
                     </div>
-                    <p className="text-xs font-medium text-slate-400">
+                    <p className={`text-xs font-medium ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                       {appUsers.filter((u) => u.role === "CUSTOMER").length} Customers • {appUsers.filter((u) => u.role === "STAFF").length} Staff
                     </p>
                   </div>
                 </div>
 
                 {/* Metric Card 2: Today's Appointments */}
-                <div className="bg-[#0F1726] border border-[#1E293B] hover:border-blue-500/40 rounded-2xl p-5 transition-all relative overflow-hidden group shadow-lg">
+                <div className={`border rounded-2xl p-5 transition-all relative overflow-hidden group shadow-md ${
+                  theme === "dark"
+                    ? "bg-[#0F1726] border-[#1E293B] hover:border-blue-500/40"
+                    : "bg-white border-slate-200 hover:border-blue-400 shadow-sm hover:shadow-md"
+                }`}>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">TODAY&apos;S APPOINTMENTS</span>
-                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-105 transition-transform">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                      TODAY&apos;S APPOINTMENTS
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 group-hover:scale-105 transition-transform">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" strokeLinecap="round" strokeLinejoin="round"></path>
                       </svg>
@@ -2159,35 +2060,45 @@ export default function AdminPortal() {
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-baseline justify-between">
-                      <div className="text-3xl font-extrabold text-white font-mono-num tracking-tight">48</div>
+                      <div className={`text-3xl font-extrabold font-mono-num tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        48
+                      </div>
                       {/* Sparkline SVG */}
-                      <svg className="w-20 h-7 text-blue-400 overflow-visible" fill="none" viewBox="0 0 80 28">
+                      <svg className="w-20 h-7 text-blue-500 overflow-visible" fill="none" viewBox="0 0 80 28">
                         <path d="M2 20 L22 14 L42 17 L60 8 L78 3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
                         <circle cx="78" cy="3" fill="#60A5FA" r="3"></circle>
                       </svg>
                     </div>
-                    <p className="text-xs font-medium text-slate-400">32 Completed • 16 Pending</p>
+                    <p className={`text-xs font-medium ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>32 Completed • 16 Pending</p>
                   </div>
                 </div>
 
                 {/* Metric Card 3: Gross Today Revenue */}
-                <div className="bg-[#0F1726] border border-[#1E293B] hover:border-emerald-500/40 rounded-2xl p-5 transition-all relative overflow-hidden group shadow-lg">
+                <div className={`border rounded-2xl p-5 transition-all relative overflow-hidden group shadow-md ${
+                  theme === "dark"
+                    ? "bg-[#0F1726] border-[#1E293B] hover:border-emerald-500/40"
+                    : "bg-white border-slate-200 hover:border-emerald-400 shadow-sm hover:shadow-md"
+                }`}>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">GROSS TODAY REVENUE</span>
-                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform font-bold text-sm">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                      GROSS TODAY REVENUE
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 group-hover:scale-105 transition-transform font-bold text-sm">
                       ₹
                     </div>
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-baseline justify-between">
-                      <div className="text-3xl font-extrabold text-white font-mono-num tracking-tight">₹1,50,700</div>
+                      <div className={`text-3xl font-extrabold font-mono-num tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        ₹1,50,700
+                      </div>
                       {/* Sparkline SVG with area fill */}
-                      <svg className="w-20 h-7 text-emerald-400 overflow-visible" fill="none" viewBox="0 0 80 28">
+                      <svg className="w-20 h-7 text-emerald-500 overflow-visible" fill="none" viewBox="0 0 80 28">
                         <path d="M2 24 L20 18 L40 10 L60 14 L78 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
                         <circle cx="78" cy="2" fill="#34D399" r="3"></circle>
                       </svg>
                     </div>
-                    <p className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
+                    <p className="text-xs font-semibold text-emerald-500 flex items-center gap-1">
                       <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                         <path d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" strokeLinecap="round" strokeLinejoin="round"></path>
                       </svg>
@@ -2197,10 +2108,16 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Metric Card 4: Active Salons Network */}
-                <div className="bg-[#0F1726] border border-[#1E293B] hover:border-purple-500/40 rounded-2xl p-5 transition-all relative overflow-hidden group shadow-lg">
+                <div className={`border rounded-2xl p-5 transition-all relative overflow-hidden group shadow-md ${
+                  theme === "dark"
+                    ? "bg-[#0F1726] border-[#1E293B] hover:border-purple-500/40"
+                    : "bg-white border-slate-200 hover:border-purple-400 shadow-sm hover:shadow-md"
+                }`}>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ACTIVE SALONS NETWORK</span>
-                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:scale-105 transition-transform">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                      ACTIVE SALONS NETWORK
+                    </span>
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 group-hover:scale-105 transition-transform">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.651V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009 9.35c.66 0 1.28-.213 1.785-.576.505.363 1.125.576 1.785.576.66 0 1.28-.213 1.785-.576.505.363 1.125.576 1.785.576a3.001 3.001 0 003.75.615" strokeLinecap="round" strokeLinejoin="round"></path>
                       </svg>
@@ -2208,7 +2125,9 @@ export default function AdminPortal() {
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-baseline justify-between">
-                      <div className="text-3xl font-extrabold text-white font-mono-num tracking-tight">{salons.length}</div>
+                      <div className={`text-3xl font-extrabold font-mono-num tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        {salons.length}
+                      </div>
                       {/* Sparkline bars */}
                       <div className="flex items-end gap-1 h-7 pt-1">
                         <span className="w-2 h-3 bg-purple-500/40 rounded-sm"></span>
@@ -2217,7 +2136,7 @@ export default function AdminPortal() {
                         <span className="w-2 h-5 bg-purple-500/70 rounded-sm"></span>
                       </div>
                     </div>
-                    <p className="text-xs font-medium text-slate-400">{cities.length} Cities in {states.length} States</p>
+                    <p className={`text-xs font-medium ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>{cities.length} Cities in {states.length} States</p>
                   </div>
                 </div>
               </section>
@@ -2226,29 +2145,35 @@ export default function AdminPortal() {
               {/* BEGIN: STUNNING VISUAL CHARTS & SALON ANALYTICS SECTION */}
               <section className="grid grid-cols-1 xl:grid-cols-12 gap-6" data-purpose="advanced-analytics-charts">
                 {/* Chart 1: Predictive Peak Congestion & Queue Influx Waveform (7 Cols) */}
-                <div className="xl:col-span-7 bg-[#0F1726] border border-[#1E293B] rounded-2xl p-6 relative overflow-hidden shadow-xl">
+                <div className={`xl:col-span-7 border rounded-2xl p-6 relative overflow-hidden shadow-xl ${
+                  theme === "dark" ? "bg-[#0F1726] border-[#1E293B]" : "bg-white border-slate-200 shadow-sm"
+                }`}>
                   {/* Glow ambient light */}
                   <div className="absolute -top-12 -right-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                  
+
                   {/* Chart Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 relative z-10">
                     <div>
                       <div className="flex items-center gap-2.5">
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                        <h3 className="text-base font-bold text-white tracking-tight">Sales Performance &amp; Hourly Conversion Trend</h3>
+                        <h3 className={`text-base font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          Sales Performance &amp; Hourly Conversion Trend
+                        </h3>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">Total completed transactions &amp; service sales pacing today</p>
+                      <p className={`text-xs mt-1 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                        Total completed transactions &amp; service sales pacing today
+                      </p>
                     </div>
                     {/* Legend Badges */}
                     <div className="flex items-center gap-3 text-xs font-medium">
-                      <div className="flex items-center gap-1.5 text-amber-400 font-mono text-[11px]">
-                        <span className="w-3 h-1 bg-amber-400 rounded-full"></span> Service Sales Volume
+                      <div className="flex items-center gap-1.5 text-amber-500 dark:text-amber-400 font-mono text-[11px]">
+                        <span className="w-3 h-1 bg-amber-400 rounded-full"></span> Service Sales
                       </div>
-                      <div className="flex items-center gap-1.5 text-cyan-400 font-mono text-[11px]">
-                        <span className="w-3 h-1 bg-cyan-400 rounded-full"></span> Retail / Product Upsell
+                      <div className="flex items-center gap-1.5 text-cyan-500 dark:text-cyan-400 font-mono text-[11px]">
+                        <span className="w-3 h-1 bg-cyan-400 rounded-full"></span> Retail Upsell
                       </div>
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-mono text-[11px]">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Peak Sales
+                      <div className="flex items-center gap-1.5 text-emerald-500 dark:text-emerald-400 font-mono text-[11px]">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Peak
                       </div>
                     </div>
                   </div>
@@ -2266,89 +2191,70 @@ export default function AdminPortal() {
                           <stop offset="0%" stopColor="#06B6D4" stopOpacity="0.25"></stop>
                           <stop offset="100%" stopColor="#06B6D4" stopOpacity="0.0"></stop>
                         </linearGradient>
-                        <filter height="140%" id="salesNeonGlow" width="140%" x="-20%" y="-20%">
-                          <feGaussianBlur result="blur" stdDeviation="3"></feGaussianBlur>
-                          <feMerge>
-                            <feMergeNode in="blur"></feMergeNode>
-                            <feMergeNode in="SourceGraphic"></feMergeNode>
-                          </feMerge>
-                        </filter>
                       </defs>
                       {/* Horizontal Grid Lines */}
-                      <line stroke="#1E293B" strokeDasharray="4 4" strokeWidth="1" x1="40" x2="720" y1="30" y2="30"></line>
-                      <line stroke="#1E293B" strokeDasharray="4 4" strokeWidth="1" x1="40" x2="720" y1="80" y2="80"></line>
-                      <line stroke="#1E293B" strokeDasharray="4 4" strokeWidth="1" x1="40" x2="720" y1="130" y2="130"></line>
-                      <line stroke="#1E293B" strokeDasharray="4 4" strokeWidth="1" x1="40" x2="720" y1="180" y2="180"></line>
-                      <line stroke="#1E293B" strokeWidth="1.2" x1="40" x2="720" y1="220" y2="220"></line>
+                      <line stroke={theme === "dark" ? "#1E293B" : "#E2E8F0"} strokeDasharray="4 4" x1="30" x2="720" y1="40" y2="40"></line>
+                      <line stroke={theme === "dark" ? "#1E293B" : "#E2E8F0"} strokeDasharray="4 4" x1="30" x2="720" y1="90" y2="90"></line>
+                      <line stroke={theme === "dark" ? "#1E293B" : "#E2E8F0"} strokeDasharray="4 4" x1="30" x2="720" y1="140" y2="140"></line>
+                      <line stroke={theme === "dark" ? "#1E293B" : "#E2E8F0"} strokeDasharray="4 4" x1="30" x2="720" y1="190" y2="190"></line>
+                      <line stroke={theme === "dark" ? "#1E293B" : "#CBD5E1"} x1="30" x2="720" y1="210" y2="210"></line>
 
-                      {/* Y Axis Labels (Completed Sales Units) */}
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" textAnchor="end" x="30" y="34">50</text>
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" textAnchor="end" x="30" y="84">35</text>
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" textAnchor="end" x="30" y="134">20</text>
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" textAnchor="end" x="30" y="184">10</text>
+                      {/* Area Fill for Primary Sales Curve */}
+                      <path d="M 30 210 L 30 170 C 90 160, 150 140, 210 110 C 270 80, 330 115, 390 85 C 450 55, 510 30, 570 25 C 630 65, 680 90, 720 120 L 720 210 Z" fill="url(#salesAmberGradient)"></path>
 
-                      {/* Retail / Product Upsell Curve (Cyan) */}
-                      <path d="M 50 160 C 120 155, 180 145, 260 135 C 340 125, 420 115, 500 110 C 580 100, 650 115, 710 130" fill="none" opacity="0.85" stroke="#06B6D4" strokeDasharray="5 5" strokeWidth="2"></path>
-                      <path d="M 50 160 C 120 155, 180 145, 260 135 C 340 125, 420 115, 500 110 C 580 100, 650 115, 710 130 L 710 220 L 50 220 Z" fill="url(#salesCyanGradient)"></path>
+                      {/* Primary Service Sales Spline Curve */}
+                      <path d="M 30 170 C 90 160, 150 140, 210 110 C 270 80, 330 115, 390 85 C 450 55, 510 30, 570 25 C 630 65, 680 90, 720 120" fill="none" stroke="#F59E0B" strokeLinecap="round" strokeWidth="3"></path>
 
-                      {/* Primary Service Sales Volume Curve (Amber neon spline) */}
-                      <path d="M 50 195 C 100 185, 140 170, 180 160 C 230 145, 270 125, 320 135 C 370 145, 420 110, 470 70 C 520 28, 555 24, 575 22 C 605 20, 640 90, 670 140 C 690 175, 705 185, 710 190" fill="none" filter="url(#salesNeonGlow)" stroke="#F59E0B" strokeWidth="3.5"></path>
-                      <path d="M 50 195 C 100 185, 140 170, 180 160 C 230 145, 270 125, 320 135 C 370 145, 420 110, 470 70 C 520 28, 555 24, 575 22 C 605 20, 640 90, 670 140 C 690 175, 705 185, 710 190 L 710 220 L 50 220 Z" fill="url(#salesAmberGradient)"></path>
+                      {/* Retail/Product Sales Spline */}
+                      <path d="M 30 195 C 90 185, 150 175, 210 150 C 270 140, 330 145, 390 125 C 450 95, 510 80, 570 70 C 630 95, 680 130, 720 150" fill="none" stroke="#06B6D4" strokeDasharray="3 3" strokeWidth="2"></path>
 
-                      {/* Peak Sales Marker at 6:30 PM (x=575, y=22) */}
-                      <line stroke="#10B981" strokeDasharray="3 3" strokeWidth="1.5" x1="575" x2="575" y1="22" y2="220"></line>
-                      <circle cx="575" cy="22" fill="#10B981" filter="url(#salesNeonGlow)" r="6"></circle>
-                      <circle cx="575" cy="22" fill="#FFFFFF" r="3"></circle>
+                      {/* High-traffic Highlight Markers */}
+                      <circle cx="570" cy="25" fill="#F59E0B" r="5" stroke="#FFFFFF" strokeWidth="2"></circle>
+                      <circle cx="390" cy="85" fill="#F59E0B" r="4" stroke="#FFFFFF" strokeWidth="1.5"></circle>
 
-                      {/* Mid-curve points */}
-                      <circle cx="180" cy="160" fill="#0F1726" r="4" stroke="#F59E0B" strokeWidth="2"></circle>
-                      <circle cx="320" cy="135" fill="#0F1726" r="4" stroke="#F59E0B" strokeWidth="2"></circle>
-                      <circle cx="470" cy="70" fill="#0F1726" r="4" stroke="#F59E0B" strokeWidth="2"></circle>
-                      <circle cx="670" cy="140" fill="#0F1726" r="4" stroke="#F59E0B" strokeWidth="2"></circle>
-
-                      {/* Tooltip Callout for Peak Sales (48 Services Completed • ₹1,50,700 Gross) */}
-                      <g transform="translate(440, 24)">
-                        <rect fill="#0B111D" filter="url(#salesNeonGlow)" height="44" rx="8" stroke="#10B981" strokeWidth="1.2" width="205" x="0" y="0"></rect>
-                        <text fill="#34D399" fontFamily="JetBrains Mono" fontSize="9" fontWeight="bold" x="10" y="16">PEAK SALES VOLUME</text>
-                        <text fill="#FFFFFF" fontFamily="Inter" fontSize="11" fontWeight="700" x="10" y="33">48 Services Completed • ₹1,50,700 Gross</text>
-                      </g>
-
-                      {/* X Axis Time labels */}
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" x="50" y="235">10 AM</text>
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" x="180" y="235">12 PM</text>
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" x="320" y="235">2 PM</text>
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" x="470" y="235">4 PM</text>
-                      <text fill="#34D399" fontFamily="JetBrains Mono" fontSize="10" fontWeight="bold" x="575" y="235">6:30 PM</text>
-                      <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="10" x="690" y="235">8 PM</text>
+                      {/* X-Axis Time Labels */}
+                      <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="10" x="30" y="230">09:00</text>
+                      <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="10" x="145" y="230">11:00</text>
+                      <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="10" x="270" y="230">13:00</text>
+                      <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="10" x="390" y="230">15:00</text>
+                      <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="10" x="510" y="230">17:00</text>
+                      <text fill="#F59E0B" fontFamily="JetBrains Mono" fontSize="10" fontWeight="bold" x="560" y="230">18:30 (Peak)</text>
+                      <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="10" x="690" y="230">21:00</text>
                     </svg>
                   </div>
 
-                  {/* Chart Sub-bar telemetry with sales metrics */}
-                  <div className="mt-3 pt-3 border-t border-[#1E293B]/60 grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 rounded-lg bg-[#131D31]/50 border border-[#1E293B]/40">
-                      <p className="text-[10px] text-slate-400 uppercase font-mono">Total Completed Sales</p>
-                      <p className="text-sm font-bold text-emerald-400 font-mono-num flex items-center justify-center gap-1">48 Orders <span className="text-[11px] font-normal text-emerald-400">+19.4%</span></p>
+                  {/* Summary Metric Chips inside Chart */}
+                  <div className={`mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-center ${theme === "dark" ? "border-[#1E293B]/60" : "border-slate-200"}`}>
+                    <div className={`p-2 rounded-lg border ${theme === "dark" ? "bg-[#131D31]/50 border-[#1E293B]/40" : "bg-slate-50 border-slate-200"}`}>
+                      <p className={`text-[10px] uppercase font-mono ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>Total Completed Sales</p>
+                      <p className="text-sm font-bold text-emerald-500 font-mono-num flex items-center justify-center gap-1">48 Orders <span className="text-[11px] font-normal text-emerald-500">+19.4%</span></p>
                     </div>
-                    <div className="p-2 rounded-lg bg-[#131D31]/50 border border-[#1E293B]/40">
-                      <p className="text-[10px] text-slate-400 uppercase font-mono">Avg Ticket Value</p>
-                      <p className="text-sm font-bold text-white font-mono-num">₹3,140 <span className="text-[11px] font-normal text-slate-400">/ client</span></p>
+                    <div className={`p-2 rounded-lg border ${theme === "dark" ? "bg-[#131D31]/50 border-[#1E293B]/40" : "bg-slate-50 border-slate-200"}`}>
+                      <p className={`text-[10px] uppercase font-mono ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>Avg Ticket Value</p>
+                      <p className={`text-sm font-bold font-mono-num ${theme === "dark" ? "text-white" : "text-slate-900"}`}>₹3,140 <span className={`text-[11px] font-normal ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>/ client</span></p>
                     </div>
-                    <div className="p-2 rounded-lg bg-[#131D31]/50 border border-[#1E293B]/40">
-                      <p className="text-[10px] text-slate-400 uppercase font-mono">Upsell Conversion</p>
-                      <p className="text-sm font-bold text-amber-400 font-mono-num">34.2% Rate</p>
+                    <div className={`p-2 rounded-lg border ${theme === "dark" ? "bg-[#131D31]/50 border-[#1E293B]/40" : "bg-slate-50 border-slate-200"}`}>
+                      <p className={`text-[10px] uppercase font-mono ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>Upsell Conversion</p>
+                      <p className="text-sm font-bold text-amber-500 font-mono-num">34.2% Rate</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Chart 2: Hourly Bookings vs Walk-ins & Branch Share (5 Cols) */}
-                <div className="xl:col-span-5 bg-[#0F1726] border border-[#1E293B] rounded-2xl p-6 relative overflow-hidden shadow-xl flex flex-col justify-between">
+                <div className={`xl:col-span-5 border rounded-2xl p-6 relative overflow-hidden shadow-xl flex flex-col justify-between ${
+                  theme === "dark" ? "bg-[#0F1726] border-[#1E293B]" : "bg-white border-slate-200 shadow-sm"
+                }`}>
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h3 className="text-base font-bold text-white tracking-tight">Sales Breakdown by Category &amp; Volume</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">Appointments vs walk-in sales volume &amp; revenue contribution</p>
+                        <h3 className={`text-base font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          Sales Breakdown by Category &amp; Volume
+                        </h3>
+                        <p className={`text-xs mt-0.5 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                          Appointments vs walk-in sales volume &amp; revenue contribution
+                        </p>
                       </div>
-                      <span className="px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-mono font-semibold">
+                      <span className="px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 text-xs font-mono font-semibold">
                         ₹1.50L Today Target Achieved
                       </span>
                     </div>
@@ -2356,41 +2262,35 @@ export default function AdminPortal() {
                     {/* Interactive Bar/Spline Composite Chart */}
                     <div className="relative w-full h-44 select-none">
                       <svg className="w-full h-full" fill="none" viewBox="0 0 420 180">
-                        <line stroke="#1E293B" strokeDasharray="3 3" x1="20" x2="400" y1="35" y2="35"></line>
-                        <line stroke="#1E293B" strokeDasharray="3 3" x1="20" x2="400" y1="80" y2="80"></line>
-                        <line stroke="#1E293B" strokeDasharray="3 3" x1="20" x2="400" y1="125" y2="125"></line>
-                        <line stroke="#1E293B" x1="20" x2="400" y1="155" y2="155"></line>
+                        <line stroke={theme === "dark" ? "#1E293B" : "#E2E8F0"} strokeDasharray="3 3" x1="20" x2="400" y1="35" y2="35"></line>
+                        <line stroke={theme === "dark" ? "#1E293B" : "#E2E8F0"} strokeDasharray="3 3" x1="20" x2="400" y1="80" y2="80"></line>
+                        <line stroke={theme === "dark" ? "#1E293B" : "#E2E8F0"} strokeDasharray="3 3" x1="20" x2="400" y1="125" y2="125"></line>
+                        <line stroke={theme === "dark" ? "#1E293B" : "#CBD5E1"} x1="20" x2="400" y1="155" y2="155"></line>
 
-                        {/* Stacked Sales Volume Bars: Slots 10am, 12pm, 2pm, 4pm, 6pm, 8pm */}
-                        {/* 10am */}
+                        {/* Stacked Sales Volume Bars */}
                         <rect fill="#3B82F6" height="40" opacity="0.85" rx="3" width="22" x="40" y="115"></rect>
                         <rect fill="#F59E0B" height="23" opacity="0.85" rx="3" width="22" x="40" y="90"></rect>
-                        <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="51" y="170">10A</text>
+                        <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="51" y="170">10A</text>
 
-                        {/* 12pm */}
                         <rect fill="#3B82F6" height="70" opacity="0.85" rx="3" width="22" x="100" y="85"></rect>
                         <rect fill="#F59E0B" height="28" opacity="0.85" rx="3" width="22" x="100" y="55"></rect>
-                        <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="111" y="170">12P</text>
+                        <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="111" y="170">12P</text>
 
-                        {/* 2pm */}
                         <rect fill="#3B82F6" height="80" opacity="0.85" rx="3" width="22" x="160" y="75"></rect>
                         <rect fill="#F59E0B" height="28" opacity="0.85" rx="3" width="22" x="160" y="45"></rect>
-                        <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="171" y="170">2P</text>
+                        <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="171" y="170">2P</text>
 
-                        {/* 4pm */}
                         <rect fill="#3B82F6" height="90" opacity="0.85" rx="3" width="22" x="220" y="65"></rect>
                         <rect fill="#F59E0B" height="33" opacity="0.85" rx="3" width="22" x="220" y="30"></rect>
-                        <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="231" y="170">4P</text>
+                        <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="231" y="170">4P</text>
 
-                        {/* 6pm (Peak Sales Rush) */}
-                        <rect className="shadow-[0_0_12px_rgba(59,130,246,0.5)]" fill="#3B82F6" height="110" opacity="0.95" rx="3" width="22" x="280" y="45"></rect>
-                        <rect className="shadow-[0_0_12px_rgba(245,158,11,0.6)]" fill="#F59E0B" height="33" opacity="0.95" rx="3" width="22" x="280" y="10"></rect>
-                        <text fill="#FBBF24" fontFamily="JetBrains Mono" fontSize="9" fontWeight="bold" textAnchor="middle" x="291" y="170">6P</text>
+                        <rect fill="#3B82F6" height="110" opacity="0.95" rx="3" width="22" x="280" y="45"></rect>
+                        <rect fill="#F59E0B" height="33" opacity="0.95" rx="3" width="22" x="280" y="10"></rect>
+                        <text fill="#F59E0B" fontFamily="JetBrains Mono" fontSize="9" fontWeight="bold" textAnchor="middle" x="291" y="170">6P</text>
 
-                        {/* 8pm */}
                         <rect fill="#3B82F6" height="75" opacity="0.85" rx="3" width="22" x="340" y="80"></rect>
                         <rect fill="#F59E0B" height="23" opacity="0.85" rx="3" width="22" x="340" y="55"></rect>
-                        <text fill="#64748B" fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="351" y="170">8P</text>
+                        <text fill={theme === "dark" ? "#64748B" : "#94A3B8"} fontFamily="JetBrains Mono" fontSize="9" textAnchor="middle" x="351" y="170">8P</text>
 
                         {/* Cumulative Revenue curve */}
                         <path d="M 51 100 Q 111 75 171 60 T 291 18 T 351 70" fill="none" stroke="#10B981" strokeLinecap="round" strokeWidth="2.5"></path>
@@ -2400,18 +2300,20 @@ export default function AdminPortal() {
                   </div>
 
                   {/* Visual breakdown chips row */}
-                  <div className="mt-4 pt-3 border-t border-[#1E293B]/60 flex items-center justify-between text-xs">
+                  <div className={`mt-4 pt-3 border-t flex flex-wrap items-center justify-between gap-2 text-xs ${
+                    theme === "dark" ? "border-[#1E293B]/60" : "border-slate-200"
+                  }`}>
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded bg-blue-500"></span>
-                      <span className="text-slate-300">Hair &amp; Styling: <strong className="text-white font-mono">28 Sales</strong></span>
+                      <span className={theme === "dark" ? "text-slate-300" : "text-slate-600"}>Hair &amp; Styling: <strong className={`font-mono ${theme === "dark" ? "text-white" : "text-slate-900"}`}>28 Sales</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded bg-amber-500"></span>
-                      <span className="text-slate-300">Color &amp; Treatments: <strong className="text-white font-mono">14 Sales</strong></span>
+                      <span className={theme === "dark" ? "text-slate-300" : "text-slate-600"}>Color &amp; Spa: <strong className={`font-mono ${theme === "dark" ? "text-white" : "text-slate-900"}`}>14 Sales</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                      <span className="text-emerald-400 font-mono font-semibold">Products &amp; Care: 6 Sales</span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-mono font-semibold">Products: 6 Sales</span>
                     </div>
                   </div>
                 </div>
@@ -2421,18 +2323,26 @@ export default function AdminPortal() {
               {/* BEGIN: TwoColumnOperationsSection */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Left / Main Column: Live Salon Queue Stream (approx 68% / 8 cols) */}
-                <section className="lg:col-span-8 bg-[#0F1726] border border-[#1E293B] rounded-2xl p-6 shadow-xl" data-purpose="queue-stream-section">
+                <section className={`lg:col-span-8 border rounded-2xl p-6 shadow-xl ${
+                  theme === "dark" ? "bg-[#0F1726] border-[#1E293B]" : "bg-white border-slate-200 shadow-sm"
+                }`} data-purpose="queue-stream-section">
                   {/* Queue Stream Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-[#1E293B]/70">
+                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b ${
+                    theme === "dark" ? "border-[#1E293B]/70" : "border-slate-200"
+                  }`}>
                     <div>
                       <div className="flex items-center gap-2.5">
-                        <Scissors className="w-5 h-5 text-amber-400" />
-                        <h3 className="text-lg font-bold text-white tracking-tight">Live Salon Queue Stream</h3>
-                        <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[10px] font-bold">
+                        <Scissors className="w-5 h-5 text-amber-500" />
+                        <h3 className={`text-lg font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          Live Salon Queue Stream
+                        </h3>
+                        <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-500 dark:text-amber-300 font-mono text-[10px] font-bold">
                           {filteredQueueItems.length} ACTIVE TOKENS
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">Realtime walk-in stream &amp; automated dispatch state machine</p>
+                      <p className={`text-xs mt-1 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                        Realtime walk-in stream &amp; automated dispatch state machine
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2.5">
@@ -2444,7 +2354,7 @@ export default function AdminPortal() {
                       </button>
                       <button
                         onClick={() => setActiveTab("salon")}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors group cursor-pointer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 transition-colors group cursor-pointer"
                       >
                         View Salons
                         <ArrowUpRight className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" />
@@ -2455,13 +2365,17 @@ export default function AdminPortal() {
                   {/* Queue Filter Bar */}
                   <div className="mt-4 mb-2 flex items-center gap-3">
                     <div className="relative flex-1">
-                      <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${theme === "dark" ? "text-zinc-400" : "text-slate-400"}`} />
                       <input
                         type="text"
                         placeholder="Search queue by token #, customer, service, branch, or status..."
                         value={queueSearch}
                         onChange={(e) => setQueueSearch(e.target.value)}
-                        className="w-full pl-8 pr-3 py-1.5 bg-[#121622] border border-[#1E293B] rounded-xl text-white text-xs placeholder-zinc-500 focus:outline-none focus:border-amber-400"
+                        className={`w-full pl-8 pr-3 py-1.5 rounded-xl text-xs focus:outline-none focus:border-amber-400 ${
+                          theme === "dark"
+                            ? "bg-[#121622] border border-[#1E293B] text-white placeholder-zinc-500"
+                            : "bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white"
+                        }`}
                       />
                     </div>
                   </div>
@@ -2470,7 +2384,9 @@ export default function AdminPortal() {
                   <div className="overflow-x-auto mt-2">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-[#1E293B]/60">
+                        <tr className={`text-[11px] font-bold uppercase tracking-wider border-b ${
+                          theme === "dark" ? "border-[#1E293B]/60 text-slate-400" : "border-slate-200 text-slate-600 bg-slate-50/80"
+                        }`}>
                           <th className="py-3 px-3" scope="col">TOKEN</th>
                           <th className="py-3 px-3" scope="col">CUSTOMER</th>
                           <th className="py-3 px-3" scope="col">SERVICE</th>
@@ -2480,40 +2396,45 @@ export default function AdminPortal() {
                           <th className="py-3 px-3 text-right" scope="col">ACTIONS</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#1E293B]/40 text-sm">
+                      <tbody className={`divide-y text-sm ${
+                        theme === "dark" ? "divide-[#1E293B]/40" : "divide-slate-100"
+                      }`}>
                         {filteredQueueItems.map((item) => (
-                          <tr key={item.id} className="hover:bg-slate-800/40 transition-colors group">
-                            <td className="py-3.5 px-3 font-mono font-bold text-amber-400">
+                          <tr key={item.id} className={`transition-colors group ${
+                            theme === "dark" ? "hover:bg-slate-800/40" : "hover:bg-slate-50"
+                          }`}>
+                            <td className="py-3.5 px-3 font-mono font-bold text-amber-500 dark:text-amber-400">
                               <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/25">
                                 {item.token}
                               </span>
                             </td>
-                            <td className="py-3.5 px-3 font-semibold text-white group-hover:text-amber-300 transition-colors text-xs">
+                            <td className={`py-3.5 px-3 font-semibold transition-colors text-xs ${
+                              theme === "dark" ? "text-white group-hover:text-amber-300" : "text-slate-900 group-hover:text-amber-600"
+                            }`}>
                               {item.customerName}
                             </td>
-                            <td className="py-3.5 px-3 text-slate-300 text-xs">
+                            <td className={`py-3.5 px-3 text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>
                               {item.service}
                             </td>
-                            <td className="py-3.5 px-3 text-slate-400 text-xs">
+                            <td className={`py-3.5 px-3 text-xs ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                               <div className="flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                                <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                                 <span>{item.salonBranch}</span>
                               </div>
                             </td>
-                            <td className="py-3.5 px-3 text-center text-xs font-mono text-slate-300">
+                            <td className={`py-3.5 px-3 text-center text-xs font-mono ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>
                               {item.waitEstimate}
                             </td>
                             <td className="py-3.5 px-3 text-center">
                               <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                  item.status === "CALLED"
-                                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.status === "CALLED"
+                                    ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/40"
                                     : item.status === "IN_SERVICE"
-                                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]"
-                                    : item.status === "COMPLETED"
-                                    ? "bg-zinc-800 text-zinc-400 border border-zinc-700"
-                                    : "bg-blue-500/20 text-blue-400 border border-blue-500/40"
-                                }`}
+                                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40"
+                                      : item.status === "COMPLETED"
+                                        ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 border border-zinc-300 dark:border-zinc-700"
+                                        : "bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/40"
+                                  }`}
                               >
                                 {item.status === "CALLED" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>}
                                 {item.status === "IN_SERVICE" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>}
@@ -2525,7 +2446,7 @@ export default function AdminPortal() {
                                 {item.status === "WAITING" && (
                                   <button
                                     onClick={() => handleQuickQueueStatus(item.id, "CALLED")}
-                                    className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[10px] font-bold border border-amber-500/30 transition cursor-pointer"
+                                    className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-300 text-[10px] font-bold border border-amber-500/30 transition cursor-pointer"
                                     title="Call Customer to Chair"
                                   >
                                     Call
@@ -2534,7 +2455,7 @@ export default function AdminPortal() {
                                 {item.status === "CALLED" && (
                                   <button
                                     onClick={() => handleQuickQueueStatus(item.id, "IN_SERVICE")}
-                                    className="px-2 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 transition cursor-pointer"
+                                    className="px-2 py-1 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 text-[10px] font-bold border border-emerald-500/30 transition cursor-pointer"
                                     title="Start Service"
                                   >
                                     Start
@@ -2543,7 +2464,7 @@ export default function AdminPortal() {
                                 {item.status === "IN_SERVICE" && (
                                   <button
                                     onClick={() => handleQuickQueueStatus(item.id, "COMPLETED")}
-                                    className="px-2 py-1 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 text-[10px] font-bold border border-blue-500/30 transition cursor-pointer"
+                                    className="px-2 py-1 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-600 dark:text-blue-300 text-[10px] font-bold border border-blue-500/30 transition cursor-pointer"
                                     title="Complete Service"
                                   >
                                     Done
@@ -2551,14 +2472,22 @@ export default function AdminPortal() {
                                 )}
                                 <button
                                   onClick={() => handleOpenEditQueue(item)}
-                                  className="p-1.5 text-zinc-400 hover:text-amber-300 rounded-lg bg-white/5 hover:bg-amber-500/10 transition cursor-pointer"
+                                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                    theme === "dark"
+                                      ? "text-zinc-400 hover:text-amber-300 bg-white/5 hover:bg-amber-500/10"
+                                      : "text-slate-500 hover:text-amber-700 bg-slate-100 hover:bg-amber-50"
+                                  }`}
                                   title="Edit Queue Token"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteQueueItem(item.id, item.token)}
-                                  className="p-1.5 text-zinc-500 hover:text-rose-400 rounded-lg bg-white/5 hover:bg-rose-500/10 transition cursor-pointer"
+                                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                    theme === "dark"
+                                      ? "text-zinc-500 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10"
+                                      : "text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50"
+                                  }`}
                                   title="Remove / Cancel Token"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -2569,7 +2498,7 @@ export default function AdminPortal() {
                         ))}
                         {filteredQueueItems.length === 0 && (
                           <tr>
-                            <td colSpan={7} className="py-8 text-center text-xs text-zinc-500">
+                            <td colSpan={7} className={`py-8 text-center text-xs ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`}>
                               No queue tokens match your search. Click &apos;Add Walk-in Token&apos; to register a client.
                             </td>
                           </tr>
@@ -2579,69 +2508,81 @@ export default function AdminPortal() {
                   </div>
 
                   {/* Live Queue Footer Status Banner */}
-                  <div className="mt-5 pt-3.5 border-t border-[#1E293B]/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                  <div className={`mt-5 pt-3.5 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs ${
+                    theme === "dark" ? "border-[#1E293B]/50 text-slate-400" : "border-slate-200 text-slate-500"
+                  }`}>
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>Dispatch Feed Online: <code className="text-slate-300 font-mono text-[11px]">/api/queue/stream</code></span>
+                      <span>Dispatch Feed Online: <code className={`font-mono text-[11px] ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>/api/queue/stream</code></span>
                     </div>
-                    <span className="text-slate-400 font-mono text-[11px]">Auto-Sync Active (Port 8081)</span>
+                    <span className="font-mono text-[11px]">Auto-Sync Active (Port 8081)</span>
                   </div>
                 </section>
 
                 {/* Right Sidebar Column: User Directory Quick Look (approx 32% / 4 cols) */}
                 <aside className="lg:col-span-4 space-y-4" data-purpose="user-directory-sidebar">
                   {/* User Directory Quick Look Card */}
-                  <div className="bg-[#0F1726] border border-[#1E293B] rounded-2xl p-6 shadow-xl">
+                  <div className={`border rounded-2xl p-6 shadow-xl ${
+                    theme === "dark" ? "bg-[#0F1726] border-[#1E293B]" : "bg-white border-slate-200 shadow-sm"
+                  }`}>
                     {/* Sidebar Header */}
-                    <div className="flex items-center justify-between pb-4 border-b border-[#1E293B]/70 mb-4">
+                    <div className={`flex items-center justify-between pb-4 border-b mb-4 ${
+                      theme === "dark" ? "border-[#1E293B]/70" : "border-slate-200"
+                    }`}>
                       <div>
                         <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" strokeLinecap="round" strokeLinejoin="round"></path>
                           </svg>
-                          <h3 className="text-base font-bold text-white">User Directory Quick Look</h3>
+                          <h3 className={`text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                            User Directory Quick Look
+                          </h3>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">Recent user registrations and permissions.</p>
+                        <p className={`text-xs mt-1 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                          Recent user registrations and permissions.
+                        </p>
                       </div>
                       <button
                         onClick={() => setActiveTab("users")}
-                        className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+                        className="text-xs font-bold text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 transition-colors cursor-pointer"
                       >
                         Manage
                       </button>
                     </div>
 
                     {/* Admin Record */}
-                    <div className="p-3.5 rounded-xl bg-slate-900/80 border border-[#1E293B] hover:border-slate-700 transition flex items-center justify-between gap-3" data-purpose="admin-user-card">
+                    <div className={`p-3.5 rounded-xl border transition flex items-center justify-between gap-3 ${
+                      theme === "dark" ? "bg-slate-900/80 border-[#1E293B] hover:border-slate-700" : "bg-slate-50 border-slate-200 hover:border-slate-300"
+                    }`} data-purpose="admin-user-card">
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Avatar monogram */}
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 font-bold text-sm flex items-center justify-center flex-shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-500 font-bold text-sm flex items-center justify-center flex-shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
                           {currentUser ? currentUser.name.charAt(0).toUpperCase() : "P"}
                         </div>
                         <div className="truncate">
-                          <h4 className="text-sm font-semibold text-white truncate">
+                          <h4 className={`text-sm font-semibold truncate ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                             {currentUser ? currentUser.name : "Prapti Meher (Admin)"}
                           </h4>
-                          <p className="text-xs text-slate-400 font-mono truncate">
+                          <p className={`text-xs font-mono truncate ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                             {currentUser ? currentUser.email : "praptimeher04@gmail.com"}
                           </p>
                         </div>
                       </div>
                       {/* ADMIN Badge */}
-                      <span className="px-2.5 py-1 rounded bg-amber-500/15 border border-amber-500/35 text-[11px] font-bold uppercase tracking-wider text-amber-400 flex-shrink-0">
+                      <span className="px-2.5 py-1 rounded bg-amber-500/15 border border-amber-500/35 text-[11px] font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400 flex-shrink-0">
                         {currentUser ? currentUser.role : "ADMIN"}
                       </span>
                     </div>
 
                     {/* Quick Directory Summary Telemetry */}
-                    <div className="mt-5 pt-4 border-t border-[#1E293B]/60 space-y-3">
+                    <div className={`mt-5 pt-4 border-t space-y-3 ${theme === "dark" ? "border-[#1E293B]/60" : "border-slate-200"}`}>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Total System Roles</span>
-                        <span className="text-slate-200 font-mono font-medium">3 Roles (Admin, Stylist, FrontDesk)</span>
+                        <span className={theme === "dark" ? "text-slate-400" : "text-slate-500"}>Total System Roles</span>
+                        <span className={`font-mono font-medium ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>3 Roles (Admin, Stylist, FrontDesk)</span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Directory Sync</span>
-                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className={theme === "dark" ? "text-slate-400" : "text-slate-500"}>Directory Sync</span>
+                        <span className="text-emerald-500 font-semibold flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Active
                         </span>
                       </div>
@@ -2649,32 +2590,38 @@ export default function AdminPortal() {
                   </div>
 
                   {/* Peak Congestion Metrics Card */}
-                  <div className="bg-[#0F1726] border border-[#1E293B] rounded-2xl p-5 relative overflow-hidden shadow-xl">
+                  <div className={`border rounded-2xl p-5 relative overflow-hidden shadow-xl ${
+                    theme === "dark" ? "bg-[#0F1726] border-[#1E293B]" : "bg-white border-slate-200 shadow-sm"
+                  }`}>
                     {/* Subtle red radial glow for peak alert */}
                     <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-red-500/10 rounded-full blur-2xl pointer-events-none"></div>
                     <div className="flex items-center justify-between mb-3 relative z-10">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
-                        <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${theme === "dark" ? "text-slate-300" : "text-slate-700"}`}>
+                        <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" strokeLinecap="round" strokeLinejoin="round"></path>
                           <path d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" strokeLinecap="round" strokeLinejoin="round"></path>
                         </svg>
                         PEAK CONGESTION METRICS
                       </div>
-                      <span className="text-[10px] font-mono-num px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold">
+                      <span className="text-[10px] font-mono-num px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/30 font-semibold">
                         6:30 PM EST.
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 leading-normal relative z-10">
-                      Koregaon Park Branch capacity is tracking at <span className="text-amber-400 font-semibold">92%</span> utilization for evening slots.
+                    <p className={`text-xs leading-normal relative z-10 ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                      Koregaon Park Branch capacity is tracking at <span className="text-amber-500 font-semibold">92%</span> utilization for evening slots.
                     </p>
                     {/* Dynamic Gauge Bar */}
-                    <div className="w-full bg-slate-900 rounded-full h-3 mt-3 overflow-hidden p-0.5 border border-[#1E293B] relative z-10">
+                    <div className={`w-full rounded-full h-3 mt-3 overflow-hidden p-0.5 border relative z-10 ${
+                      theme === "dark" ? "bg-slate-900 border-[#1E293B]" : "bg-slate-200 border-slate-300"
+                    }`}>
                       <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-red-500 h-full rounded-full shadow-[0_0_12px_rgba(239,68,68,0.5)] transition-all duration-500" style={{ width: "92%" }}></div>
                     </div>
-                    <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 mt-2 relative z-10">
+                    <div className={`flex justify-between items-center text-[10px] font-mono mt-2 relative z-10 ${
+                      theme === "dark" ? "text-slate-500" : "text-slate-400"
+                    }`}>
                       <span>0% Normal</span>
                       <span>50% Moderate</span>
-                      <span className="text-red-400 font-bold">92% Critical</span>
+                      <span className="text-red-500 font-bold">92% Critical</span>
                     </div>
                   </div>
                 </aside>
@@ -2687,13 +2634,17 @@ export default function AdminPortal() {
           {/* ======================= TAB 2: LOCATION ======================= */}
           {activeTab === "location" && (
             <div className="space-y-8 animate-fadeIn max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#232a3b]">
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-                    <MapPin className="w-6 h-6 text-amber-400" />
+                  <h2 className={`text-2xl font-bold tracking-tight flex items-center gap-2.5 ${
+                    theme === "dark" ? "text-white" : "text-slate-900"
+                  }`}>
+                    <MapPin className="w-6 h-6 text-amber-500" />
                     Location Management
                   </h2>
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className={`text-xs mt-1 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                     Configure geographical hierarchy: Register States and link Cities to manage your multi-salon chain.
                   </p>
                 </div>
@@ -2701,8 +2652,10 @@ export default function AdminPortal() {
                 <button
                   onClick={() => setShowAddLocation(!showAddLocation)}
                   className={`px-4 py-2.5 rounded-xl font-semibold text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer self-start sm:self-auto ${showAddLocation
+                    ? theme === "dark"
                       ? "bg-[#1f2638] text-amber-300 border border-amber-500/40 hover:bg-[#252f44]"
-                      : "bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/20"
+                      : "bg-slate-100 text-slate-800 border border-slate-300 hover:bg-slate-200"
+                    : "bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/20"
                     }`}
                 >
                   {showAddLocation ? (
@@ -2718,15 +2671,25 @@ export default function AdminPortal() {
               </div>
 
               {showAddLocation && (
-                <div className="p-6 rounded-2xl bg-[#0f131d] border border-amber-500/30 shadow-2xl animate-fadeIn space-y-6">
-                  <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+                <div className={`p-6 rounded-2xl shadow-2xl animate-fadeIn space-y-6 ${
+                  theme === "dark"
+                    ? "bg-[#0f131d] border border-amber-500/30 text-white"
+                    : "bg-white border border-amber-400/50 text-slate-900 shadow-xl"
+                }`}>
+                  <div className={`flex items-center justify-between pb-3 border-b ${
+                    theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+                  }`}>
                     <div className="flex items-center gap-2">
-                      <Plus className="w-5 h-5 text-amber-400" />
-                      <h3 className="text-base font-bold text-white">Create New State & City Records</h3>
+                      <Plus className="w-5 h-5 text-amber-500" />
+                      <h3 className={`text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        Create New State &amp; City Records
+                      </h3>
                     </div>
                     <button
                       onClick={() => setShowAddLocation(false)}
-                      className="text-xs text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                      className={`text-xs flex items-center gap-1 cursor-pointer ${
+                        theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
+                      }`}
                     >
                       <X className="w-4 h-4" /> Close
                     </button>
@@ -2734,15 +2697,17 @@ export default function AdminPortal() {
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* STATE FORM */}
-                    <div className="rounded-2xl bg-[#141924] border border-[#283247] p-5 shadow-md flex flex-col justify-between">
+                    <div className={`rounded-2xl p-5 shadow-md flex flex-col justify-between border ${
+                      theme === "dark" ? "bg-[#141924] border-[#283247]" : "bg-slate-50 border-slate-200"
+                    }`}>
                       <div>
                         <div className="flex items-center gap-2.5 mb-4">
-                          <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                          <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500">
                             <Building2 className="w-5 h-5" />
                           </div>
                           <div>
-                            <h4 className="text-base font-bold text-white">State Form</h4>
-                            <p className="text-xs text-zinc-400">Add state code and state name</p>
+                            <h4 className={`text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>State Form</h4>
+                            <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>Add state code and state name</p>
                           </div>
                         </div>
 
@@ -2755,8 +2720,10 @@ export default function AdminPortal() {
 
                         <form onSubmit={handleSaveState} className="space-y-4">
                           <div>
-                            <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                              State Code <span className="text-amber-400">*</span>
+                            <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${
+                              theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                            }`}>
+                              State Code <span className="text-amber-500">*</span>
                             </label>
                             <input
                               type="text"
@@ -2764,20 +2731,30 @@ export default function AdminPortal() {
                               placeholder="e.g. MH, DL, KA"
                               value={stateCode}
                               onChange={(e) => setStateCode(e.target.value)}
-                              className="w-full px-4 py-2.5 rounded-xl bg-[#1a202d] border border-[#2d384e] text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-amber-400 transition-colors uppercase font-mono"
+                              className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 transition-colors uppercase font-mono ${
+                                theme === "dark"
+                                  ? "bg-[#1a202d] border-[#2d384e] text-white placeholder-zinc-500"
+                                  : "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                              }`}
                             />
                           </div>
 
                           <div>
-                            <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                              State Name <span className="text-amber-400">*</span>
+                            <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${
+                              theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                            }`}>
+                              State Name <span className="text-amber-500">*</span>
                             </label>
                             <input
                               type="text"
                               placeholder="e.g. Maharashtra, Delhi NCR, Karnataka"
                               value={stateName}
                               onChange={(e) => setStateName(e.target.value)}
-                              className="w-full px-4 py-2.5 rounded-xl bg-[#1a202d] border border-[#2d384e] text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-amber-400 transition-colors"
+                              className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 transition-colors ${
+                                theme === "dark"
+                                  ? "bg-[#1a202d] border-[#2d384e] text-white placeholder-zinc-500"
+                                  : "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                              }`}
                             />
                           </div>
 
@@ -2791,7 +2768,11 @@ export default function AdminPortal() {
                             <button
                               type="button"
                               onClick={handleCancelState}
-                              className="py-2.5 px-5 rounded-xl bg-[#1e2535] hover:bg-[#283247] border border-[#303c54] text-zinc-300 hover:text-white font-medium text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                              className={`py-2.5 px-5 rounded-xl border font-medium text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                theme === "dark"
+                                  ? "bg-[#1e2535] hover:bg-[#283247] border-[#303c54] text-zinc-300 hover:text-white"
+                                  : "bg-slate-200 hover:bg-slate-300 border-slate-300 text-slate-700 hover:text-slate-900"
+                              }`}
                             >
                               <XCircle className="w-4 h-4" /> Cancel
                             </button>
@@ -2801,15 +2782,17 @@ export default function AdminPortal() {
                     </div>
 
                     {/* CITY FORM */}
-                    <div className="rounded-2xl bg-[#141924] border border-[#283247] p-5 shadow-md flex flex-col justify-between">
+                    <div className={`rounded-2xl p-5 shadow-md flex flex-col justify-between border ${
+                      theme === "dark" ? "bg-[#141924] border-[#283247]" : "bg-slate-50 border-slate-200"
+                    }`}>
                       <div>
                         <div className="flex items-center gap-2.5 mb-4">
-                          <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                          <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500">
                             <MapPin className="w-5 h-5" />
                           </div>
                           <div>
-                            <h4 className="text-base font-bold text-white">City Form</h4>
-                            <p className="text-xs text-zinc-400">Add city code, name, and select linked state</p>
+                            <h4 className={`text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>City Form</h4>
+                            <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>Add city code, name, and select linked state</p>
                           </div>
                         </div>
 
@@ -2822,19 +2805,25 @@ export default function AdminPortal() {
 
                         <form onSubmit={handleSaveCity} className="space-y-4">
                           <div>
-                            <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                              Select State <span className="text-amber-400">*</span>
+                            <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${
+                              theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                            }`}>
+                              Select State <span className="text-amber-500">*</span>
                             </label>
                             <select
                               value={selectedStateCode}
                               onChange={(e) => setSelectedStateCode(e.target.value)}
-                              className="w-full px-4 py-2.5 rounded-xl bg-[#1a202d] border border-[#2d384e] text-white text-sm focus:outline-none focus:border-amber-400 transition-colors"
+                              className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 transition-colors ${
+                                theme === "dark"
+                                  ? "bg-[#1a202d] border-[#2d384e] text-white"
+                                  : "bg-white border-slate-300 text-slate-900"
+                              }`}
                             >
-                              <option value="" className="bg-[#121622] text-zinc-500">
+                              <option value="" className={theme === "dark" ? "bg-[#121622] text-zinc-500" : "bg-white text-slate-400"}>
                                 -- Select Linked State --
                               </option>
                               {states.map((st) => (
-                                <option key={st.id} value={st.code} className="bg-[#121622] text-white">
+                                <option key={st.id} value={st.code} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>
                                   {st.code} — {st.name}
                                 </option>
                               ))}
@@ -2842,8 +2831,10 @@ export default function AdminPortal() {
                           </div>
 
                           <div>
-                            <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                              City Code <span className="text-amber-400">*</span>
+                            <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${
+                              theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                            }`}>
+                              City Code <span className="text-amber-500">*</span>
                             </label>
                             <input
                               type="text"
@@ -2851,20 +2842,30 @@ export default function AdminPortal() {
                               placeholder="e.g. PUN, MUM, BLR"
                               value={cityCode}
                               onChange={(e) => setCityCode(e.target.value)}
-                              className="w-full px-4 py-2.5 rounded-xl bg-[#1a202d] border border-[#2d384e] text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-amber-400 transition-colors uppercase font-mono"
+                              className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 transition-colors uppercase font-mono ${
+                                theme === "dark"
+                                  ? "bg-[#1a202d] border-[#2d384e] text-white placeholder-zinc-500"
+                                  : "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                              }`}
                             />
                           </div>
 
                           <div>
-                            <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                              City Name <span className="text-amber-400">*</span>
+                            <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${
+                              theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                            }`}>
+                              City Name <span className="text-amber-500">*</span>
                             </label>
                             <input
                               type="text"
                               placeholder="e.g. Pune, Mumbai, Bengaluru"
                               value={cityName}
                               onChange={(e) => setCityName(e.target.value)}
-                              className="w-full px-4 py-2.5 rounded-xl bg-[#1a202d] border border-[#2d384e] text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-amber-400 transition-colors"
+                              className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 transition-colors ${
+                                theme === "dark"
+                                  ? "bg-[#1a202d] border-[#2d384e] text-white placeholder-zinc-500"
+                                  : "bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                              }`}
                             />
                           </div>
 
@@ -2878,7 +2879,11 @@ export default function AdminPortal() {
                             <button
                               type="button"
                               onClick={handleCancelCity}
-                              className="py-2.5 px-5 rounded-xl bg-[#1e2535] hover:bg-[#283247] border border-[#303c54] text-zinc-300 hover:text-white font-medium text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                              className={`py-2.5 px-5 rounded-xl border font-medium text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                                theme === "dark"
+                                  ? "bg-[#1e2535] hover:bg-[#283247] border-[#303c54] text-zinc-300 hover:text-white"
+                                  : "bg-slate-200 hover:bg-slate-300 border-slate-300 text-slate-700 hover:text-slate-900"
+                              }`}
                             >
                               <XCircle className="w-4 h-4" /> Cancel
                             </button>
@@ -2892,15 +2897,17 @@ export default function AdminPortal() {
 
               {/* Sub-Tabs for Single-Line Directory View */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-2 bg-[#121622] p-1 rounded-xl border border-[#232a3b]">
+                <div className={`flex flex-wrap items-center gap-2 p-1 rounded-xl border ${
+                  theme === "dark" ? "bg-[#121622] border-[#232a3b]" : "bg-white border-slate-200 shadow-sm"
+                }`}>
                   <button
                     onClick={() => {
                       setLocationSubTab("states");
                       setLocationStateFilter("ALL");
                     }}
                     className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${locationSubTab === "states"
-                        ? "bg-amber-400 text-black shadow-md"
-                        : "text-zinc-400 hover:text-white"
+                      ? "bg-amber-400 text-black shadow-md font-bold"
+                      : theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
                       }`}
                   >
                     <Building2 className="w-3.5 h-3.5" />
@@ -2909,8 +2916,8 @@ export default function AdminPortal() {
                   <button
                     onClick={() => setLocationSubTab("cities")}
                     className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${locationSubTab === "cities"
-                        ? "bg-amber-400 text-black shadow-md"
-                        : "text-zinc-400 hover:text-white"
+                      ? "bg-amber-400 text-black shadow-md font-bold"
+                      : theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
                       }`}
                   >
                     <MapPin className="w-3.5 h-3.5" />
@@ -2921,19 +2928,23 @@ export default function AdminPortal() {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                   {/* Cascading State Filter for Cities */}
                   {locationSubTab === "cities" && (
-                    <div className="flex items-center gap-2 bg-[#121622] px-3 py-1.5 rounded-xl border border-[#232a3b]">
-                      <span className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">State:</span>
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border shadow-sm ${
+                      theme === "dark" ? "bg-[#121622] border-[#232a3b]" : "bg-white border-slate-200"
+                    }`}>
+                      <span className={`text-[11px] font-medium whitespace-nowrap ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>State:</span>
                       <select
                         value={locationStateFilter}
                         onChange={(e) => handleFilterCitiesByState(e.target.value)}
                         disabled={isFilterLoading}
-                        className="bg-transparent text-amber-300 text-xs font-semibold focus:outline-none cursor-pointer"
+                        className={`bg-transparent text-xs font-semibold focus:outline-none cursor-pointer ${
+                          theme === "dark" ? "text-amber-300" : "text-amber-700"
+                        }`}
                       >
-                        <option value="ALL" className="bg-[#121622] text-zinc-300">
+                        <option value="ALL" className={theme === "dark" ? "bg-[#121622] text-zinc-300" : "bg-white text-slate-800"}>
                           All States ({cities.length} cities)
                         </option>
                         {states.map((st) => (
-                          <option key={st.id} value={st.code} className="bg-[#121622] text-white">
+                          <option key={st.id} value={st.code} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>
                             {st.code} — {st.name} ({typeof st.cityCount === "number" ? st.cityCount : cities.filter((c) => c.stateCode === st.code).length} cities)
                           </option>
                         ))}
@@ -2952,13 +2963,17 @@ export default function AdminPortal() {
                   )}
 
                   <div className="relative w-full sm:w-64">
-                    <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${theme === "dark" ? "text-zinc-400" : "text-slate-400"}`} />
                     <input
                       type="text"
                       placeholder="Search by code or name..."
                       value={locationSearch}
                       onChange={(e) => setLocationSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#121622] border border-[#232a3b] text-white text-xs placeholder-zinc-500 focus:outline-none focus:border-amber-400"
+                      className={`w-full pl-9 pr-4 py-2 rounded-xl text-xs focus:outline-none focus:border-amber-400 shadow-sm ${
+                        theme === "dark"
+                          ? "bg-[#121622] border border-[#232a3b] text-white placeholder-zinc-500"
+                          : "bg-white border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white"
+                      }`}
                     />
                   </div>
                 </div>
@@ -2967,9 +2982,11 @@ export default function AdminPortal() {
               {/* Single-Line Cards View */}
               {locationSubTab === "states" ? (
                 <div className="space-y-2.5">
-                  <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1">
+                  <div className={`flex items-center justify-between text-xs font-semibold uppercase tracking-wider mb-1 ${
+                    theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                  }`}>
                     <span>State Master Directory (GET /api/locations/states)</span>
-                    <span className="text-zinc-500 font-mono text-[11px]">Total: {filteredStates.length} states</span>
+                    <span className="font-mono text-[11px]">Total: {filteredStates.length} states</span>
                   </div>
                   {filteredStates.map((st) => {
                     const linkedCitiesCount = typeof st.cityCount === "number" && st.cityCount > 0 ? st.cityCount : cities.filter((c) => c.stateCode === st.code).length;
@@ -2977,32 +2994,40 @@ export default function AdminPortal() {
                     return (
                       <div
                         key={st.id}
-                        className="px-5 py-3.5 rounded-xl bg-[#121622] border border-[#232a3b] hover:border-amber-500/40 transition-all flex items-center justify-between gap-4 shadow-sm"
+                        className={`px-5 py-3.5 rounded-xl border transition-all flex items-center justify-between gap-4 shadow-sm ${
+                          theme === "dark"
+                            ? "bg-[#121622] border-[#232a3b] hover:border-amber-500/40"
+                            : "bg-white border-slate-200 hover:border-amber-400 shadow-sm hover:shadow"
+                        }`}
                       >
                         <div className="flex items-center gap-3.5 min-w-[220px]">
-                          <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 font-mono font-bold text-amber-300 text-xs">
+                          <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 font-mono font-bold text-amber-500 dark:text-amber-300 text-xs">
                             {st.code}
                           </span>
                           <div>
-                            <span className="font-bold text-white text-sm tracking-tight block">{st.name}</span>
+                            <span className={`font-bold text-sm tracking-tight block ${
+                              theme === "dark" ? "text-white" : "text-slate-900"
+                            }`}>{st.name}</span>
                             {st.id && !st.id.startsWith("st-") && (
-                              <span className="font-mono text-[10px] text-zinc-500">ID: {st.id.slice(0, 8)}...</span>
+                              <span className={`font-mono text-[10px] ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`}>ID: {st.id.slice(0, 8)}...</span>
                             )}
                           </div>
                         </div>
 
-                        <div className="hidden md:flex items-center gap-8 text-xs text-zinc-400">
+                        <div className={`hidden md:flex items-center gap-8 text-xs ${
+                          theme === "dark" ? "text-zinc-400" : "text-slate-600"
+                        }`}>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">Cities:</span>
-                            <span className="font-bold text-zinc-200">{linkedCitiesCount} active</span>
+                            <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Cities:</span>
+                            <span className={`font-bold ${theme === "dark" ? "text-zinc-200" : "text-slate-800"}`}>{linkedCitiesCount} active</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">Salons:</span>
-                            <span className="font-bold text-emerald-400">{linkedSalonsCount} operational</span>
+                            <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Salons:</span>
+                            <span className="font-bold text-emerald-500">{linkedSalonsCount} operational</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">Created:</span>
-                            <span className="font-mono text-zinc-400">{st.createdAt}</span>
+                            <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Created:</span>
+                            <span className={`font-mono ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>{st.createdAt}</span>
                           </div>
                         </div>
 
@@ -3013,16 +3038,24 @@ export default function AdminPortal() {
                               setLocationSubTab("cities");
                               handleFilterCitiesByState(st.code);
                             }}
-                            className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-amber-500/20"
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                              theme === "dark"
+                                ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/20"
+                                : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200"
+                            }`}
                             title={`Filter cities in ${st.name} (Cascading Dropdown API)`}
                           >
-                            <MapPin className="w-3.5 h-3.5" />
+                            <MapPin className="w-3.5 h-3.5 text-amber-500" />
                             <span className="hidden sm:inline">Cities ({linkedCitiesCount})</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => openEditStateModal(st)}
-                            className="p-2 text-zinc-400 hover:text-amber-300 rounded-lg bg-white/5 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                              theme === "dark"
+                                ? "text-zinc-400 hover:text-amber-300 bg-white/5 hover:bg-amber-500/10"
+                                : "text-slate-500 hover:text-amber-700 bg-slate-100 hover:bg-amber-50"
+                            }`}
                             title="Edit state details"
                           >
                             <Pencil className="w-4 h-4" />
@@ -3030,7 +3063,11 @@ export default function AdminPortal() {
                           <button
                             type="button"
                             onClick={() => handleDeleteState(st.id, st.code)}
-                            className="p-2 text-zinc-500 hover:text-rose-400 rounded-lg bg-white/5 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                              theme === "dark"
+                                ? "text-zinc-500 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10"
+                                : "text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50"
+                            }`}
                             title="Delete state"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -3042,11 +3079,13 @@ export default function AdminPortal() {
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1">
+                  <div className={`flex items-center justify-between text-xs font-semibold uppercase tracking-wider mb-1 ${
+                    theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                  }`}>
                     <span>
                       City Master Directory {locationStateFilter !== "ALL" ? `(Cascading: /api/locations/cities/state-code/${locationStateFilter})` : `(GET /api/locations/cities)`}
                     </span>
-                    <span className="text-zinc-500 font-mono text-[11px]">Showing: {filteredCities.length} cities</span>
+                    <span className="font-mono text-[11px]">Showing: {filteredCities.length} cities</span>
                   </div>
                   {filteredCities.map((ct) => {
                     const stateObj = states.find((s) => s.code === ct.stateCode || s.id === ct.stateId);
@@ -3054,34 +3093,42 @@ export default function AdminPortal() {
                     return (
                       <div
                         key={ct.id}
-                        className="px-5 py-3.5 rounded-xl bg-[#121622] border border-[#232a3b] hover:border-amber-500/40 transition-all flex items-center justify-between gap-4 shadow-sm"
+                        className={`px-5 py-3.5 rounded-xl border transition-all flex items-center justify-between gap-4 shadow-sm ${
+                          theme === "dark"
+                            ? "bg-[#121622] border-[#232a3b] hover:border-amber-500/40"
+                            : "bg-white border-slate-200 hover:border-amber-400 shadow-sm hover:shadow"
+                        }`}
                       >
                         <div className="flex items-center gap-3.5 min-w-[220px]">
-                          <span className="px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 font-mono font-bold text-blue-300 text-xs">
+                          <span className="px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 font-mono font-bold text-blue-500 dark:text-blue-300 text-xs">
                             {ct.code}
                           </span>
                           <div>
-                            <span className="font-bold text-white text-sm tracking-tight block">{ct.name}</span>
+                            <span className={`font-bold text-sm tracking-tight block ${
+                              theme === "dark" ? "text-white" : "text-slate-900"
+                            }`}>{ct.name}</span>
                             {ct.id && !ct.id.startsWith("ct-") && (
-                              <span className="font-mono text-[10px] text-zinc-500">ID: {ct.id.slice(0, 8)}...</span>
+                              <span className={`font-mono text-[10px] ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`}>ID: {ct.id.slice(0, 8)}...</span>
                             )}
                           </div>
                         </div>
 
-                        <div className="hidden md:flex items-center gap-8 text-xs text-zinc-400">
+                        <div className={`hidden md:flex items-center gap-8 text-xs ${
+                          theme === "dark" ? "text-zinc-400" : "text-slate-600"
+                        }`}>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">State:</span>
-                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono font-bold">
+                            <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>State:</span>
+                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono font-bold">
                               {ct.stateCode} {stateObj ? `(${stateObj.name})` : ct.stateName ? `(${ct.stateName})` : ""}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">Salons:</span>
-                            <span className="font-bold text-emerald-400">{salonCount} branches</span>
+                            <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Salons:</span>
+                            <span className="font-bold text-emerald-500">{salonCount} branches</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">Created:</span>
-                            <span className="font-mono text-zinc-400">{ct.createdAt}</span>
+                            <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Created:</span>
+                            <span className={`font-mono ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>{ct.createdAt}</span>
                           </div>
                         </div>
 
@@ -3089,7 +3136,11 @@ export default function AdminPortal() {
                           <button
                             type="button"
                             onClick={() => openEditCityModal(ct)}
-                            className="p-2 text-zinc-400 hover:text-amber-300 rounded-lg bg-white/5 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                              theme === "dark"
+                                ? "text-zinc-400 hover:text-amber-300 bg-white/5 hover:bg-amber-500/10"
+                                : "text-slate-500 hover:text-amber-700 bg-slate-100 hover:bg-amber-50"
+                            }`}
                             title="Edit city details"
                           >
                             <Pencil className="w-4 h-4" />
@@ -3097,7 +3148,11 @@ export default function AdminPortal() {
                           <button
                             type="button"
                             onClick={() => handleDeleteCity(ct.id, ct.name)}
-                            className="p-2 text-zinc-500 hover:text-rose-400 rounded-lg bg-white/5 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                              theme === "dark"
+                                ? "text-zinc-500 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10"
+                                : "text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50"
+                            }`}
                             title="Delete city"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -3114,13 +3169,17 @@ export default function AdminPortal() {
           {/* ======================= TAB 3: SALON (Single-line Cards + Accordion Dropdown + Salon Type) ======================= */}
           {activeTab === "salon" && (
             <div className="space-y-8 animate-fadeIn max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#232a3b]">
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-                    <Scissors className="w-6 h-6 text-amber-400" />
+                  <h2 className={`text-2xl font-bold tracking-tight flex items-center gap-2.5 ${
+                    theme === "dark" ? "text-white" : "text-slate-900"
+                  }`}>
+                    <Scissors className="w-6 h-6 text-amber-500" />
                     Salon Branches Management
                   </h2>
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className={`text-xs mt-1 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                     Manage salon locations, gender classifications (Unisex/Male/Female), and operational capacity.
                   </p>
                 </div>
@@ -3133,37 +3192,50 @@ export default function AdminPortal() {
               </div>
 
               {/* Search Bar */}
-              <div className="flex items-center gap-4 bg-[#121622] p-3 rounded-2xl border border-[#232a3b]">
+              <div className={`flex items-center gap-4 p-3 rounded-2xl border shadow-sm ${
+                theme === "dark" ? "bg-[#121622] border-[#232a3b]" : "bg-white border-slate-200"
+              }`}>
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                    theme === "dark" ? "text-zinc-400" : "text-slate-400"
+                  }`} />
                   <input
                     type="text"
                     placeholder="Filter by salon name, city, state, or type (unisex, male, female)..."
                     value={salonSearch}
                     onChange={(e) => setSalonSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-transparent text-white text-sm placeholder-zinc-500 focus:outline-none"
+                    className={`w-full pl-10 pr-4 py-2 bg-transparent text-sm focus:outline-none ${
+                      theme === "dark" ? "text-white placeholder-zinc-500" : "text-slate-900 placeholder-slate-400"
+                    }`}
                   />
                 </div>
-                <div className="text-xs text-zinc-400 font-mono pr-2">
+                <div className={`text-xs font-mono pr-2 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
                   Showing {filteredSalons.length} of {salons.length} Salons
                 </div>
               </div>
 
               {/* Salons List */}
               <div className="space-y-3">
-                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+                <div className={`text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between ${
+                  theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                }`}>
                   <span>Registered Salons Directory — Expandable Cards</span>
-                  <span className="text-amber-400/80 font-mono text-[11px]">API: /api/salons</span>
+                  <span className="text-amber-500 font-mono text-[11px]">API: /api/salons</span>
                 </div>
                 {filteredSalons.map((salon) => {
                   const isExpanded = expandedSalonId === salon.id;
                   return (
                     <div
                       key={salon.id}
-                      className={`rounded-2xl border transition-all duration-200 shadow-md overflow-hidden ${isExpanded
-                          ? "bg-[#141926] border-amber-500/40"
-                          : "bg-[#121622] border-[#232a3b] hover:border-amber-500/30"
-                        }`}
+                      className={`rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden ${
+                        isExpanded
+                          ? theme === "dark"
+                            ? "bg-[#141926] border-amber-500/40 shadow-md"
+                            : "bg-white border-amber-400/60 shadow-md"
+                          : theme === "dark"
+                            ? "bg-[#121622] border-[#232a3b] hover:border-amber-500/30"
+                            : "bg-white border-slate-200 hover:border-amber-300 shadow-sm"
+                      }`}
                     >
                       {/* Single-Line Card Header Row */}
                       <div
@@ -3176,27 +3248,29 @@ export default function AdminPortal() {
                             <img
                               src={salon.salonLogo}
                               alt={salon.name}
-                              className="w-10 h-10 rounded-xl object-cover border border-amber-500/30 shrink-0 shadow-md"
+                              className="w-10 h-10 rounded-xl object-cover border border-amber-500/30 shrink-0 shadow-sm"
                               onError={(e) => {
                                 (e.target as HTMLElement).style.display = "none";
                               }}
                             />
                           ) : (
                             <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-                              <Scissors className="w-5 h-5 text-amber-400" />
+                              <Scissors className="w-5 h-5 text-amber-500" />
                             </div>
                           )}
 
                           <div>
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-bold text-white tracking-tight">{salon.name}</h3>
+                              <h3 className={`text-sm font-bold tracking-tight ${
+                                theme === "dark" ? "text-white" : "text-slate-900"
+                              }`}>{salon.name}</h3>
                               {/* Salon Type Pill */}
                               <span
                                 className={`text-[10px] font-bold px-2 py-0.5 rounded-md font-mono ${salon.type === "UNISEX"
-                                    ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                                    : salon.type === "MALE_ONLY"
-                                      ? "bg-blue-500/15 text-blue-300 border border-blue-500/30"
-                                      : "bg-rose-500/15 text-rose-300 border border-rose-500/30"
+                                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30"
+                                  : salon.type === "MALE_ONLY"
+                                    ? "bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/30"
+                                    : "bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-500/30"
                                   }`}
                               >
                                 {salon.type === "UNISEX"
@@ -3206,34 +3280,38 @@ export default function AdminPortal() {
                                     : "Female Only"}
                               </span>
                             </div>
-                            <div className="text-[11px] text-zinc-400 flex items-center gap-2 mt-0.5">
-                              <span className="flex items-center gap-1 text-amber-300/90 font-medium">
-                                <MapPin className="w-3 h-3 text-amber-400" />
+                            <div className={`text-[11px] flex items-center gap-2 mt-0.5 ${
+                              theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                            }`}>
+                              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-300 font-medium">
+                                <MapPin className="w-3 h-3 text-amber-500" />
                                 {salon.cityName}
                               </span>
                               {salon.ownerName && (
-                                <span className="text-zinc-500 hidden sm:inline">• Owner: {salon.ownerName}</span>
+                                <span className={theme === "dark" ? "text-zinc-500 hidden sm:inline" : "text-slate-400 hidden sm:inline"}>• Owner: {salon.ownerName}</span>
                               )}
                             </div>
                           </div>
                         </div>
 
                         {/* Center: Key Metrics */}
-                        <div className="hidden md:flex items-center gap-8 text-xs text-zinc-300">
+                        <div className={`hidden md:flex items-center gap-8 text-xs ${
+                          theme === "dark" ? "text-zinc-300" : "text-slate-600"
+                        }`}>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">Stylists:</span>
-                            <span className="font-bold text-white">{salon.activeStylists || 6} on floor</span>
+                            <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Stylists:</span>
+                            <span className={`font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>{salon.activeStylists || 6} on floor</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                            <span className="font-mono text-zinc-300">
+                            <Clock className={`w-3.5 h-3.5 ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`} />
+                            <span className={`font-mono ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
                               {salon.openingTime} - {salon.closingTime}
                             </span>
                           </div>
                           {salon.pincode && (
                             <div className="flex items-center gap-1.5">
-                              <span className="text-zinc-500">PIN:</span>
-                              <span className="font-mono text-amber-300/80">{salon.pincode}</span>
+                              <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>PIN:</span>
+                              <span className="font-mono text-amber-600 dark:text-amber-300">{salon.pincode}</span>
                             </div>
                           )}
                         </div>
@@ -3249,8 +3327,8 @@ export default function AdminPortal() {
                             }}
                             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border shadow-sm ${
                               salon.status === "ACTIVE" || salon.status === "OPEN"
-                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
-                                : "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30"
+                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                                : "bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/40 hover:bg-rose-500/30"
                             }`}
                             title={
                               salon.status === "ACTIVE" || salon.status === "OPEN"
@@ -3259,11 +3337,10 @@ export default function AdminPortal() {
                             }
                           >
                             <span
-                              className={`w-2 h-2 rounded-full ${
-                                salon.status === "ACTIVE" || salon.status === "OPEN"
-                                  ? "bg-emerald-400 animate-pulse"
-                                  : "bg-rose-400"
-                              }`}
+                              className={`w-2 h-2 rounded-full ${salon.status === "ACTIVE" || salon.status === "OPEN"
+                                  ? "bg-emerald-500 animate-pulse"
+                                  : "bg-rose-500"
+                                }`}
                             />
                             <span>{salon.status === "ACTIVE" || salon.status === "OPEN" ? "Active" : "Inactive"}</span>
                           </button>
@@ -3274,7 +3351,11 @@ export default function AdminPortal() {
                               e.stopPropagation();
                               openEditSalonModal(salon);
                             }}
-                            className="p-1.5 rounded-lg bg-white/5 text-zinc-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              theme === "dark"
+                                ? "bg-white/5 text-zinc-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                : "bg-slate-100 text-slate-500 hover:text-amber-700 hover:bg-amber-50"
+                            }`}
                             title="Edit Salon Details"
                           >
                             <Pencil className="w-4 h-4" />
@@ -3282,8 +3363,8 @@ export default function AdminPortal() {
 
                           <button
                             type="button"
-                            className={`p-1.5 rounded-lg bg-white/5 text-amber-400 transition-transform duration-200 ${
-                              isExpanded ? "rotate-180 bg-amber-500/20" : "hover:bg-white/10"
+                            className={`p-1.5 rounded-lg transition-transform duration-200 ${
+                              isExpanded ? "rotate-180 bg-amber-500/20 text-amber-500" : theme === "dark" ? "bg-white/5 text-amber-400 hover:bg-white/10" : "bg-slate-100 text-amber-600 hover:bg-slate-200"
                             }`}
                             title="Toggle full salon info"
                           >
@@ -3294,81 +3375,91 @@ export default function AdminPortal() {
 
                       {/* Dropdown Expanded Details Container */}
                       {isExpanded && (
-                        <div className="px-6 pb-6 pt-2 border-t border-[#1f2638] bg-[#0d1017]/70 space-y-4 animate-fadeIn">
+                        <div className={`px-6 pb-6 pt-2 border-t space-y-4 animate-fadeIn ${
+                          theme === "dark" ? "border-[#1f2638] bg-[#0d1017]/70" : "border-slate-200 bg-slate-50/80"
+                        }`}>
                           {salon.salonDescription && (
-                            <div className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-amber-200/90 leading-relaxed flex items-start gap-2.5">
-                              <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                            <div className={`p-3 rounded-xl border text-xs leading-relaxed flex items-start gap-2.5 ${
+                              theme === "dark" ? "bg-amber-500/5 border-amber-500/20 text-amber-200/90" : "bg-amber-50 border-amber-200 text-amber-900"
+                            }`}>
+                              <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                               <span>{salon.salonDescription}</span>
                             </div>
                           )}
 
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-                            <div className="p-4 rounded-xl bg-[#141924] border border-[#232c3f] space-y-2">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 block">
+                            <div className={`p-4 rounded-xl border space-y-2 ${
+                              theme === "dark" ? "bg-[#141924] border-[#232c3f]" : "bg-white border-slate-200 shadow-sm"
+                            }`}>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500 block">
                                 Location &amp; Contact Details
                               </span>
-                              <div className="text-xs text-zinc-200 space-y-1.5">
-                                <p className="font-medium text-white">{salon.address}</p>
-                                <p className="text-zinc-400">
-                                  City: <span className="text-white font-semibold">{salon.cityName}</span>
+                              <div className={`text-xs space-y-1.5 ${theme === "dark" ? "text-zinc-200" : "text-slate-700"}`}>
+                                <p className={`font-medium ${theme === "dark" ? "text-white" : "text-slate-900"}`}>{salon.address}</p>
+                                <p className={theme === "dark" ? "text-zinc-400" : "text-slate-500"}>
+                                  City: <span className={`font-semibold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>{salon.cityName}</span>
                                   {salon.pincode ? ` — PIN: ${salon.pincode}` : ""}
                                 </p>
-                                <p className="text-zinc-300 flex items-center gap-1.5 pt-0.5">
-                                  <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <p className="flex items-center gap-1.5 pt-0.5">
+                                  <Phone className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                                   <span className="font-mono">{salon.phone}</span>
                                 </p>
                                 {salon.email && (
-                                  <p className="text-zinc-300 flex items-center gap-1.5">
-                                    <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                    <span className="font-mono text-zinc-300">{salon.email}</span>
+                                  <p className="flex items-center gap-1.5">
+                                    <Mail className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                    <span className="font-mono">{salon.email}</span>
                                   </p>
                                 )}
                                 {salon.ownerName && (
-                                  <p className="text-zinc-400 flex items-center gap-1.5 pt-0.5">
-                                    <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                    <span>Owner: <strong className="text-white">{salon.ownerName}</strong></span>
+                                  <p className={`flex items-center gap-1.5 pt-0.5 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                                    <User className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                    <span>Owner: <strong className={theme === "dark" ? "text-white" : "text-slate-900"}>{salon.ownerName}</strong></span>
                                   </p>
                                 )}
                               </div>
                             </div>
 
-                            <div className="p-4 rounded-xl bg-[#141924] border border-[#232c3f] space-y-2">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 block">
+                            <div className={`p-4 rounded-xl border space-y-2 ${
+                              theme === "dark" ? "bg-[#141924] border-[#232c3f]" : "bg-white border-slate-200 shadow-sm"
+                            }`}>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500 block">
                                 Floor &amp; Operating Hours
                               </span>
-                              <div className="text-xs text-zinc-200 space-y-1.5">
+                              <div className={`text-xs space-y-1.5 ${theme === "dark" ? "text-zinc-200" : "text-slate-700"}`}>
                                 <p>
                                   Active Stylists:{" "}
-                                  <span className="text-white font-bold">{salon.activeStylists || 6} Stylists</span>
+                                  <span className={`font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>{salon.activeStylists || 6} Stylists</span>
                                 </p>
-                                <p className="flex items-center gap-1.5 text-zinc-300">
-                                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                  <span>Hours: <strong className="font-mono text-amber-300">{salon.openingTime} - {salon.closingTime}</strong></span>
+                                <p className="flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                  <span>Hours: <strong className="font-mono text-amber-600 dark:text-amber-300">{salon.openingTime} - {salon.closingTime}</strong></span>
                                 </p>
-                                <p className="text-zinc-400">
+                                <p className={theme === "dark" ? "text-zinc-400" : "text-slate-500"}>
                                   Status:{" "}
-                                  <span className="text-emerald-400 font-semibold font-mono">{salon.status || "ACTIVE"}</span>
+                                  <span className="text-emerald-500 font-semibold font-mono">{salon.status || "ACTIVE"}</span>
                                 </p>
-                                <p className="text-emerald-400 font-semibold pt-1 flex items-center gap-1.5">
+                                <p className="text-emerald-500 font-semibold pt-1 flex items-center gap-1.5">
                                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                   Live Dispatch Sync Active
                                 </p>
                               </div>
                             </div>
 
-                            <div className="p-4 rounded-xl bg-[#141924] border border-[#232c3f] space-y-2">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 block">
+                            <div className={`p-4 rounded-xl border space-y-2 ${
+                              theme === "dark" ? "bg-[#141924] border-[#232c3f]" : "bg-white border-slate-200 shadow-sm"
+                            }`}>
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500 block">
                                 Digital Location &amp; Maps
                               </span>
-                              <div className="text-xs text-zinc-200 space-y-2">
+                              <div className={`text-xs space-y-2 ${theme === "dark" ? "text-zinc-200" : "text-slate-700"}`}>
                                 {salon.locationLink ? (
                                   <div>
-                                    <p className="text-zinc-400 mb-2">Google Maps / Navigation URL verified:</p>
+                                    <p className={`mb-2 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>Google Maps / Navigation URL verified:</p>
                                     <a
                                       href={salon.locationLink}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 font-semibold text-xs transition-colors"
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-600 dark:text-blue-300 font-semibold text-xs transition-colors"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <Navigation className="w-3.5 h-3.5" />
@@ -3381,7 +3472,7 @@ export default function AdminPortal() {
                                 )}
 
                                 {salon.createdAt && (
-                                  <div className="pt-2 text-[11px] text-zinc-400 font-mono">
+                                  <div className={`pt-2 text-[11px] font-mono ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
                                     Registered: {salon.createdAt}
                                   </div>
                                 )}
@@ -3389,9 +3480,11 @@ export default function AdminPortal() {
                             </div>
                           </div>
 
-                          <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[#1f2638]/80">
-                            <div className="text-xs text-zinc-400 font-mono truncate max-w-sm">
-                              UUID: <span className="text-amber-300/90">{salon.id}</span>
+                          <div className={`pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t ${
+                            theme === "dark" ? "border-[#1f2638]/80" : "border-slate-200"
+                          }`}>
+                            <div className={`text-xs font-mono truncate max-w-sm ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                              UUID: <span className="text-amber-600 dark:text-amber-300 font-bold">{salon.id}</span>
                             </div>
                             <div className="flex items-center gap-2.5 self-end sm:self-auto">
                               <button
@@ -3399,7 +3492,11 @@ export default function AdminPortal() {
                                   e.stopPropagation();
                                   openEditSalonModal(salon);
                                 }}
-                                className="px-3.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                className={`px-3.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                  theme === "dark"
+                                    ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                    : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200"
+                                }`}
                               >
                                 <Pencil className="w-3.5 h-3.5" /> Edit Salon
                               </button>
@@ -3408,7 +3505,11 @@ export default function AdminPortal() {
                                   e.stopPropagation();
                                   handleDeleteSalon(salon.id, salon.name);
                                 }}
-                                className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                                  theme === "dark"
+                                    ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30"
+                                    : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                                }`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Remove Salon
                               </button>
@@ -3430,7 +3531,9 @@ export default function AdminPortal() {
                 })}
 
                 {filteredSalons.length === 0 && (
-                  <div className="p-8 text-center text-xs text-zinc-500 bg-[#121622] rounded-xl border border-[#232a3b]">
+                  <div className={`p-8 text-center text-xs rounded-xl border ${
+                    theme === "dark" ? "bg-[#121622] border-[#232a3b] text-zinc-500" : "bg-white border-slate-200 text-slate-400 shadow-sm"
+                  }`}>
                     No salons found matching your search.
                   </div>
                 )}
@@ -3439,20 +3542,26 @@ export default function AdminPortal() {
               {/* Modal to Add New Salon (Integrated with POST /api/salons) */}
               {showAddSalonModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
-                  <div className="bg-[#121622] border border-amber-500/30 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
-                    <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+                  <div className={`border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto ${
+                    theme === "dark" ? "bg-[#121622] border-amber-500/30 text-white" : "bg-white border-amber-400/60 text-slate-900"
+                  }`}>
+                    <div className={`flex items-center justify-between pb-3 border-b ${
+                      theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+                    }`}>
                       <div className="flex items-center gap-2.5">
-                        <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                        <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500">
                           <Scissors className="w-5 h-5" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-white">Register New Salon Branch</h3>
-                          <p className="text-xs text-zinc-400">POST http://localhost:8081/api/salons</p>
+                          <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Register New Salon Branch</h3>
+                          <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>POST http://localhost:8081/api/salons</p>
                         </div>
                       </div>
                       <button
                         onClick={() => setShowAddSalonModal(false)}
-                        className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                        className={`p-1 rounded-lg cursor-pointer ${
+                          theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-800"
+                        }`}
                       >
                         <XCircle className="w-5 h-5" />
                       </button>
@@ -3469,23 +3578,27 @@ export default function AdminPortal() {
                       {/* Section 1: Basic Identity & Ownership */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            Salon Name <span className="text-amber-400">*</span>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            Salon Name <span className="text-amber-500">*</span>
                           </label>
                           <input
                             type="text"
                             placeholder="e.g. Style Studio"
                             value={newSalonName}
                             onChange={(e) => setNewSalonName(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1 flex items-center justify-between">
-                            <span>Owner (Staff User) <span className="text-amber-400">*</span></span>
-                            <span className="text-[10px] text-amber-400 font-normal">Staff Users in DB</span>
+                          <label className={`block font-semibold uppercase mb-1 flex items-center justify-between ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            <span>Owner (Staff User) <span className="text-amber-500">*</span></span>
+                            <span className="text-[10px] text-amber-500 font-normal">Staff Users in DB</span>
                           </label>
                           <select
                             value={newOwnerName}
@@ -3498,7 +3611,11 @@ export default function AdminPortal() {
                                 if (matched.phone) setNewSalonPhone(matched.phone);
                               }
                             }}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white"
+                                : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                            }`}
                             required
                           >
                             <option value="">-- Select Staff User (Owner) --</option>
@@ -3514,29 +3631,37 @@ export default function AdminPortal() {
                       {/* Section 2: Contact Info */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            Phone Number <span className="text-amber-400">*</span>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            Phone Number <span className="text-amber-500">*</span>
                           </label>
                           <input
                             type="tel"
                             placeholder="e.g. 9876543210"
                             value={newSalonPhone}
                             onChange={(e) => setNewSalonPhone(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            Email Address <span className="text-amber-400">*</span>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            Email Address <span className="text-amber-500">*</span>
                           </label>
                           <input
                             type="email"
                             placeholder="stylestudio.baner@gmail.com"
                             value={newSalonEmail}
                             onChange={(e) => setNewSalonEmail(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
@@ -3544,29 +3669,37 @@ export default function AdminPortal() {
 
                       {/* Section 3: Location Details */}
                       <div>
-                        <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                          Salon Address <span className="text-amber-400">*</span>
+                        <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                          Salon Address <span className="text-amber-500">*</span>
                         </label>
                         <input
                           type="text"
                           placeholder="e.g. High Street, Baner, Pune"
                           value={newSalonAddress}
                           onChange={(e) => setNewSalonAddress(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                            theme === "dark"
+                              ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                              : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                          }`}
                           required
                         />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            City <span className="text-amber-400">*</span>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            City <span className="text-amber-500">*</span>
                           </label>
                           {cities.length > 0 ? (
                             <select
                               value={newSalonCity}
                               onChange={(e) => setNewSalonCity(e.target.value)}
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                                theme === "dark"
+                                  ? "bg-[#181e2b] border-[#2b354b] text-white"
+                                  : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                              }`}
                               required
                             >
                               {cities.map((c) => (
@@ -3581,22 +3714,30 @@ export default function AdminPortal() {
                               placeholder="e.g. Pune"
                               value={newSalonCity}
                               onChange={(e) => setNewSalonCity(e.target.value)}
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                                theme === "dark"
+                                  ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                  : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                              }`}
                               required
                             />
                           )}
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            Pincode <span className="text-amber-400">*</span>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            Pincode <span className="text-amber-500">*</span>
                           </label>
                           <input
                             type="text"
                             placeholder="e.g. 411045"
                             value={newSalonPincode}
                             onChange={(e) => setNewSalonPincode(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
@@ -3605,41 +3746,53 @@ export default function AdminPortal() {
                       {/* Section 4: Timings & Classification */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            Opening Time <span className="text-amber-400">*</span>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            Opening Time <span className="text-amber-500">*</span>
                           </label>
                           <input
                             type="text"
                             placeholder="09:00"
                             value={newSalonOpen}
                             onChange={(e) => setNewSalonOpen(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            Closing Time <span className="text-amber-400">*</span>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                            Closing Time <span className="text-amber-500">*</span>
                           </label>
                           <input
                             type="text"
                             placeholder="21:00"
                             value={newSalonClose}
                             onChange={(e) => setNewSalonClose(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
                             Classification
                           </label>
                           <select
                             value={newSalonType}
                             onChange={(e) => setNewSalonType(e.target.value as any)}
-                            className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-amber-300"
+                            className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-amber-300"
+                                : "bg-slate-50 border-slate-300 text-amber-700 focus:bg-white"
+                            }`}
                           >
                             <option value="UNISEX">Unisex (All Genders)</option>
                             <option value="MALE_ONLY">Male Only (Gents Salon)</option>
@@ -3651,7 +3804,7 @@ export default function AdminPortal() {
                       {/* Section 5: Logo & Google Maps Location Link */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
                             Salon Logo Image URL
                           </label>
                           <input
@@ -3659,12 +3812,16 @@ export default function AdminPortal() {
                             placeholder="https://images.unsplash.com/photo-..."
                             value={newSalonLogo}
                             onChange={(e) => setNewSalonLogo(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                           />
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
                             Google Maps / Location Link
                           </label>
                           <input
@@ -3672,14 +3829,18 @@ export default function AdminPortal() {
                             placeholder="https://maps.google.com/?q=..."
                             value={newSalonLocationLink}
                             onChange={(e) => setNewSalonLocationLink(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                           />
                         </div>
                       </div>
 
                       {/* Section 6: Description */}
                       <div>
-                        <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                        <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
                           Salon Description
                         </label>
                         <textarea
@@ -3687,16 +3848,24 @@ export default function AdminPortal() {
                           placeholder="Premium unisex salon providing bespoke haircuts, styling, beard grooming, and beauty treatments."
                           value={newSalonDescription}
                           onChange={(e) => setNewSalonDescription(e.target.value)}
-                          className="w-full px-3.5 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400 resize-none"
+                          className={`w-full px-3.5 py-2 rounded-xl border text-xs focus:outline-none focus:border-amber-400 resize-none ${
+                            theme === "dark"
+                              ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                              : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                          }`}
                         />
                       </div>
 
                       {/* Action buttons */}
-                      <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+                      <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                        theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+                      }`}>
                         <button
                           type="button"
                           onClick={() => setShowAddSalonModal(false)}
-                          className="px-4 py-2.5 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer font-medium"
+                          className={`px-4 py-2.5 rounded-xl cursor-pointer font-medium ${
+                            theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          }`}
                           disabled={salonLoading}
                         >
                           Cancel
@@ -3725,17 +3894,20 @@ export default function AdminPortal() {
               )}
             </div>
           )}
-
           {/* ======================= TAB 4: USER MANAGEMENT ======================= */}
           {activeTab === "users" && (
             <div className="space-y-8 animate-fadeIn max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#232a3b]">
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-                    <Users className="w-6 h-6 text-amber-400" />
+                  <h2 className={`text-2xl font-bold tracking-tight flex items-center gap-2.5 ${
+                    theme === "dark" ? "text-white" : "text-slate-900"
+                  }`}>
+                    <Users className="w-6 h-6 text-amber-500" />
                     User Management Directory
                   </h2>
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className={`text-xs mt-1 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
                     Manage all system users, administrators, salon staff stylists, and customer accounts.
                   </p>
                 </div>
@@ -3751,27 +3923,36 @@ export default function AdminPortal() {
               </div>
 
               {/* User Search & Role Filters */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-[#121622] p-3 rounded-2xl border border-[#232a3b]">
+              <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-3 rounded-2xl border shadow-sm ${
+                theme === "dark" ? "bg-[#121622] border-[#232a3b]" : "bg-white border-slate-200"
+              }`}>
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                    theme === "dark" ? "text-zinc-400" : "text-slate-400"
+                  }`} />
                   <input
                     type="text"
                     placeholder="Search by name, email, or mobile..."
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-transparent text-white text-sm placeholder-zinc-500 focus:outline-none"
+                    className={`w-full pl-10 pr-4 py-2 bg-transparent text-sm focus:outline-none ${
+                      theme === "dark" ? "text-white placeholder-zinc-500" : "text-slate-900 placeholder-slate-400"
+                    }`}
                   />
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-[#181e2b] p-1 rounded-xl border border-[#232a3b]">
+                <div className={`flex items-center gap-1.5 p-1 rounded-xl border ${
+                  theme === "dark" ? "bg-[#181e2b] border-[#232a3b]" : "bg-slate-100 border-slate-200"
+                }`}>
                   {(["ALL", "ADMIN", "STAFF", "CUSTOMER"] as const).map((r) => (
                     <button
                       key={r}
                       onClick={() => setUserRoleFilter(r)}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${userRoleFilter === r
-                          ? "bg-amber-400 text-black shadow"
-                          : "text-zinc-400 hover:text-white"
-                        }`}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        userRoleFilter === r
+                          ? "bg-amber-400 text-black shadow font-bold"
+                          : theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                      }`}
                     >
                       {r}
                     </button>
@@ -3781,74 +3962,94 @@ export default function AdminPortal() {
 
               {/* Users Single-Line Directory Cards */}
               <div className="space-y-2.5">
-                <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+                <div className={`text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between ${
+                  theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                }`}>
                   <span>Registered App Users ({filteredUsers.length})</span>
-                  <span className="text-zinc-500 font-mono text-[11px]">Backend API: /api/auth/register</span>
+                  <span className="font-mono text-[11px]">Backend API: /api/auth/register</span>
                 </div>
 
                 {filteredUsers.map((user) => (
                   <div
                     key={user.id}
-                    className="px-5 py-3.5 rounded-xl bg-[#121622] border border-[#232a3b] hover:border-amber-500/40 transition-all flex items-center justify-between gap-4 shadow-sm"
+                    className={`px-5 py-3.5 rounded-xl border transition-all flex items-center justify-between gap-4 shadow-sm ${
+                      theme === "dark"
+                        ? "bg-[#121622] border-[#232a3b] hover:border-amber-500/40"
+                        : "bg-white border-slate-200 hover:border-amber-400 shadow-sm hover:shadow"
+                    }`}
                   >
                     <div className="flex items-center gap-3.5 min-w-[240px]">
                       <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${user.role === "ADMIN"
-                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                          user.role === "ADMIN"
+                            ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30"
                             : user.role === "STAFF"
-                              ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                              : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                          }`}
+                              ? "bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30"
+                              : "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30"
+                        }`}
                       >
                         {user.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-white text-sm tracking-tight">{user.name}</span>
+                          <span className={`font-bold text-sm tracking-tight ${
+                            theme === "dark" ? "text-white" : "text-slate-900"
+                          }`}>{user.name}</span>
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase font-mono ${user.role === "ADMIN"
-                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase font-mono ${
+                              user.role === "ADMIN"
+                                ? "bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/30"
                                 : user.role === "STAFF"
-                                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                              }`}
+                                  ? "bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30"
+                                  : "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30"
+                            }`}
                           >
                             {user.role}
                           </span>
                         </div>
-                        <div className="text-xs text-zinc-400 mt-0.5">{user.email}</div>
+                        <div className={`text-xs mt-0.5 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>{user.email}</div>
                       </div>
                     </div>
 
-                    <div className="hidden md:flex items-center gap-8 text-xs text-zinc-300">
+                    <div className={`hidden md:flex items-center gap-8 text-xs ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-600"
+                    }`}>
                       <div className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-zinc-500" />
-                        <span className="font-mono text-zinc-300">{user.mobileNumber}</span>
+                        <Phone className={`w-3.5 h-3.5 ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`} />
+                        <span className={`font-mono ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>{user.mobileNumber}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500">Gender:</span>
-                        <span className="font-medium text-zinc-200">{user.gender}</span>
+                        <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Gender:</span>
+                        <span className={`font-medium ${theme === "dark" ? "text-zinc-200" : "text-slate-800"}`}>{user.gender}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-zinc-500">DOB:</span>
-                        <span className="font-mono text-zinc-400">{user.dob}</span>
+                        <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>DOB:</span>
+                        <span className={`font-mono ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>{user.dob}</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
                         {user.status}
                       </span>
                       <button
                         onClick={() => openEditUserModal(user)}
-                        className="p-2 text-zinc-400 hover:text-amber-300 rounded-lg bg-white/5 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                        className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                          theme === "dark"
+                            ? "text-zinc-400 hover:text-amber-300 bg-white/5 hover:bg-amber-500/10"
+                            : "text-slate-500 hover:text-amber-700 bg-slate-100 hover:bg-amber-50"
+                        }`}
                         title="Edit user details"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user.id, user.name)}
-                        className="p-2 text-zinc-500 hover:text-rose-400 rounded-lg bg-white/5 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                          theme === "dark"
+                            ? "text-zinc-500 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10"
+                            : "text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50"
+                        }`}
                         title="Delete user"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -3858,7 +4059,9 @@ export default function AdminPortal() {
                 ))}
 
                 {filteredUsers.length === 0 && (
-                  <div className="p-8 text-center text-xs text-zinc-500 bg-[#121622] rounded-xl border border-[#232a3b]">
+                  <div className={`p-8 text-center text-xs rounded-xl border ${
+                    theme === "dark" ? "bg-[#121622] border-[#232a3b] text-zinc-500" : "bg-white border-slate-200 text-slate-400 shadow-sm"
+                  }`}>
                     No users found matching your filters.
                   </div>
                 )}
@@ -3867,15 +4070,21 @@ export default function AdminPortal() {
               {/* Modal to Create New User */}
               {showCreateUserModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-                  <div className="bg-[#121622] border border-amber-500/30 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+                  <div className={`border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 ${
+                    theme === "dark" ? "bg-[#121622] border-amber-500/30 text-white" : "bg-white border-amber-400/60 text-slate-900"
+                  }`}>
+                    <div className={`flex items-center justify-between pb-3 border-b ${
+                      theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+                    }`}>
                       <div className="flex items-center gap-2">
-                        <UserPlus className="w-5 h-5 text-amber-400" />
-                        <h3 className="text-lg font-bold text-white">Create New App User</h3>
+                        <UserPlus className="w-5 h-5 text-amber-500" />
+                        <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Create New App User</h3>
                       </div>
                       <button
                         onClick={() => setShowCreateUserModal(false)}
-                        className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                        className={`p-1 rounded-lg cursor-pointer ${
+                          theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-800"
+                        }`}
                       >
                         <XCircle className="w-5 h-5" />
                       </button>
@@ -3890,38 +4099,50 @@ export default function AdminPortal() {
 
                     <form onSubmit={handleRegisterSubmit} className="space-y-4 text-xs">
                       <div>
-                        <label className="block font-semibold text-zinc-300 uppercase mb-1">Full Name *</label>
+                        <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>Full Name *</label>
                         <input
                           type="text"
                           placeholder="e.g. Rahul Verma"
                           value={regName}
                           onChange={(e) => setRegName(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                            theme === "dark"
+                              ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                              : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                          }`}
                           required
                         />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">Email Address *</label>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>Email Address *</label>
                           <input
                             type="email"
                             placeholder="rahul@example.com"
                             value={regEmail}
                             onChange={(e) => setRegEmail(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">Mobile Number *</label>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>Mobile Number *</label>
                           <input
                             type="tel"
                             placeholder="9876543210"
                             value={regMobile}
                             onChange={(e) => setRegMobile(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
@@ -3929,19 +4150,23 @@ export default function AdminPortal() {
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">Password *</label>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>Password *</label>
                           <input
                             type="password"
                             placeholder="password123"
                             value={regPassword}
                             onChange={(e) => setRegPassword(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
                             Confirm Password *
                           </label>
                           <input
@@ -3949,7 +4174,11 @@ export default function AdminPortal() {
                             placeholder="password123"
                             value={regConfirmPassword}
                             onChange={(e) => setRegConfirmPassword(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                              theme === "dark"
+                                ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                                : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                            }`}
                             required
                           />
                         </div>
@@ -3957,11 +4186,13 @@ export default function AdminPortal() {
 
                       <div className="grid grid-cols-3 gap-3">
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">Role *</label>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>Role *</label>
                           <select
                             value={regRole}
                             onChange={(e) => setRegRole(e.target.value as any)}
-                            className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-bold text-amber-300"
+                            className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-bold ${
+                              theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-700 focus:bg-white"
+                            }`}
                           >
                             <option value="CUSTOMER">CUSTOMER</option>
                             <option value="STAFF">STAFF (Stylist)</option>
@@ -3970,11 +4201,13 @@ export default function AdminPortal() {
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">Gender</label>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>Gender</label>
                           <select
                             value={regGender}
                             onChange={(e) => setRegGender(e.target.value as any)}
-                            className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                            className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                              theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-white" : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                            }`}
                           >
                             <option value="MALE">MALE</option>
                             <option value="FEMALE">FEMALE</option>
@@ -3983,21 +4216,27 @@ export default function AdminPortal() {
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">Date of Birth</label>
+                          <label className={`block font-semibold uppercase mb-1 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>Date of Birth</label>
                           <input
                             type="date"
                             value={regDob}
                             onChange={(e) => setRegDob(e.target.value)}
-                            className="w-full px-2.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400"
+                            className={`w-full px-2.5 py-2.5 rounded-xl border text-xs focus:outline-none focus:border-amber-400 ${
+                              theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-white" : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                            }`}
                           />
                         </div>
                       </div>
 
-                      <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+                      <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                        theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+                      }`}>
                         <button
                           type="button"
                           onClick={() => setShowCreateUserModal(false)}
-                          className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                          className={`px-4 py-2 rounded-xl cursor-pointer ${
+                            theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          }`}
                         >
                           Cancel
                         </button>
@@ -4019,18 +4258,24 @@ export default function AdminPortal() {
           {/* ======================= TAB 5: REVENUE & ANALYSIS ======================= */}
           {activeTab === "revenue" && (
             <div className="space-y-8 animate-fadeIn max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#232a3b]">
+              <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-                    <TrendingUp className="w-6 h-6 text-amber-400" />
-                    Revenue & Operations Analytics
+                  <h2 className={`text-2xl font-bold tracking-tight flex items-center gap-2.5 ${
+                    theme === "dark" ? "text-white" : "text-slate-900"
+                  }`}>
+                    <TrendingUp className="w-6 h-6 text-amber-500" />
+                    Revenue &amp; Operations Analytics
                   </h2>
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className={`text-xs mt-1 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
                     Financial performance, popular service distribution, and AI congestion forecasting.
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-mono text-amber-300 bg-[#141923] px-3.5 py-1.5 rounded-xl border border-[#242c3d]">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <div className={`flex items-center gap-2 text-xs font-mono px-3.5 py-1.5 rounded-xl border ${
+                  theme === "dark" ? "text-amber-300 bg-[#141923] border-[#242c3d]" : "text-amber-800 bg-amber-50 border-amber-200 shadow-sm"
+                }`}>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   <span>AI Analytics Engine • Active</span>
                 </div>
               </div>
@@ -4043,15 +4288,23 @@ export default function AdminPortal() {
                   { title: "Monthly Projected", amount: "₹38,50,000", change: "+22.5%", tag: "September" },
                   { title: "Avg. Customer Ticket", amount: "₹2,180", change: "+8.3%", tag: "Per Visit" },
                 ].map((rev, i) => (
-                  <div key={i} className="p-5 rounded-2xl bg-[#121622] border border-[#232a3b]">
-                    <div className="flex items-center justify-between text-xs text-zinc-400 mb-2">
+                  <div key={i} className={`p-5 rounded-2xl border transition-all ${
+                    theme === "dark" ? "bg-[#121622] border-[#232a3b]" : "bg-white border-slate-200 shadow-sm"
+                  }`}>
+                    <div className={`flex items-center justify-between text-xs mb-2 ${
+                      theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                    }`}>
                       <span className="font-semibold uppercase tracking-wider">{rev.title}</span>
-                      <span className="px-2 py-0.5 rounded bg-white/5 text-zinc-300 text-[10px] font-mono">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                        theme === "dark" ? "bg-white/5 text-zinc-300" : "bg-slate-100 text-slate-700 font-semibold"
+                      }`}>
                         {rev.tag}
                       </span>
                     </div>
-                    <div className="text-2xl font-bold text-white tracking-tight">{rev.amount}</div>
-                    <div className="text-xs text-emerald-400 font-semibold mt-2 flex items-center gap-1">
+                    <div className={`text-2xl font-bold tracking-tight ${
+                      theme === "dark" ? "text-white" : "text-slate-900"
+                    }`}>{rev.amount}</div>
+                    <div className="text-xs text-emerald-500 font-semibold mt-2 flex items-center gap-1">
                       <ArrowUpRight className="w-3.5 h-3.5" />
                       <span>{rev.change} growth vs previous cycle</span>
                     </div>
@@ -4061,13 +4314,15 @@ export default function AdminPortal() {
 
               {/* Service Popularity Breakdown & Congestion Traffic Curve */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="p-6 rounded-2xl bg-[#121622] border border-[#232a3b]">
+                <div className={`p-6 rounded-2xl border ${
+                  theme === "dark" ? "bg-[#121622] border-[#232a3b]" : "bg-white border-slate-200 shadow-sm"
+                }`}>
                   <div className="flex items-center justify-between mb-5">
                     <div>
-                      <h3 className="text-base font-bold text-white">Top Performing Services</h3>
-                      <p className="text-xs text-zinc-400">Demand distribution by appointment volume</p>
+                      <h3 className={`text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Top Performing Services</h3>
+                      <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>Demand distribution by appointment volume</p>
                     </div>
-                    <span className="text-xs text-amber-400 font-semibold">4 Categories</span>
+                    <span className="text-xs text-amber-500 font-semibold">4 Categories</span>
                   </div>
 
                   <div className="space-y-4">
@@ -4077,25 +4332,27 @@ export default function AdminPortal() {
                         name: "Balayage Color & Hair Spa Treatment",
                         share: 26,
                         revenue: "₹39,180",
-                        color: "bg-purple-400",
+                        color: "bg-purple-500",
                       },
                       {
                         name: "Royal Beard Sculpture & Detailing",
                         share: 18,
                         revenue: "₹27,120",
-                        color: "bg-blue-400",
+                        color: "bg-blue-500",
                       },
-                      { name: "Hydra Radiance Facial & De-tan", share: 12, revenue: "₹18,100", color: "bg-emerald-400" },
+                      { name: "Hydra Radiance Facial & De-tan", share: 12, revenue: "₹18,100", color: "bg-emerald-500" },
                     ].map((srv, idx) => (
                       <div key={idx} className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-semibold text-white">{srv.name}</span>
+                          <span className={`font-semibold ${theme === "dark" ? "text-white" : "text-slate-800"}`}>{srv.name}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-zinc-400 font-mono">{srv.revenue}</span>
-                            <span className="font-bold text-amber-300">{srv.share}%</span>
+                            <span className={`font-mono ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>{srv.revenue}</span>
+                            <span className={`font-bold ${theme === "dark" ? "text-amber-300" : "text-amber-700"}`}>{srv.share}%</span>
                           </div>
                         </div>
-                        <div className="w-full h-2.5 rounded-full bg-[#1c2230] overflow-hidden">
+                        <div className={`w-full h-2.5 rounded-full overflow-hidden ${
+                          theme === "dark" ? "bg-[#1c2230]" : "bg-slate-100"
+                        }`}>
                           <div
                             className={`h-full rounded-full ${srv.color}`}
                             style={{ width: `${srv.share}%` }}
@@ -4106,17 +4363,21 @@ export default function AdminPortal() {
                   </div>
                 </div>
 
-                <div className="p-6 rounded-2xl bg-[#121622] border border-[#232a3b] flex flex-col justify-between">
+                <div className={`p-6 rounded-2xl border flex flex-col justify-between ${
+                  theme === "dark" ? "bg-[#121622] border-[#232a3b]" : "bg-white border-slate-200 shadow-sm"
+                }`}>
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <h3 className="text-base font-bold text-white flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-amber-400" />
-                          Hourly Congestion Pattern & Wait Times
+                        <h3 className={`text-base font-bold flex items-center gap-2 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          <Clock className="w-4 h-4 text-amber-500" />
+                          Hourly Congestion Pattern &amp; Wait Times
                         </h3>
-                        <p className="text-xs text-zinc-400">Formula: sum durations ÷ available stylists capacity</p>
+                        <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>Formula: sum durations ÷ available stylists capacity</p>
                       </div>
-                      <span className="text-[11px] font-mono text-amber-400 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30">
+                      <span className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+                        theme === "dark" ? "text-amber-400 bg-amber-500/10 border-amber-500/30" : "text-amber-800 bg-amber-50 border-amber-300 font-semibold"
+                      }`}>
                         Peak: 6-8 PM
                       </span>
                     </div>
@@ -4132,29 +4393,43 @@ export default function AdminPortal() {
                       ].map((slot, i) => (
                         <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
                           <span
-                            className={`text-[10px] font-mono font-bold ${slot.alert ? "text-rose-400 animate-pulse" : "text-zinc-400"
-                              }`}
+                            className={`text-[10px] font-mono font-bold ${
+                              slot.alert
+                                ? "text-rose-500 animate-pulse"
+                                : theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                            }`}
                           >
                             {slot.wait}
                           </span>
-                          <div className="w-full bg-[#181e2b] rounded-t-lg relative flex items-end h-28 overflow-hidden">
+                          <div className={`w-full rounded-t-lg relative flex items-end h-28 overflow-hidden ${
+                            theme === "dark" ? "bg-[#181e2b]" : "bg-slate-100"
+                          }`}>
                             <div
                               style={{ height: `${slot.load}%` }}
-                              className={`w-full rounded-t-lg transition-all duration-500 ${slot.alert
+                              className={`w-full rounded-t-lg transition-all duration-500 ${
+                                slot.alert
                                   ? "bg-gradient-to-t from-rose-600 to-amber-400"
                                   : "bg-gradient-to-t from-amber-600/60 to-amber-400"
-                                }`}
+                              }`}
                             ></div>
                           </div>
-                          <span className="text-[11px] text-zinc-400 font-mono">{slot.hour}</span>
+                          <span className={`text-[11px] font-mono ${
+                            theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                          }`}>{slot.hour}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-zinc-300">
-                    <span className="font-bold text-amber-300">LLD Formula Rule:</span> Expected wait calculated as{" "}
-                    <code className="text-amber-200 bg-black/40 px-1 py-0.5 rounded">
+                  <div className={`mt-4 p-3 rounded-xl border text-xs ${
+                    theme === "dark"
+                      ? "bg-amber-500/10 border-amber-500/20 text-zinc-300"
+                      : "bg-amber-50/80 border-amber-200 text-amber-950"
+                  }`}>
+                    <span className={`font-bold ${theme === "dark" ? "text-amber-300" : "text-amber-800"}`}>LLD Formula Rule:</span> Expected wait calculated as{" "}
+                    <code className={`px-1 py-0.5 rounded font-mono ${
+                      theme === "dark" ? "text-amber-200 bg-black/40" : "text-amber-900 bg-amber-100/90 font-bold"
+                    }`}>
                       sum(service_durations) ÷ available_staff
                     </code>
                     . Current staff capacity buffer is sufficient for all windows except 6:30 PM surge.
@@ -4163,14 +4438,20 @@ export default function AdminPortal() {
               </div>
 
               {/* BEGIN: Services & Price Catalog Master Section (Full CRUD) */}
-              <div className="bg-[#0F1726] border border-[#1E293B] rounded-2xl p-6 shadow-xl space-y-5" data-purpose="services-catalog-crud-section">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1E293B]">
+              <div className={`border rounded-2xl p-6 shadow-sm space-y-5 ${
+                theme === "dark" ? "bg-[#0F1726] border-[#1E293B]" : "bg-white border-slate-200"
+              }`} data-purpose="services-catalog-crud-section">
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
+                  theme === "dark" ? "border-[#1E293B]" : "border-slate-200"
+                }`}>
                   <div>
-                    <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2.5">
-                      <Scissors className="w-5 h-5 text-amber-400" />
+                    <h3 className={`text-lg font-bold tracking-tight flex items-center gap-2.5 ${
+                      theme === "dark" ? "text-white" : "text-slate-900"
+                    }`}>
+                      <Scissors className="w-5 h-5 text-amber-500" />
                       Salon Services &amp; Pricing Catalog Master
                     </h3>
-                    <p className="text-xs text-zinc-400 mt-0.5">
+                    <p className={`text-xs mt-0.5 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
                       Manage salon service offerings, duration standards, category tags, and pricing rates.
                     </p>
                   </div>
@@ -4183,15 +4464,21 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Filter and Search Bar */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#121622] p-3 rounded-2xl border border-[#1E293B]">
+                <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl border ${
+                  theme === "dark" ? "bg-[#121622] border-[#1E293B]" : "bg-slate-50 border-slate-200"
+                }`}>
                   <div className="relative flex-1">
-                    <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                      theme === "dark" ? "text-zinc-400" : "text-slate-400"
+                    }`} />
                     <input
                       type="text"
                       placeholder="Search service name or category..."
                       value={serviceSearch}
                       onChange={(e) => setServiceSearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 bg-transparent text-white text-xs placeholder-zinc-500 focus:outline-none"
+                      className={`w-full pl-9 pr-3 py-1.5 bg-transparent text-xs focus:outline-none ${
+                        theme === "dark" ? "text-white placeholder-zinc-500" : "text-slate-900 placeholder-slate-400"
+                      }`}
                     />
                   </div>
 
@@ -4201,7 +4488,11 @@ export default function AdminPortal() {
                         key={cat}
                         onClick={() => setServiceCategoryFilter(cat)}
                         className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                          serviceCategoryFilter === cat ? "bg-amber-400 text-black shadow" : "text-zinc-400 hover:text-white"
+                          serviceCategoryFilter === cat
+                            ? "bg-amber-400 text-black shadow"
+                            : theme === "dark"
+                              ? "text-zinc-400 hover:text-white"
+                              : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
                         {cat}
@@ -4212,70 +4503,109 @@ export default function AdminPortal() {
 
                 {/* Services Catalog List Table */}
                 <div className="space-y-2.5">
-                  <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <div className={`text-xs font-semibold uppercase tracking-wider mb-1 flex items-center justify-between ${
+                    theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                  }`}>
                     <span>Active Services Catalog ({filteredServices.length})</span>
-                    <span className="text-amber-400/80 font-mono text-[11px]">API: /api/services/catalog</span>
+                    <span className={`font-mono text-[11px] ${
+                      theme === "dark" ? "text-amber-400/80" : "text-amber-700"
+                    }`}>API: /api/services/catalog</span>
                   </div>
 
                   {filteredServices.map((srv) => (
                     <div
                       key={srv.id}
-                      className="px-5 py-3.5 rounded-xl bg-[#121622] border border-[#232a3b] hover:border-amber-500/40 transition-all flex items-center justify-between gap-4 shadow-sm"
+                      className={`px-5 py-3.5 rounded-xl border transition-all flex items-center justify-between gap-4 shadow-sm ${
+                        theme === "dark"
+                          ? "bg-[#121622] border-[#232a3b] hover:border-amber-500/40"
+                          : "bg-white border-slate-200 hover:border-amber-400 shadow-sm"
+                      }`}
                     >
                       <div className="flex items-center gap-3.5 min-w-[240px]">
-                        <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 font-bold text-xs">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs border ${
+                          theme === "dark"
+                            ? "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                            : "bg-amber-50 border-amber-200 text-amber-800"
+                        }`}>
                           ₹
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-white text-sm tracking-tight">{srv.name}</span>
+                            <span className={`font-bold text-sm tracking-tight ${
+                              theme === "dark" ? "text-white" : "text-slate-900"
+                            }`}>{srv.name}</span>
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase font-mono ${
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase font-mono border ${
                                 srv.genderTarget === "UNISEX"
-                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                  ? theme === "dark"
+                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                    : "bg-amber-50 text-amber-800 border-amber-200"
                                   : srv.genderTarget === "MALE_ONLY"
-                                  ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                                  : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                    ? theme === "dark"
+                                      ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                                      : "bg-blue-50 text-blue-800 border-blue-200"
+                                    : theme === "dark"
+                                      ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                                      : "bg-rose-50 text-rose-800 border-rose-200"
                               }`}
                             >
                               {srv.genderTarget === "UNISEX" ? "Unisex" : srv.genderTarget === "MALE_ONLY" ? "Gents" : "Ladies"}
                             </span>
                           </div>
-                          <div className="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
-                            <span className="text-amber-300/90 font-medium">{srv.category}</span>
-                            <span className="text-zinc-600">•</span>
-                            <span className="font-mono text-zinc-300 flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-zinc-500" /> {srv.durationMinutes} mins
+                          <div className={`text-xs mt-0.5 flex items-center gap-2 ${
+                            theme === "dark" ? "text-zinc-400" : "text-slate-500"
+                          }`}>
+                            <span className={`font-medium ${theme === "dark" ? "text-amber-300/90" : "text-amber-700"}`}>{srv.category}</span>
+                            <span className={theme === "dark" ? "text-zinc-600" : "text-slate-300"}>•</span>
+                            <span className={`font-mono flex items-center gap-1 ${
+                              theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                            }`}>
+                              <Clock className={`w-3 h-3 ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`} /> {srv.durationMinutes} mins
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="hidden md:flex items-center gap-8 text-xs text-zinc-300">
+                      <div className={`hidden md:flex items-center gap-8 text-xs ${
+                        theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                      }`}>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-zinc-500">Standard Price:</span>
-                          <span className="font-bold font-mono text-emerald-400 text-sm">₹{srv.price.toLocaleString("en-IN")}</span>
+                          <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Standard Price:</span>
+                          <span className="font-bold font-mono text-emerald-500 text-sm">₹{srv.price.toLocaleString("en-IN")}</span>
                         </div>
+
                         <div className="flex items-center gap-1.5">
-                          <span className="text-zinc-500">Status:</span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>Status:</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            theme === "dark"
+                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          }`}>
                             {srv.status}
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="md:hidden font-bold font-mono text-emerald-400 text-xs mr-1">₹{srv.price}</span>
+                        <span className="md:hidden font-bold font-mono text-emerald-500 text-xs mr-1">₹{srv.price}</span>
                         <button
                           onClick={() => handleOpenEditService(srv)}
-                          className="p-2 text-zinc-400 hover:text-amber-300 rounded-lg bg-white/5 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                          className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                            theme === "dark"
+                              ? "text-zinc-400 hover:text-amber-300 bg-white/5 hover:bg-amber-500/10"
+                              : "text-slate-600 hover:text-amber-700 bg-slate-100 hover:bg-amber-100"
+                          }`}
                           title="Edit Service Details"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteService(srv.id, srv.name)}
-                          className="p-2 text-zinc-500 hover:text-rose-400 rounded-lg bg-white/5 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                            theme === "dark"
+                              ? "text-zinc-500 hover:text-rose-400 bg-white/5 hover:bg-rose-500/10"
+                              : "text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-100"
+                          }`}
                           title="Remove Service"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -4285,7 +4615,11 @@ export default function AdminPortal() {
                   ))}
 
                   {filteredServices.length === 0 && (
-                    <div className="p-8 text-center text-xs text-zinc-500 bg-[#121622] rounded-xl border border-[#232a3b]">
+                    <div className={`p-8 text-center text-xs rounded-xl border ${
+                      theme === "dark"
+                        ? "text-zinc-500 bg-[#121622] border-[#232a3b]"
+                        : "text-slate-500 bg-slate-50 border-slate-200"
+                    }`}>
                       No services match your search filter. Click &apos;Add New Service&apos; to create one.
                     </div>
                   )}
@@ -4299,22 +4633,28 @@ export default function AdminPortal() {
       {/* ======================= AUTHENTICATION MODAL ======================= */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 border ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/30 text-white" : "bg-white border-slate-200 text-slate-900"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-400 to-yellow-600 p-0.5 flex items-center justify-center">
                   <Scissors className="w-4 h-4 text-black font-bold" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">
+                  <h3 className={`text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                     {authMode === "login" ? "Account Sign In" : "Register Admin User"}
                   </h3>
-                  <p className="text-[11px] text-zinc-400">Spring Boot Auth API • Port 8081</p>
+                  <p className={`text-[11px] ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>Spring Boot Auth API • Port 8081</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowAuthModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -4327,15 +4667,20 @@ export default function AdminPortal() {
               </div>
             )}
 
-            <div className="flex items-center bg-[#181e2b] p-1 rounded-xl border border-[#263044]">
+            <div className={`flex items-center p-1 rounded-xl border ${
+              theme === "dark" ? "bg-[#181e2b] border-[#263044]" : "bg-slate-100 border-slate-200"
+            }`}>
               <button
                 type="button"
                 onClick={() => {
                   setAuthMode("login");
                   setAuthError("");
                 }}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${authMode === "login" ? "bg-amber-400 text-black shadow" : "text-zinc-400 hover:text-white"
-                  }`}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  authMode === "login"
+                    ? "bg-amber-400 text-black shadow"
+                    : theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                }`}
               >
                 Sign In
               </button>
@@ -4345,8 +4690,11 @@ export default function AdminPortal() {
                   setAuthMode("register");
                   setAuthError("");
                 }}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${authMode === "register" ? "bg-amber-400 text-black shadow" : "text-zinc-400 hover:text-white"
-                  }`}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  authMode === "register"
+                    ? "bg-amber-400 text-black shadow"
+                    : theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                }`}
               >
                 Register New User
               </button>
@@ -4354,7 +4702,9 @@ export default function AdminPortal() {
 
             {authMode === "login" ? (
               <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
-                <div className="flex items-center gap-4 text-zinc-400 font-medium">
+                <div className={`flex items-center gap-4 font-medium ${
+                  theme === "dark" ? "text-zinc-400" : "text-slate-600"
+                }`}>
                   <span className="text-[11px]">Login using:</span>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -4364,7 +4714,7 @@ export default function AdminPortal() {
                       onChange={() => setLoginMethod("email")}
                       className="accent-amber-400"
                     />
-                    <span className={loginMethod === "email" ? "text-amber-300 font-bold" : ""}>Email</span>
+                    <span className={loginMethod === "email" ? "text-amber-500 font-bold" : ""}>Email</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
@@ -4374,36 +4724,52 @@ export default function AdminPortal() {
                       onChange={() => setLoginMethod("mobile")}
                       className="accent-amber-400"
                     />
-                    <span className={loginMethod === "mobile" ? "text-amber-300 font-bold" : ""}>Mobile Number</span>
+                    <span className={loginMethod === "mobile" ? "text-amber-500 font-bold" : ""}>Mobile Number</span>
                   </label>
                 </div>
 
                 {loginMethod === "email" ? (
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Email Address *</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Email Address *</label>
                     <div className="relative">
-                      <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Mail className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                        theme === "dark" ? "text-zinc-500" : "text-slate-400"
+                      }`} />
                       <input
                         type="email"
                         placeholder="johndoe@example.com"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                        className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                          theme === "dark"
+                            ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                            : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                        }`}
                         required
                       />
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Mobile Number *</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Mobile Number *</label>
                     <div className="relative">
-                      <Phone className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Phone className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                        theme === "dark" ? "text-zinc-500" : "text-slate-400"
+                      }`} />
                       <input
                         type="tel"
                         placeholder="9876543210"
                         value={loginMobile}
                         onChange={(e) => setLoginMobile(e.target.value)}
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                        className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                          theme === "dark"
+                            ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                            : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                        }`}
                         required
                       />
                     </div>
@@ -4411,15 +4777,23 @@ export default function AdminPortal() {
                 )}
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Password *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Password *</label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Lock className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${
+                      theme === "dark" ? "text-zinc-500" : "text-slate-400"
+                    }`} />
                     <input
                       type="password"
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                      }`}
                       required
                     />
                   </div>
@@ -4444,38 +4818,56 @@ export default function AdminPortal() {
             ) : (
               <form onSubmit={handleRegisterSubmit} className="space-y-3.5 text-xs max-h-[70vh] overflow-y-auto pr-1">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Full Name *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Full Name *</label>
                   <input
                     type="text"
                     placeholder="e.g. John Doe"
                     value={regName}
                     onChange={(e) => setRegName(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                    className={`w-full px-3.5 py-2 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Email Address *</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Email Address *</label>
                     <input
                       type="email"
                       placeholder="john@example.com"
                       value={regEmail}
                       onChange={(e) => setRegEmail(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                      }`}
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Mobile Number *</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Mobile Number *</label>
                     <input
                       type="tel"
                       placeholder="9876543210"
                       value={regMobile}
                       onChange={(e) => setRegMobile(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                      className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                      }`}
                       required
                     />
                   </div>
@@ -4483,25 +4875,37 @@ export default function AdminPortal() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Password *</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Password *</label>
                     <input
                       type="password"
                       placeholder="password123"
                       value={regPassword}
                       onChange={(e) => setRegPassword(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                      }`}
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Confirm Password *</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Confirm Password *</label>
                     <input
                       type="password"
                       placeholder="password123"
                       value={regConfirmPassword}
                       onChange={(e) => setRegConfirmPassword(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      className={`w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                      }`}
                       required
                     />
                   </div>
@@ -4509,21 +4913,33 @@ export default function AdminPortal() {
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Date of Birth</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Date of Birth</label>
                     <input
                       type="date"
                       value={regDob}
                       onChange={(e) => setRegDob(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400"
+                      className={`w-full px-2.5 py-2 rounded-xl border text-xs focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white"
+                          : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                      }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Gender</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Gender</label>
                     <select
                       value={regGender}
                       onChange={(e) => setRegGender(e.target.value as any)}
-                      className="w-full px-2.5 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400"
+                      className={`w-full px-2.5 py-2 rounded-xl border text-xs focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white"
+                          : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                      }`}
                     >
                       <option value="MALE">Male</option>
                       <option value="FEMALE">Female</option>
@@ -4532,11 +4948,17 @@ export default function AdminPortal() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-zinc-300 uppercase mb-1">Role</label>
+                    <label className={`block font-semibold uppercase mb-1 ${
+                      theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                    }`}>Role</label>
                     <select
                       value={regRole}
                       onChange={(e) => setRegRole(e.target.value as any)}
-                      className="w-full px-2.5 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400 font-bold text-amber-300"
+                      className={`w-full px-2.5 py-2 rounded-xl border text-xs focus:outline-none focus:border-amber-400 font-bold ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-amber-300"
+                          : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                      }`}
                     >
                       <option value="ADMIN">ADMIN</option>
                       <option value="STAFF">STAFF</option>
@@ -4569,15 +4991,21 @@ export default function AdminPortal() {
       {/* ======================= EDIT STATE MODAL ======================= */}
       {showEditStateModal && editingState && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Edit State Details</h3>
+                <Building2 className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Edit State Details</h3>
               </div>
               <button
                 onClick={() => setShowEditStateModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -4592,33 +5020,49 @@ export default function AdminPortal() {
 
             <form onSubmit={handleSaveEditState} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">State Code *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>State Code *</label>
                 <input
                   type="text"
                   maxLength={6}
                   value={editStateCode}
                   onChange={(e) => setEditStateCode(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 uppercase font-mono"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 uppercase font-mono ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">State Name *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>State Name *</label>
                 <input
                   type="text"
                   value={editStateName}
                   onChange={(e) => setEditStateName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowEditStateModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                  className={`px-4 py-2 rounded-xl cursor-pointer ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Cancel
                 </button>
@@ -4637,15 +5081,21 @@ export default function AdminPortal() {
       {/* ======================= EDIT CITY MODAL ======================= */}
       {showEditCityModal && editingCity && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Edit City Details</h3>
+                <MapPin className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Edit City Details</h3>
               </div>
               <button
                 onClick={() => setShowEditCityModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -4660,16 +5110,22 @@ export default function AdminPortal() {
 
             <form onSubmit={handleSaveEditCity} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Linked State *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Linked State *</label>
                 <select
                   value={editCityStateCode}
                   onChange={(e) => setEditCityStateCode(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white"
+                      : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                  }`}
                   required
                 >
                   <option value="">-- Choose State --</option>
                   {states.map((s) => (
-                    <option key={s.id} value={s.code}>
+                    <option key={s.id} value={s.code} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>
                       {s.code} - {s.name}
                     </option>
                   ))}
@@ -4677,33 +5133,49 @@ export default function AdminPortal() {
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">City Code *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>City Code *</label>
                 <input
                   type="text"
                   maxLength={6}
                   value={editCityCode}
                   onChange={(e) => setEditCityCode(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 uppercase font-mono"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 uppercase font-mono ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">City Name *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>City Name *</label>
                 <input
                   type="text"
                   value={editCityName}
                   onChange={(e) => setEditCityName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowEditCityModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                  className={`px-4 py-2 rounded-xl cursor-pointer ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Cancel
                 </button>
@@ -4722,20 +5194,28 @@ export default function AdminPortal() {
       {/* ======================= EDIT SALON MODAL ======================= */}
       {showEditSalonModal && editingSalon && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                <div className={`p-2 rounded-xl border ${
+                  theme === "dark" ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "bg-amber-50 border-amber-200 text-amber-800"
+                }`}>
                   <Scissors className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Edit Salon Branch</h3>
-                  <p className="text-xs text-zinc-400">UUID: {editingSalon.id}</p>
+                  <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Edit Salon Branch</h3>
+                  <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>UUID: {editingSalon.id}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowEditSalonModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -4751,22 +5231,30 @@ export default function AdminPortal() {
             <form onSubmit={handleSaveEditSalon} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    Salon Name <span className="text-amber-400">*</span>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    Salon Name <span className="text-amber-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={editSalonName}
                     onChange={(e) => setEditSalonName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1 flex items-center justify-between">
-                    <span>Owner (Staff User) <span className="text-amber-400">*</span></span>
-                    <span className="text-[10px] text-amber-400 font-normal">Staff Users in DB</span>
+                  <label className={`block font-semibold uppercase mb-1 flex items-center justify-between ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    <span>Owner (Staff User) <span className="text-amber-500">*</span></span>
+                    <span className={`text-[10px] font-normal ${theme === "dark" ? "text-amber-400" : "text-amber-700 font-bold"}`}>Staff Users in DB</span>
                   </label>
                   <select
                     value={editOwnerName}
@@ -4783,15 +5271,19 @@ export default function AdminPortal() {
                         }
                       }
                     }}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white"
+                        : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                    }`}
                     required
                   >
-                    <option value="">-- Select Staff User (Owner) --</option>
+                    <option value="" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>-- Select Staff User (Owner) --</option>
                     {editOwnerName && !staffOwnerOptions.some((s) => s.name === editOwnerName) && (
-                      <option value={editOwnerName}>{editOwnerName} (Current Owner)</option>
+                      <option value={editOwnerName} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>{editOwnerName} (Current Owner)</option>
                     )}
                     {staffOwnerOptions.map((staff) => (
-                      <option key={staff.id || staff.name} value={staff.name}>
+                      <option key={staff.id || staff.name} value={staff.name} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>
                         {staff.name} (STAFF) {staff.email ? `• ${staff.email}` : ""}
                       </option>
                     ))}
@@ -4801,59 +5293,83 @@ export default function AdminPortal() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    Phone Number <span className="text-amber-400">*</span>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    Phone Number <span className="text-amber-500">*</span>
                   </label>
                   <input
                     type="tel"
                     value={editSalonPhone}
                     onChange={(e) => setEditSalonPhone(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    Email Address <span className="text-amber-400">*</span>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    Email Address <span className="text-amber-500">*</span>
                   </label>
                   <input
                     type="email"
                     value={editSalonEmail}
                     onChange={(e) => setEditSalonEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                  Salon Address <span className="text-amber-400">*</span>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>
+                  Salon Address <span className="text-amber-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={editSalonAddress}
                   onChange={(e) => setEditSalonAddress(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    City <span className="text-amber-400">*</span>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    City <span className="text-amber-500">*</span>
                   </label>
                   {cities.length > 0 ? (
                     <select
                       value={editSalonCity}
                       onChange={(e) => setEditSalonCity(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white"
+                          : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                      }`}
                       required
                     >
                       {cities.map((c) => (
-                        <option key={c.id} value={c.name}>
+                        <option key={c.id} value={c.name} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>
                           {c.name}
                         </option>
                       ))}
@@ -4863,21 +5379,31 @@ export default function AdminPortal() {
                       type="text"
                       value={editSalonCity}
                       onChange={(e) => setEditSalonCity(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                        theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                          : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                      }`}
                       required
                     />
                   )}
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    Pincode <span className="text-amber-400">*</span>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    Pincode <span className="text-amber-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={editSalonPincode}
                     onChange={(e) => setEditSalonPincode(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
@@ -4885,7 +5411,9 @@ export default function AdminPortal() {
 
               {/* Active / Inactive Status Selector in Edit Modal */}
               <div className="space-y-1.5">
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>
                   Salon Status
                 </label>
                 <div className="grid grid-cols-2 gap-3">
@@ -4895,7 +5423,9 @@ export default function AdminPortal() {
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                       editSalonStatus === "ACTIVE" || editSalonStatus === "OPEN"
                         ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md shadow-emerald-500/10"
-                        : "bg-[#181e2b] border-[#2b354b] text-zinc-400 hover:text-white"
+                        : theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-zinc-400 hover:text-white"
+                          : "bg-slate-100 border-slate-300 text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -4907,7 +5437,9 @@ export default function AdminPortal() {
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                       editSalonStatus === "INACTIVE" || editSalonStatus === "CLOSED"
                         ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-md shadow-rose-500/10"
-                        : "bg-[#181e2b] border-[#2b354b] text-zinc-400 hover:text-white"
+                        : theme === "dark"
+                          ? "bg-[#181e2b] border-[#2b354b] text-zinc-400 hover:text-white"
+                          : "bg-slate-100 border-slate-300 text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-rose-400" />
@@ -4918,106 +5450,148 @@ export default function AdminPortal() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    Opening Time <span className="text-amber-400">*</span>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    Opening Time <span className="text-amber-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={editSalonOpen}
                     onChange={(e) => setEditSalonOpen(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    Closing Time <span className="text-amber-400">*</span>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
+                    Closing Time <span className="text-amber-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={editSalonClose}
                     onChange={(e) => setEditSalonClose(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
                     Status
                   </label>
                   <select
                     value={editSalonStatus}
                     onChange={(e) => setEditSalonStatus(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-amber-300"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                      theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                    }`}
                   >
-                    <option value="ACTIVE">ACTIVE (Operational)</option>
-                    <option value="OPEN">OPEN</option>
-                    <option value="BUSY">BUSY (High Demand)</option>
-                    <option value="CLOSED">CLOSED</option>
+                    <option value="ACTIVE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>ACTIVE (Operational)</option>
+                    <option value="OPEN" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>OPEN</option>
+                    <option value="BUSY" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>BUSY (High Demand)</option>
+                    <option value="CLOSED" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>CLOSED</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
                     Classification
                   </label>
                   <select
                     value={editSalonType}
                     onChange={(e) => setEditSalonType(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-amber-300"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                      theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                    }`}
                   >
-                    <option value="UNISEX">Unisex (All Genders)</option>
-                    <option value="MALE_ONLY">Male Only (Gents Salon)</option>
-                    <option value="FEMALE_ONLY">Female Only (Ladies Lounge)</option>
+                    <option value="UNISEX" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Unisex (All Genders)</option>
+                    <option value="MALE_ONLY" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Male Only (Gents Salon)</option>
+                    <option value="FEMALE_ONLY" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Female Only (Ladies Lounge)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>
                     Google Maps / Navigation Link
                   </label>
                   <input
                     type="url"
                     value={editSalonLocationLink}
                     onChange={(e) => setEditSalonLocationLink(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>
                   Salon Logo Image URL
                 </label>
                 <input
                   type="url"
                   value={editSalonLogo}
                   onChange={(e) => setEditSalonLogo(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400 font-mono"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-xs focus:outline-none focus:border-amber-400 font-mono ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>
                   Salon Description
                 </label>
                 <textarea
                   rows={2}
                   value={editSalonDescription}
                   onChange={(e) => setEditSalonDescription(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-xs focus:outline-none focus:border-amber-400 resize-none"
+                  className={`w-full px-3.5 py-2 rounded-xl border text-xs focus:outline-none focus:border-amber-400 resize-none ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                 />
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowEditSalonModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer font-medium"
+                  className={`px-4 py-2.5 rounded-xl cursor-pointer font-medium ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                   disabled={editSalonLoading}
                 >
                   Cancel
@@ -5038,15 +5612,21 @@ export default function AdminPortal() {
       {/* ======================= EDIT USER MODAL ======================= */}
       {showEditUserModal && editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <User className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Edit User Details</h3>
+                <User className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Edit User Details</h3>
               </div>
               <button
                 onClick={() => setShowEditUserModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -5061,35 +5641,53 @@ export default function AdminPortal() {
 
             <form onSubmit={handleSaveEditUser} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Full Name *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Full Name *</label>
                 <input
                   type="text"
                   value={editUserName}
                   onChange={(e) => setEditUserName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Email Address *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Email Address *</label>
                   <input
                     type="email"
                     value={editUserEmail}
                     onChange={(e) => setEditUserEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Mobile Number *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Mobile Number *</label>
                   <input
                     type="tel"
                     value={editUserMobile}
                     onChange={(e) => setEditUserMobile(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
@@ -5097,61 +5695,85 @@ export default function AdminPortal() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Role *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Role *</label>
                   <select
                     value={editUserRole}
                     onChange={(e) => setEditUserRole(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-bold text-amber-300"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-bold ${
+                      theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                    }`}
                   >
-                    <option value="CUSTOMER">CUSTOMER</option>
-                    <option value="STAFF">STAFF (Stylist)</option>
-                    <option value="ADMIN">ADMIN</option>
+                    <option value="CUSTOMER" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>CUSTOMER</option>
+                    <option value="STAFF" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>STAFF (Stylist)</option>
+                    <option value="ADMIN" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>ADMIN</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Status *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Status *</label>
                   <select
                     value={editUserStatus}
                     onChange={(e) => setEditUserStatus(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-emerald-300"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                      theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-emerald-300" : "bg-slate-50 border-slate-300 text-emerald-800 focus:bg-white"
+                    }`}
                   >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
+                    <option value="ACTIVE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>ACTIVE</option>
+                    <option value="INACTIVE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>INACTIVE</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Gender</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Gender</label>
                   <select
                     value={editUserGender}
                     onChange={(e) => setEditUserGender(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white"
+                        : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                    }`}
                   >
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
+                    <option value="MALE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Male</option>
+                    <option value="FEMALE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Female</option>
+                    <option value="OTHER" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Other</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Date of Birth</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Date of Birth</label>
                   <input
                     type="date"
                     value={editUserDob}
                     onChange={(e) => setEditUserDob(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white"
+                        : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                    }`}
                   />
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowEditUserModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                  className={`px-4 py-2 rounded-xl cursor-pointer ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Cancel
                 </button>
@@ -5170,15 +5792,21 @@ export default function AdminPortal() {
       {/* ======================= ADD QUEUE TOKEN MODAL ======================= */}
       {showAddQueueModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Issue Live Walk-in Token</h3>
+                <Scissors className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Issue Live Walk-in Token</h3>
               </div>
               <button
                 onClick={() => setShowAddQueueModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -5186,43 +5814,61 @@ export default function AdminPortal() {
 
             <form onSubmit={handleAddQueueToken} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Customer Name *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Customer Name *</label>
                 <input
                   type="text"
                   placeholder="e.g. Sameer Kulkarni"
                   value={newQueueCustomer}
                   onChange={(e) => setNewQueueCustomer(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Requested Service *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Requested Service *</label>
                 <select
                   value={newQueueService}
                   onChange={(e) => setNewQueueService(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white"
+                      : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                  }`}
                 >
                   {servicesList.map((s) => (
-                    <option key={s.id} value={s.name}>
+                    <option key={s.id} value={s.name} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>
                       {s.name} (₹{s.price})
                     </option>
                   ))}
-                  <option value="Executive Haircut & Styling">Executive Haircut &amp; Styling</option>
-                  <option value="Beard Trim & Clean Shave">Beard Trim &amp; Clean Shave</option>
+                  <option value="Executive Haircut & Styling" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Executive Haircut &amp; Styling</option>
+                  <option value="Beard Trim & Clean Shave" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Beard Trim &amp; Clean Shave</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Salon Branch *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Salon Branch *</label>
                 <select
                   value={newQueueBranch}
                   onChange={(e) => setNewQueueBranch(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white"
+                      : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                  }`}
                 >
                   {salons.map((sl) => (
-                    <option key={sl.id} value={`${sl.name} (${sl.cityName})`}>
+                    <option key={sl.id} value={`${sl.name} (${sl.cityName})`} className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>
                       {sl.name} ({sl.cityName})
                     </option>
                   ))}
@@ -5231,35 +5877,49 @@ export default function AdminPortal() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Estimated Wait</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Estimated Wait</label>
                   <input
                     type="text"
                     placeholder="e.g. 15 mins"
                     value={newQueueWait}
                     onChange={(e) => setNewQueueWait(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Initial Status</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Initial Status</label>
                   <select
                     value={newQueueStatus}
                     onChange={(e) => setNewQueueStatus(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-amber-300"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                      theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                    }`}
                   >
-                    <option value="WAITING">WAITING</option>
-                    <option value="CALLED">CALLED</option>
-                    <option value="IN_SERVICE">IN_SERVICE</option>
+                    <option value="WAITING" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>WAITING</option>
+                    <option value="CALLED" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>CALLED</option>
+                    <option value="IN_SERVICE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>IN_SERVICE</option>
                   </select>
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowAddQueueModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                  className={`px-4 py-2 rounded-xl cursor-pointer ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Cancel
                 </button>
@@ -5278,15 +5938,21 @@ export default function AdminPortal() {
       {/* ======================= EDIT QUEUE TOKEN MODAL ======================= */}
       {showEditQueueModal && editingQueueItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Edit Token {editingQueueItem.token}</h3>
+                <Pencil className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Edit Token {editingQueueItem.token}</h3>
               </div>
               <button
                 onClick={() => setShowEditQueueModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -5294,70 +5960,102 @@ export default function AdminPortal() {
 
             <form onSubmit={handleSaveEditQueue} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Customer Name *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Customer Name *</label>
                 <input
                   type="text"
                   value={editQueueCustomer}
                   onChange={(e) => setEditQueueCustomer(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Service *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Service *</label>
                 <input
                   type="text"
                   value={editQueueService}
                   onChange={(e) => setEditQueueService(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Salon Branch *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Salon Branch *</label>
                 <input
                   type="text"
                   value={editQueueBranch}
                   onChange={(e) => setEditQueueBranch(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Wait Estimate</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Wait Estimate</label>
                   <input
                     type="text"
                     value={editQueueWait}
                     onChange={(e) => setEditQueueWait(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Status</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Status</label>
                   <select
                     value={editQueueStatus}
                     onChange={(e) => setEditQueueStatus(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-amber-300"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                      theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                    }`}
                   >
-                    <option value="WAITING">WAITING</option>
-                    <option value="CALLED">CALLED</option>
-                    <option value="IN_SERVICE">IN_SERVICE</option>
-                    <option value="COMPLETED">COMPLETED</option>
-                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="WAITING" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>WAITING</option>
+                    <option value="CALLED" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>CALLED</option>
+                    <option value="IN_SERVICE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>IN_SERVICE</option>
+                    <option value="COMPLETED" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>COMPLETED</option>
+                    <option value="CANCELLED" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>CANCELLED</option>
                   </select>
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowEditQueueModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                  className={`px-4 py-2 rounded-xl cursor-pointer ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Cancel
                 </button>
@@ -5376,15 +6074,21 @@ export default function AdminPortal() {
       {/* ======================= ADD SERVICE MODAL ======================= */}
       {showAddServiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Add New Salon Service</h3>
+                <Scissors className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Add New Salon Service</h3>
               </div>
               <button
                 onClick={() => setShowAddServiceModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -5392,76 +6096,108 @@ export default function AdminPortal() {
 
             <form onSubmit={handleAddService} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Service Name *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Service Name *</label>
                 <input
                   type="text"
                   placeholder="e.g. Keratin Smooth Therapy"
                   value={newServiceName}
                   onChange={(e) => setNewServiceName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Category *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Category *</label>
                 <select
                   value={newServiceCategory}
                   onChange={(e) => setNewServiceCategory(e.target.value as any)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-amber-300"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                    theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                  }`}
                 >
-                  <option value="Haircut & Styling">Haircut &amp; Styling</option>
-                  <option value="Color & Spa">Color &amp; Spa</option>
-                  <option value="Beard & Shave">Beard &amp; Shave</option>
-                  <option value="Facial & Skincare">Facial &amp; Skincare</option>
-                  <option value="Treatments">Treatments</option>
+                  <option value="Haircut & Styling" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Haircut &amp; Styling</option>
+                  <option value="Color & Spa" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Color &amp; Spa</option>
+                  <option value="Beard & Shave" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Beard &amp; Shave</option>
+                  <option value="Facial & Skincare" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Facial &amp; Skincare</option>
+                  <option value="Treatments" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Treatments</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Price (₹) *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Price (₹) *</label>
                   <input
                     type="number"
                     placeholder="650"
                     value={newServicePrice}
                     onChange={(e) => setNewServicePrice(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Duration (Mins) *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Duration (Mins) *</label>
                   <input
                     type="number"
                     placeholder="30"
                     value={newServiceDuration}
                     onChange={(e) => setNewServiceDuration(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Gender Target</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Gender Target</label>
                 <select
                   value={newServiceGender}
                   onChange={(e) => setNewServiceGender(e.target.value as any)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white"
+                      : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                  }`}
                 >
-                  <option value="UNISEX">Unisex (All Clients)</option>
-                  <option value="MALE_ONLY">Male Only (Gents)</option>
-                  <option value="FEMALE_ONLY">Female Only (Ladies)</option>
+                  <option value="UNISEX" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Unisex (All Clients)</option>
+                  <option value="MALE_ONLY" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Male Only (Gents)</option>
+                  <option value="FEMALE_ONLY" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Female Only (Ladies)</option>
                 </select>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowAddServiceModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                  className={`px-4 py-2 rounded-xl cursor-pointer ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Cancel
                 </button>
@@ -5480,15 +6216,21 @@ export default function AdminPortal() {
       {/* ======================= EDIT SERVICE MODAL ======================= */}
       {showEditServiceModal && editingService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+          <div className={`border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${
+              theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+            }`}>
               <div className="flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Edit Service Details</h3>
+                <Pencil className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Edit Service Details</h3>
               </div>
               <button
                 onClick={() => setShowEditServiceModal(false)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg cursor-pointer"
+                className={`p-1 rounded-lg cursor-pointer ${
+                  theme === "dark" ? "text-zinc-400 hover:text-white" : "text-slate-400 hover:text-slate-700"
+                }`}
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -5496,50 +6238,72 @@ export default function AdminPortal() {
 
             <form onSubmit={handleSaveEditService} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Service Name *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Service Name *</label>
                 <input
                   type="text"
                   value={editServiceName}
                   onChange={(e) => setEditServiceName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                    theme === "dark"
+                      ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-zinc-300 uppercase mb-1">Category *</label>
+                <label className={`block font-semibold uppercase mb-1 ${
+                  theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                }`}>Category *</label>
                 <select
                   value={editServiceCategory}
                   onChange={(e) => setEditServiceCategory(e.target.value as any)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-amber-300"
+                  className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                    theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-amber-300" : "bg-slate-50 border-slate-300 text-amber-800 focus:bg-white"
+                  }`}
                 >
-                  <option value="Haircut & Styling">Haircut &amp; Styling</option>
-                  <option value="Color & Spa">Color &amp; Spa</option>
-                  <option value="Beard & Shave">Beard &amp; Shave</option>
-                  <option value="Facial & Skincare">Facial &amp; Skincare</option>
-                  <option value="Treatments">Treatments</option>
+                  <option value="Haircut & Styling" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Haircut &amp; Styling</option>
+                  <option value="Color & Spa" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Color &amp; Spa</option>
+                  <option value="Beard & Shave" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Beard &amp; Shave</option>
+                  <option value="Facial & Skincare" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Facial &amp; Skincare</option>
+                  <option value="Treatments" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Treatments</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Price (₹) *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Price (₹) *</label>
                   <input
                     type="number"
                     value={editServicePrice}
                     onChange={(e) => setEditServicePrice(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Duration (Mins) *</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Duration (Mins) *</label>
                   <input
                     type="number"
                     value={editServiceDuration}
                     onChange={(e) => setEditServiceDuration(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-mono ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white placeholder-zinc-500"
+                        : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white"
+                    }`}
                     required
                   />
                 </div>
@@ -5547,36 +6311,50 @@ export default function AdminPortal() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Gender Target</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Gender Target</label>
                   <select
                     value={editServiceGender}
                     onChange={(e) => setEditServiceGender(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 ${
+                      theme === "dark"
+                        ? "bg-[#181e2b] border-[#2b354b] text-white"
+                        : "bg-slate-50 border-slate-300 text-slate-900 focus:bg-white"
+                    }`}
                   >
-                    <option value="UNISEX">Unisex</option>
-                    <option value="MALE_ONLY">Male Only</option>
-                    <option value="FEMALE_ONLY">Female Only</option>
+                    <option value="UNISEX" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Unisex</option>
+                    <option value="MALE_ONLY" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Male Only</option>
+                    <option value="FEMALE_ONLY" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>Female Only</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">Status</label>
+                  <label className={`block font-semibold uppercase mb-1 ${
+                    theme === "dark" ? "text-zinc-300" : "text-slate-700"
+                  }`}>Status</label>
                   <select
                     value={editServiceStatus}
                     onChange={(e) => setEditServiceStatus(e.target.value as any)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-semibold text-emerald-300"
+                    className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:border-amber-400 font-semibold ${
+                      theme === "dark" ? "bg-[#181e2b] border-[#2b354b] text-emerald-300" : "bg-slate-50 border-slate-300 text-emerald-800 focus:bg-white"
+                    }`}
                   >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
+                    <option value="ACTIVE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>ACTIVE</option>
+                    <option value="INACTIVE" className={theme === "dark" ? "bg-[#121622] text-white" : "bg-white text-slate-900"}>INACTIVE</option>
                   </select>
                 </div>
               </div>
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-[#232a3b]">
+              <div className={`pt-3 flex items-center justify-end gap-3 border-t ${
+                theme === "dark" ? "border-[#232a3b]" : "border-slate-200"
+              }`}>
                 <button
                   type="button"
                   onClick={() => setShowEditServiceModal(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 text-zinc-300 hover:text-white cursor-pointer"
+                  className={`px-4 py-2 rounded-xl cursor-pointer ${
+                    theme === "dark" ? "bg-white/5 text-zinc-300 hover:text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
                 >
                   Cancel
                 </button>
@@ -5595,14 +6373,18 @@ export default function AdminPortal() {
       {/* ======================= LOGOUT CONFIRMATION POPUP MODAL ======================= */}
       {showLogoutConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#121622] border border-amber-500/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 text-center">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-inner">
+          <div className={`border rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 text-center ${
+            theme === "dark" ? "bg-[#121622] border-amber-500/40" : "bg-white border-slate-200"
+          }`}>
+            <div className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center shadow-inner border ${
+              theme === "dark" ? "bg-rose-500/15 border-rose-500/30 text-rose-400" : "bg-rose-50 border-rose-200 text-rose-600"
+            }`}>
               <LogOut className="w-7 h-7" />
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-lg font-bold text-white tracking-tight">Are you sure to logout?</h3>
-              <p className="text-xs text-zinc-400">
+              <h3 className={`text-lg font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Are you sure to logout?</h3>
+              <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
                 You will be signed out from your SalonFlow AI Admin Portal session. You can sign back in anytime.
               </p>
             </div>
@@ -5611,7 +6393,11 @@ export default function AdminPortal() {
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirmModal(false)}
-                className="py-2.5 px-4 rounded-xl bg-[#1a202d] hover:bg-[#222b3d] border border-[#2d384e] text-zinc-300 hover:text-white font-medium text-xs transition-colors cursor-pointer"
+                className={`py-2.5 px-4 rounded-xl border font-medium text-xs transition-colors cursor-pointer ${
+                  theme === "dark"
+                    ? "bg-[#1a202d] hover:bg-[#222b3d] border-[#2d384e] text-zinc-300 hover:text-white"
+                    : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-900"
+                }`}
               >
                 Cancel
               </button>

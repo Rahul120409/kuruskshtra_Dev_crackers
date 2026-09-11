@@ -95,6 +95,7 @@ export type QueueStatus = 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'COMPLETED' | 'C
 
 export interface QueueToken {
   tokenId: string;
+  id?: string;
   tokenNumber: number;
   position: number;
   estimatedWait: number; // in minutes
@@ -102,13 +103,15 @@ export interface QueueToken {
   salonId: string;
   salonName?: string;
   customerId: string;
+  customerName?: string;
+  customerPhone?: string;
   serviceId: string;
   serviceName?: string;
   servicePrice?: number;
   staffId?: string;
   staffName?: string;
   appointmentId?: string;
-  queueDate: string;
+  queueDate?: string;
   createdAt: string;
   stationNumber?: number;
   selectedHairstyleId?: string;
@@ -118,6 +121,8 @@ export interface QueueToken {
 export interface Appointment {
   id: string;
   customerId: string;
+  customerName?: string;
+  customerPhone?: string;
   salonId: string;
   salonName?: string;
   salonAddress?: string;
@@ -128,6 +133,7 @@ export interface Appointment {
   serviceDuration?: number;
   staffId?: string;
   staffName?: string;
+  stylistName?: string;
   staffAvatar?: string;
   appointmentDate: string;
   appointmentTime: string;
@@ -137,6 +143,7 @@ export interface Appointment {
   tokenNumber?: number;
   paymentMethod?: string;
   paymentStatus?: 'PAID' | 'PENDING_AT_COUNTER';
+  notes?: string;
   createdAt: string;
 }
 

@@ -25,8 +25,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Salon, SalonService, SalonStaff } from '../types';
-import { DEMO_SERVICES, DEMO_STAFF, DEMO_HAIRSTYLES } from '../services/mockData';
 import { useCustomer } from '../context/CustomerContext';
+import { customerService } from '../services/customerService';
 
 interface BookingWizardModalProps {
   isOpen: boolean;
@@ -63,22 +63,44 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
-  // Available services
-  const services = useMemo(() => DEMO_SERVICES, []);
-  const staffMembers = useMemo(() => DEMO_STAFF, []);
+  // Available services and staff fetched from API
+  const [services, setServices] = useState<SalonService[]>([]);
+  const [staffMembers, setStaffMembers] = useState<SalonStaff[]>([]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      customerService.getServices().then((data) => {
+        if (Array.isArray(data)) {
+          setServices(data);
+          if (data.length > 0 && !data.some((s: SalonService) => s.id === selectedServiceId)) {
+            setSelectedServiceId(data[0].id);
+          }
+        }
+      }).catch(() => {});
+
+      customerService.getStaff().then((data) => {
+        if (Array.isArray(data)) {
+          setStaffMembers(data);
+          if (data.length > 0 && !data.some((st: SalonStaff) => st.id === selectedStaffId)) {
+            setSelectedStaffId(data[0].id);
+          }
+        }
+      }).catch(() => {});
+    }
+  }, [isOpen]);
 
   const filteredServices = useMemo(() => {
     if (categoryFilter === 'All') return services;
-    return services.filter((s) => s.category === categoryFilter);
+    return services.filter((s: SalonService) => s.category === categoryFilter);
   }, [services, categoryFilter]);
 
   const selectedService = useMemo(() => {
-    return services.find((s) => s.id === selectedServiceId) || services[0];
+    return services.find((s: SalonService) => s.id === selectedServiceId) || services[0];
   }, [services, selectedServiceId]);
 
   const selectedStaff = useMemo(() => {
     if (selectedStaffId === 'any') return null;
-    return staffMembers.find((st) => st.id === selectedStaffId) || staffMembers[0];
+    return staffMembers.find((st: SalonStaff) => st.id === selectedStaffId) || staffMembers[0];
   }, [staffMembers, selectedStaffId]);
 
   React.useEffect(() => {

@@ -23,7 +23,6 @@ import {
   BookmarkCheck
 } from 'lucide-react';
 import { useCustomer } from '../../context/CustomerContext';
-import { DEMO_HAIRSTYLES } from '../../services/mockData';
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
@@ -45,7 +44,7 @@ const PUNE_AREAS = [
 ];
 
 export default function ProfilePage() {
-  const { user, activeToken, logoutUser, updateUserProfile, appointments } = useCustomer();
+  const { user, activeToken, logoutUser, updateUserProfile, appointments, selectedHairstyle } = useCustomer();
 
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -470,22 +469,22 @@ export default function ProfilePage() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {DEMO_HAIRSTYLES.slice(0, 2).map((style) => (
+        {selectedHairstyle ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div
-              key={style.id}
+              key={selectedHairstyle.id}
               className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex items-center justify-between gap-3"
             >
               <div className="flex items-center gap-3">
                 <img
-                  src={style.imageUrl}
-                  alt={style.name}
+                  src={selectedHairstyle.imageUrl}
+                  alt={selectedHairstyle.name}
                   className="w-14 h-14 rounded-xl object-cover border border-slate-800"
                 />
                 <div>
-                  <span className="text-[10px] font-mono text-indigo-400 font-bold">[{style.id}] 95% Match</span>
-                  <h3 className="text-sm font-bold text-white">{style.name}</h3>
-                  <p className="text-[11px] text-slate-400 line-clamp-1">{style.description}</p>
+                  <span className="text-[10px] font-mono text-indigo-400 font-bold">[{selectedHairstyle.id}] AI Match</span>
+                  <h3 className="text-sm font-bold text-white">{selectedHairstyle.name}</h3>
+                  <p className="text-[11px] text-slate-400 line-clamp-1">{selectedHairstyle.description}</p>
                 </div>
               </div>
               <Link
@@ -496,8 +495,16 @@ export default function ProfilePage() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="p-6 rounded-2xl bg-slate-900/30 border border-slate-800/80 text-center">
+            <p className="text-xs text-slate-400">No saved AI hairstyles yet.</p>
+            <Link href="/ai-recommend" className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold mt-2">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Take an AI Hairstyle Scan</span>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Past Salon Visits History */}

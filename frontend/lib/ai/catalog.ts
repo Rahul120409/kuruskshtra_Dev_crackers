@@ -114,6 +114,20 @@ export const HAIRSTYLE_CATALOG: HairstyleCatalogItem[] = [
     maintenanceLevel: 'Low',
     stylingTips: 'Towel dry and comb forward with a touch of lightweight gel.'
   },
+  {
+    id: 'HS-B09',
+    name: 'Clean Bald / Shaved Head',
+    targetGender: 'unisex',
+    description: 'Precision razor bald head shave with soothing scalp conditioning, hot towel treatment, and beard edge-up.',
+    category: 'Fade',
+    imageUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&auto=format&fit=crop&q=80',
+    suitableFaceShapes: ['Oval', 'Square', 'Round', 'Heart', 'Diamond', 'Oblong'],
+    suitableHairTypes: ['Straight', 'Wavy', 'Curly', 'Coily'],
+    suitableHairDensities: ['Thin', 'Medium', 'Thick'],
+    baseServiceId: 'SRV-BOY-HAIRCUT-01',
+    maintenanceLevel: 'Low',
+    stylingTips: 'Keep scalp moisturized with matte SPF balm and exfoliate weekly.'
+  },
 
   // ==================== GIRLS' HAIRSTYLES ====================
   {

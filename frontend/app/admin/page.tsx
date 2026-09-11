@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   MapPin,
@@ -11,6 +13,7 @@ import {
   Calendar,
   Users,
   Clock,
+  Store,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -56,6 +59,8 @@ import {
   getAllStates as apiGetAllStates,
   createCity as apiCreateCity,
   getAllCities as apiGetAllCities,
+  getCitiesByStateId,
+  getCitiesByStateCode,
   updateStateApi as apiUpdateState,
   updateCityApi as apiUpdateCity,
   deleteStateApi,
@@ -71,6 +76,10 @@ import {
   CreateSalonPayload,
   SalonData,
 } from "../services/salon";
+import {
+  getAllStaffApi,
+  StaffItemData,
+} from "../services/staff";
 
 // Types
 interface StateItem {
@@ -108,7 +117,7 @@ interface SalonItem {
   openingTime: string;
   closingTime: string;
   activeStylists: number;
-  status: "ACTIVE" | "OPEN" | "BUSY" | "CLOSED";
+  status: "ACTIVE" | "INACTIVE" | "OPEN" | "BUSY" | "CLOSED";
   todayRevenue: number;
   createdAt?: string;
 }
@@ -148,6 +157,7 @@ interface SalonServiceItem {
 }
 
 export default function AdminPortal() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"dashboard" | "location" | "salon" | "users" | "revenue">("dashboard");
   const [currentTime, setCurrentTime] = useState<string>("");
 
@@ -178,6 +188,8 @@ export default function AdminPortal() {
   // Location Tab: Toggle to show/hide Add State & City Forms
   const [showAddLocation, setShowAddLocation] = useState(false);
   const [locationSubTab, setLocationSubTab] = useState<"states" | "cities">("states");
+  const [locationStateFilter, setLocationStateFilter] = useState<string>("ALL");
+  const [isFilterLoading, setIsFilterLoading] = useState<boolean>(false);
 
   // Logout Confirmation Modal
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState<boolean>(false);
@@ -231,7 +243,7 @@ export default function AdminPortal() {
   const [editSalonLocationLink, setEditSalonLocationLink] = useState("");
   const [editSalonOpen, setEditSalonOpen] = useState("09:00");
   const [editSalonClose, setEditSalonClose] = useState("21:00");
-  const [editSalonStatus, setEditSalonStatus] = useState<"ACTIVE" | "OPEN" | "BUSY" | "CLOSED">("ACTIVE");
+  const [editSalonStatus, setEditSalonStatus] = useState<"ACTIVE" | "INACTIVE" | "OPEN" | "BUSY" | "CLOSED">("ACTIVE");
   const [editSalonError, setEditSalonError] = useState("");
   const [editSalonLoading, setEditSalonLoading] = useState(false);
 
@@ -393,7 +405,7 @@ export default function AdminPortal() {
   const [appUsers, setAppUsers] = useState<AppUser[]>([
     {
       id: "usr-1",
-      name: "Prapti Meher (Admin)",
+      name: "Prapti Meher",
       email: "praptimeher04@gmail.com",
       mobileNumber: "9876543210",
       dob: "1998-05-15",
@@ -524,7 +536,7 @@ export default function AdminPortal() {
   // Salon modal form state (including complete API fields)
   const [showAddSalonModal, setShowAddSalonModal] = useState(false);
   const [newSalonName, setNewSalonName] = useState("Style Studio");
-  const [newOwnerName, setNewOwnerName] = useState("Rahul Sharma");
+  const [newOwnerName, setNewOwnerName] = useState("");
   const [newSalonEmail, setNewSalonEmail] = useState("stylestudio.baner@gmail.com");
   const [newSalonPhone, setNewSalonPhone] = useState("9876543210");
   const [newSalonType, setNewSalonType] = useState<"UNISEX" | "MALE_ONLY" | "FEMALE_ONLY">("UNISEX");
@@ -542,6 +554,37 @@ export default function AdminPortal() {
   const [salonLoading, setSalonLoading] = useState(false);
   const [salonError, setSalonError] = useState("");
 
+  // Staff members fetched from database
+  const [dbStaffMembers, setDbStaffMembers] = useState<StaffItemData[]>([]);
+
+  // Computed staff members for Owner selection dropdown (strictly database users with role STAFF)
+  const staffOwnerOptions = React.useMemo(() => {
+    const list: { id: string; name: string; email: string; phone: string; role: string }[] = [];
+    const seen = new Set<string>();
+
+    // Strictly database users with role STAFF only
+    appUsers
+      .filter((u) => {
+        const roleUpper = (u.role || "").toUpperCase();
+        return roleUpper === "STAFF" || roleUpper === "ROLE_STAFF";
+      })
+      .forEach((u) => {
+        const key = u.name ? u.name.trim().toLowerCase() : "";
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          list.push({
+            id: u.id,
+            name: u.name,
+            email: u.email || "",
+            phone: u.mobileNumber || "",
+            role: "STAFF",
+          });
+        }
+      });
+
+    return list;
+  }, [appUsers]);
+
   // Search filter
   const [locationSearch, setLocationSearch] = useState("");
   const [salonSearch, setSalonSearch] = useState("");
@@ -552,10 +595,11 @@ export default function AdminPortal() {
   // Check saved authentication session on load
   useEffect(() => {
     try {
-      const savedUser = localStorage.getItem("salonflow_user");
-      const savedToken = localStorage.getItem("salonflow_token");
-      if (savedUser && savedToken) {
-        setCurrentUser(JSON.parse(savedUser));
+      const savedUserStr = localStorage.getItem("salonflow_user") || localStorage.getItem("salonflow_auth_user");
+      const savedToken = localStorage.getItem("salonflow_token") || localStorage.getItem("salonflow_auth_token");
+      if (savedUserStr && savedToken) {
+        const parsed = JSON.parse(savedUserStr);
+        setCurrentUser(parsed);
         setAuthToken(savedToken);
       }
     } catch {
@@ -588,7 +632,7 @@ export default function AdminPortal() {
     }, 3500);
   };
 
-  // Auth Handler: Login
+  // Auth Handler: Login with Database Role Verification
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -609,17 +653,28 @@ export default function AdminPortal() {
       }
 
       if (res.data?.token && res.data?.user) {
+        const returnedRole = (res.data.user.role || "").toUpperCase();
+        const isAdmin = returnedRole === "ADMIN" || returnedRole === "ROLE_ADMIN";
+
+        if (!isAdmin) {
+          throw new Error(
+            `Access Denied: Your account role in the database is "${res.data.user.role}". Only accounts with ADMIN role are authorized to access the Admin Panel.`
+          );
+        }
+
         setAuthToken(res.data.token);
         setCurrentUser(res.data.user);
         localStorage.setItem("salonflow_token", res.data.token);
         localStorage.setItem("salonflow_user", JSON.stringify(res.data.user));
+        localStorage.setItem("salonflow_auth_token", res.data.token);
+        localStorage.setItem("salonflow_auth_user", JSON.stringify(res.data.user));
         setShowAuthModal(false);
         setLoginEmail("");
         setLoginMobile("");
         setLoginPassword("");
-        showToast(`Welcome back, ${res.data.user.name}! (Role: ${res.data.user.role})`, "success");
+        showToast(`Admin Access Granted: Welcome back, ${res.data.user.name}! (Role: ${res.data.user.role})`, "success");
       } else {
-        throw new Error(res.message || "Invalid authentication response.");
+        throw new Error(res.message || "Invalid authentication response from database.");
       }
     } catch (err: any) {
       setAuthError(err.message || "Login failed. Please check backend on port 8081.");
@@ -696,8 +751,11 @@ export default function AdminPortal() {
     setAuthToken(null);
     localStorage.removeItem("salonflow_token");
     localStorage.removeItem("salonflow_user");
+    localStorage.removeItem("salonflow_auth_token");
+    localStorage.removeItem("salonflow_auth_user");
     setShowLogoutConfirmModal(false);
     showToast("Logged out successfully.", "info");
+    router.push("/login");
   };
 
   const handleDeleteUser = async (id: string, name: string) => {
@@ -799,12 +857,25 @@ export default function AdminPortal() {
     }
   };
 
-  // Initial load: fetch locations and salons from backend database
+  // Initial load: fetch locations, salons, users and staff from backend database
   useEffect(() => {
     fetchLocations();
     fetchSalons();
     fetchUsers();
+    fetchStaff();
   }, []);
+
+  // Fetch Staff from Database API: GET /api/staff
+  const fetchStaff = async () => {
+    try {
+      const res = await getAllStaffApi();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setDbStaffMembers(res.data);
+      }
+    } catch (err) {
+      console.warn("Could not fetch staff from /api/staff:", err);
+    }
+  };
 
   // Fetch Users from Database API: GET /api/users
   const fetchUsers = async () => {
@@ -928,14 +999,14 @@ export default function AdminPortal() {
 
     const cleanCode = cityCode.trim().toUpperCase();
     const cleanName = cityName.trim();
-    const matchedState = states.find((s) => s.code === selectedStateCode);
+    const matchedState = states.find((s) => s.code === selectedStateCode || s.id === selectedStateCode);
 
     try {
       const res = await apiCreateCity({
         cityName: cleanName,
         cityCode: cleanCode,
-        stateId: matchedState?.id && !matchedState.id.startsWith("st-") ? matchedState.id : undefined,
-        stateCode: selectedStateCode,
+        stateId: matchedState?.id,
+        stateCode: matchedState?.code || selectedStateCode,
       });
 
       const cityData = res?.data || (res as any);
@@ -945,11 +1016,18 @@ export default function AdminPortal() {
           code: cityData.code || cleanCode,
           name: cityData.name || cleanName,
           stateId: cityData.stateId || matchedState?.id,
-          stateCode: cityData.stateCode || selectedStateCode,
+          stateCode: cityData.stateCode || matchedState?.code || selectedStateCode,
           stateName: cityData.stateName || matchedState?.name,
           createdAt: cityData.createdAt ? String(cityData.createdAt).split("T")[0] : new Date().toISOString().split("T")[0],
         };
         setCities((prev) => [savedCity, ...prev.filter((c) => c.code.toUpperCase() !== cleanCode)]);
+        setStates((prev) =>
+          prev.map((s) =>
+            s.id === matchedState?.id || s.code === (matchedState?.code || selectedStateCode)
+              ? { ...s, cityCount: (s.cityCount || 0) + 1 }
+              : s
+          )
+        );
         setCityCode("");
         setCityName("");
         setSelectedStateCode("");
@@ -967,14 +1045,94 @@ export default function AdminPortal() {
         id: `ct-${Date.now()}`,
         code: cleanCode,
         name: cleanName,
-        stateCode: selectedStateCode,
+        stateId: matchedState?.id,
+        stateCode: matchedState?.code || selectedStateCode,
+        stateName: matchedState?.name,
         createdAt: new Date().toISOString().split("T")[0],
       };
       setCities((prev) => [newCity, ...prev.filter((c) => c.code.toUpperCase() !== cleanCode)]);
+      setStates((prev) =>
+        prev.map((s) =>
+          s.id === matchedState?.id || s.code === (matchedState?.code || selectedStateCode)
+            ? { ...s, cityCount: (s.cityCount || 0) + 1 }
+            : s
+        )
+      );
       setCityCode("");
       setCityName("");
       setSelectedStateCode("");
       showToast(`City ${cleanName} (${cleanCode}) saved locally (Backend offline).`, "info");
+    }
+  };
+
+  // Cascading Dropdown / State Filter for Cities: GET /api/locations/cities/state/{stateId} or state-code/{stateCode}
+  const handleFilterCitiesByState = async (stateCodeOrId: string) => {
+    setLocationStateFilter(stateCodeOrId);
+    if (stateCodeOrId === "ALL") {
+      try {
+        const res = await apiGetAllCities();
+        if (res.success && res.data && Array.isArray(res.data)) {
+          setCities(
+            res.data
+              .filter((c) => !deletedCityIds.has(c.id) && !deletedCityIds.has(c.code))
+              .map((c) => ({
+                id: c.id,
+                code: c.code,
+                name: c.name,
+                stateId: c.stateId,
+                stateCode: c.stateCode || "",
+                stateName: c.stateName || "",
+                createdAt: c.createdAt ? c.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+              }))
+          );
+        }
+      } catch (err) {
+        console.warn("Could not fetch all cities:", err);
+      }
+      return;
+    }
+
+    setIsFilterLoading(true);
+    try {
+      const matchedState = states.find((s) => s.id === stateCodeOrId || s.code === stateCodeOrId);
+      let res;
+      if (matchedState && matchedState.id && !matchedState.id.startsWith("st-")) {
+        // GET /api/locations/cities/state/{stateId}
+        res = await getCitiesByStateId(matchedState.id);
+      } else {
+        // GET /api/locations/cities/state-code/{stateCode}
+        const code = matchedState ? matchedState.code : stateCodeOrId;
+        res = await getCitiesByStateCode(code);
+      }
+
+      if (res.success && Array.isArray(res.data)) {
+        const fetchedCities: CityItem[] = res.data
+          .filter((c) => !deletedCityIds.has(c.id) && !deletedCityIds.has(c.code))
+          .map((c) => ({
+            id: c.id,
+            code: c.code,
+            name: c.name,
+            stateId: c.stateId || matchedState?.id,
+            stateCode: c.stateCode || matchedState?.code || stateCodeOrId,
+            stateName: c.stateName || matchedState?.name,
+            createdAt: c.createdAt ? c.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+          }));
+
+        setCities((prev) => {
+          const others = prev.filter(
+            (c) =>
+              c.stateCode !== (matchedState?.code || stateCodeOrId) &&
+              (!c.stateId || c.stateId !== (matchedState?.id || stateCodeOrId))
+          );
+          return [...fetchedCities, ...others];
+        });
+        showToast(`Loaded ${fetchedCities.length} cities for state ${matchedState ? matchedState.name : stateCodeOrId}`, "success");
+      }
+    } catch (err: any) {
+      console.warn("Could not fetch cities for state from backend:", err);
+      showToast(`Filtered locally for state ${stateCodeOrId}`, "info");
+    } finally {
+      setIsFilterLoading(false);
     }
   };
 
@@ -1179,6 +1337,37 @@ export default function AdminPortal() {
     setSalons((prev) => prev.map((s) => (s.id === editingSalon.id ? updatedSalon : s)));
     setShowEditSalonModal(false);
     showToast(`Salon "${updatedSalon.name}" updated successfully!`, "success");
+  };
+
+  // One-click Toggle Salon Active/Inactive status
+  const handleToggleSalonStatus = async (salon: SalonItem) => {
+    const isCurrentlyActive = salon.status === "ACTIVE" || salon.status === "OPEN";
+    const nextStatus: "ACTIVE" | "INACTIVE" = isCurrentlyActive ? "INACTIVE" : "ACTIVE";
+
+    setSalons((prev) =>
+      prev.map((s) => (s.id === salon.id ? { ...s, status: nextStatus } : s))
+    );
+
+    try {
+      if (!salon.id.startsWith("sl-")) {
+        await apiUpdateSalon(salon.id, {
+          salonName: salon.name,
+          ownerName: salon.ownerName || "",
+          phoneNumber: salon.phone,
+          email: salon.email || "",
+          salonAddress: salon.address,
+          city: salon.cityName,
+          pincode: salon.pincode || "411045",
+          openingTime: salon.openingTime,
+          closingTime: salon.closingTime,
+          status: nextStatus,
+        });
+      }
+      showToast(`Salon "${salon.name}" set to ${nextStatus}!`, "success");
+    } catch (err: any) {
+      console.warn("Could not sync salon status with backend:", err);
+      showToast(`Salon status changed to ${nextStatus}`, "info");
+    }
   };
 
   // Edit User Handlers
@@ -1431,7 +1620,7 @@ export default function AdminPortal() {
         setSalons((prev) => [savedSalon, ...prev.filter((s) => s.id !== savedSalon.id)]);
         setShowAddSalonModal(false);
         setNewSalonName("Style Studio");
-        setNewOwnerName("Rahul Sharma");
+        setNewOwnerName(staffOwnerOptions[0]?.name || "");
         setNewSalonEmail("stylestudio.baner@gmail.com");
         setNewSalonPhone("9876543210");
         setNewSalonAddress("High Street, Baner, Pune");
@@ -1506,12 +1695,18 @@ export default function AdminPortal() {
       s.code.toLowerCase().includes(locationSearch.toLowerCase())
   );
 
-  const filteredCities = cities.filter(
-    (c) =>
+  const filteredCities = cities.filter((c) => {
+    const matchesSearch =
       c.name.toLowerCase().includes(locationSearch.toLowerCase()) ||
       c.code.toLowerCase().includes(locationSearch.toLowerCase()) ||
-      c.stateCode.toLowerCase().includes(locationSearch.toLowerCase())
-  );
+      c.stateCode.toLowerCase().includes(locationSearch.toLowerCase()) ||
+      (c.stateName && c.stateName.toLowerCase().includes(locationSearch.toLowerCase()));
+    const matchesStateFilter =
+      locationStateFilter === "ALL" ||
+      c.stateCode.toUpperCase() === locationStateFilter.toUpperCase() ||
+      c.stateId === locationStateFilter;
+    return matchesSearch && matchesStateFilter;
+  });
 
   const filteredSalons = salons.filter(
     (s) =>
@@ -1590,9 +1785,13 @@ export default function AdminPortal() {
             <span>DevCrackers</span>
             <span>/</span>
             <span className="text-zinc-200 font-mono">admin</span>
-            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-500/15 border border-amber-500/30 text-amber-300">
-              Person 3
-            </span>
+            <Link
+              href="/salon"
+              className="ml-2 px-2.5 py-1 rounded-lg bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-300 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <Store className="w-3 h-3 text-amber-400" />
+              <span>Open Salon Panel</span>
+            </Link>
           </div>
         </div>
 
@@ -1642,6 +1841,36 @@ export default function AdminPortal() {
           )}
         </div>
       </header>
+
+      {/* Role Verification Notice if non-admin is logged in */}
+      {currentUser && (currentUser.role?.toUpperCase() !== "ADMIN" && currentUser.role?.toUpperCase() !== "ROLE_ADMIN") && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-200 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <Shield className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <span className="font-bold text-white">Database Role Notice:</span> Logged in as <span className="font-semibold text-amber-300">{currentUser.name}</span> with role <span className="font-mono font-bold text-amber-400">"{currentUser.role}"</span>.
+              <span className="text-zinc-400 block sm:inline sm:ml-1">Sign in with an ADMIN account in the database to modify live operations.</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setAuthError("");
+                setShowAuthModal(true);
+              }}
+              className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs shadow transition-colors cursor-pointer"
+            >
+              Sign In as Admin
+            </button>
+            <Link
+              href="/home"
+              className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors"
+            >
+              Customer View →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Main Body Layout: Left Sidebar + Right Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -2635,9 +2864,12 @@ export default function AdminPortal() {
 
               {/* Sub-Tabs for Single-Line Directory View */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-2 bg-[#121622] p-1 rounded-xl border border-[#232a3b]">
+                <div className="flex flex-wrap items-center gap-2 bg-[#121622] p-1 rounded-xl border border-[#232a3b]">
                   <button
-                    onClick={() => setLocationSubTab("states")}
+                    onClick={() => {
+                      setLocationSubTab("states");
+                      setLocationStateFilter("ALL");
+                    }}
                     className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${locationSubTab === "states"
                         ? "bg-amber-400 text-black shadow-md"
                         : "text-zinc-400 hover:text-white"
@@ -2658,37 +2890,77 @@ export default function AdminPortal() {
                   </button>
                 </div>
 
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search by code or name..."
-                    value={locationSearch}
-                    onChange={(e) => setLocationSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#121622] border border-[#232a3b] text-white text-xs placeholder-zinc-500 focus:outline-none focus:border-amber-400"
-                  />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  {/* Cascading State Filter for Cities */}
+                  {locationSubTab === "cities" && (
+                    <div className="flex items-center gap-2 bg-[#121622] px-3 py-1.5 rounded-xl border border-[#232a3b]">
+                      <span className="text-[11px] text-zinc-400 font-medium whitespace-nowrap">State:</span>
+                      <select
+                        value={locationStateFilter}
+                        onChange={(e) => handleFilterCitiesByState(e.target.value)}
+                        disabled={isFilterLoading}
+                        className="bg-transparent text-amber-300 text-xs font-semibold focus:outline-none cursor-pointer"
+                      >
+                        <option value="ALL" className="bg-[#121622] text-zinc-300">
+                          All States ({cities.length} cities)
+                        </option>
+                        {states.map((st) => (
+                          <option key={st.id} value={st.code} className="bg-[#121622] text-white">
+                            {st.code} — {st.name} ({typeof st.cityCount === "number" ? st.cityCount : cities.filter((c) => c.stateCode === st.code).length} cities)
+                          </option>
+                        ))}
+                      </select>
+                      {locationStateFilter !== "ALL" && (
+                        <button
+                          type="button"
+                          onClick={() => handleFilterCitiesByState("ALL")}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center gap-1 cursor-pointer"
+                          title="Clear State Filter"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search by code or name..."
+                      value={locationSearch}
+                      onChange={(e) => setLocationSearch(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#121622] border border-[#232a3b] text-white text-xs placeholder-zinc-500 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Single-Line Cards View */}
               {locationSubTab === "states" ? (
                 <div className="space-y-2.5">
-                  <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1">
-                    State Master Directory — Single Line Cards
+                  <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1">
+                    <span>State Master Directory (GET /api/locations/states)</span>
+                    <span className="text-zinc-500 font-mono text-[11px]">Total: {filteredStates.length} states</span>
                   </div>
                   {filteredStates.map((st) => {
-                    const linkedCitiesCount = cities.filter((c) => c.stateCode === st.code).length;
+                    const linkedCitiesCount = typeof st.cityCount === "number" && st.cityCount > 0 ? st.cityCount : cities.filter((c) => c.stateCode === st.code).length;
                     const linkedSalonsCount = salons.filter((s) => s.stateCode === st.code).length;
                     return (
                       <div
                         key={st.id}
                         className="px-5 py-3.5 rounded-xl bg-[#121622] border border-[#232a3b] hover:border-amber-500/40 transition-all flex items-center justify-between gap-4 shadow-sm"
                       >
-                        <div className="flex items-center gap-4 min-w-[200px]">
+                        <div className="flex items-center gap-3.5 min-w-[220px]">
                           <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 font-mono font-bold text-amber-300 text-xs">
                             {st.code}
                           </span>
-                          <span className="font-bold text-white text-sm tracking-tight">{st.name}</span>
+                          <div>
+                            <span className="font-bold text-white text-sm tracking-tight block">{st.name}</span>
+                            {st.id && !st.id.startsWith("st-") && (
+                              <span className="font-mono text-[10px] text-zinc-500">ID: {st.id.slice(0, 8)}...</span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="hidden md:flex items-center gap-8 text-xs text-zinc-400">
@@ -2708,6 +2980,19 @@ export default function AdminPortal() {
 
                         <div className="flex items-center gap-2 shrink-0">
                           <button
+                            type="button"
+                            onClick={() => {
+                              setLocationSubTab("cities");
+                              handleFilterCitiesByState(st.code);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-amber-500/20"
+                            title={`Filter cities in ${st.name} (Cascading Dropdown API)`}
+                          >
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Cities ({linkedCitiesCount})</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => openEditStateModal(st)}
                             className="p-2 text-zinc-400 hover:text-amber-300 rounded-lg bg-white/5 hover:bg-amber-500/10 transition-colors cursor-pointer"
                             title="Edit state details"
@@ -2715,6 +3000,7 @@ export default function AdminPortal() {
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDeleteState(st.id, st.code)}
                             className="p-2 text-zinc-500 hover:text-rose-400 rounded-lg bg-white/5 hover:bg-rose-500/10 transition-colors cursor-pointer"
                             title="Delete state"
@@ -2728,29 +3014,37 @@ export default function AdminPortal() {
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1">
-                    City Master Directory — Single Line Cards
+                  <div className="flex items-center justify-between text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-1">
+                    <span>
+                      City Master Directory {locationStateFilter !== "ALL" ? `(Cascading: /api/locations/cities/state-code/${locationStateFilter})` : `(GET /api/locations/cities)`}
+                    </span>
+                    <span className="text-zinc-500 font-mono text-[11px]">Showing: {filteredCities.length} cities</span>
                   </div>
                   {filteredCities.map((ct) => {
-                    const stateObj = states.find((s) => s.code === ct.stateCode);
+                    const stateObj = states.find((s) => s.code === ct.stateCode || s.id === ct.stateId);
                     const salonCount = salons.filter((sl) => sl.cityName.toLowerCase() === ct.name.toLowerCase()).length;
                     return (
                       <div
                         key={ct.id}
                         className="px-5 py-3.5 rounded-xl bg-[#121622] border border-[#232a3b] hover:border-amber-500/40 transition-all flex items-center justify-between gap-4 shadow-sm"
                       >
-                        <div className="flex items-center gap-4 min-w-[200px]">
+                        <div className="flex items-center gap-3.5 min-w-[220px]">
                           <span className="px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 font-mono font-bold text-blue-300 text-xs">
                             {ct.code}
                           </span>
-                          <span className="font-bold text-white text-sm tracking-tight">{ct.name}</span>
+                          <div>
+                            <span className="font-bold text-white text-sm tracking-tight block">{ct.name}</span>
+                            {ct.id && !ct.id.startsWith("ct-") && (
+                              <span className="font-mono text-[10px] text-zinc-500">ID: {ct.id.slice(0, 8)}...</span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="hidden md:flex items-center gap-8 text-xs text-zinc-400">
                           <div className="flex items-center gap-1.5">
                             <span className="text-zinc-500">State:</span>
                             <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono font-bold">
-                              {ct.stateCode} {stateObj ? `(${stateObj.name})` : ""}
+                              {ct.stateCode} {stateObj ? `(${stateObj.name})` : ct.stateName ? `(${ct.stateName})` : ""}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5">
@@ -2765,6 +3059,7 @@ export default function AdminPortal() {
 
                         <div className="flex items-center gap-2 shrink-0">
                           <button
+                            type="button"
                             onClick={() => openEditCityModal(ct)}
                             className="p-2 text-zinc-400 hover:text-amber-300 rounded-lg bg-white/5 hover:bg-amber-500/10 transition-colors cursor-pointer"
                             title="Edit city details"
@@ -2772,6 +3067,7 @@ export default function AdminPortal() {
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDeleteCity(ct.id, ct.name)}
                             className="p-2 text-zinc-500 hover:text-rose-400 rounded-lg bg-white/5 hover:bg-rose-500/10 transition-colors cursor-pointer"
                             title="Delete city"
@@ -2886,7 +3182,6 @@ export default function AdminPortal() {
                               <span className="flex items-center gap-1 text-amber-300/90 font-medium">
                                 <MapPin className="w-3 h-3 text-amber-400" />
                                 {salon.cityName}
-                                {salon.stateCode ? `, ${salon.stateCode}` : ""}
                               </span>
                               {salon.ownerName && (
                                 <span className="text-zinc-500 hidden sm:inline">• Owner: {salon.ownerName}</span>
@@ -2915,8 +3210,36 @@ export default function AdminPortal() {
                           )}
                         </div>
 
-                        {/* Right: Status Pill & Action Buttons */}
+                        {/* Right: Active/Inactive Toggle, Edit & Expand */}
                         <div className="flex items-center gap-2 shrink-0">
+                          {/* Active / Inactive Status Toggle Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleSalonStatus(salon);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border shadow-sm ${
+                              salon.status === "ACTIVE" || salon.status === "OPEN"
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                                : "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30"
+                            }`}
+                            title={
+                              salon.status === "ACTIVE" || salon.status === "OPEN"
+                                ? "Click to set Inactive"
+                                : "Click to set Active"
+                            }
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                salon.status === "ACTIVE" || salon.status === "OPEN"
+                                  ? "bg-emerald-400 animate-pulse"
+                                  : "bg-rose-400"
+                              }`}
+                            />
+                            <span>{salon.status === "ACTIVE" || salon.status === "OPEN" ? "Active" : "Inactive"}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={(e) => {
@@ -2929,21 +3252,11 @@ export default function AdminPortal() {
                             <Pencil className="w-4 h-4" />
                           </button>
 
-                          <span
-                            className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${salon.status === "ACTIVE" || salon.status === "OPEN"
-                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                                : salon.status === "BUSY"
-                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                  : "bg-zinc-800 text-zinc-400"
-                              }`}
-                          >
-                            {salon.status || "ACTIVE"}
-                          </span>
-
                           <button
                             type="button"
-                            className={`p-1.5 rounded-lg bg-white/5 text-amber-400 transition-transform duration-200 ${isExpanded ? "rotate-180 bg-amber-500/20" : "hover:bg-white/10"
-                              }`}
+                            className={`p-1.5 rounded-lg bg-white/5 text-amber-400 transition-transform duration-200 ${
+                              isExpanded ? "rotate-180 bg-amber-500/20" : "hover:bg-white/10"
+                            }`}
                             title="Toggle full salon info"
                           >
                             <ChevronDown className="w-4 h-4" />
@@ -3142,17 +3455,31 @@ export default function AdminPortal() {
                         </div>
 
                         <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            Owner Name <span className="text-amber-400">*</span>
+                          <label className="block font-semibold text-zinc-300 uppercase mb-1 flex items-center justify-between">
+                            <span>Owner (Staff User) <span className="text-amber-400">*</span></span>
+                            <span className="text-[10px] text-amber-400 font-normal">Staff Users in DB</span>
                           </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Rahul Sharma"
+                          <select
                             value={newOwnerName}
-                            onChange={(e) => setNewOwnerName(e.target.value)}
+                            onChange={(e) => {
+                              const selectedName = e.target.value;
+                              setNewOwnerName(selectedName);
+                              const matched = staffOwnerOptions.find((s) => s.name === selectedName);
+                              if (matched) {
+                                if (matched.email) setNewSalonEmail(matched.email);
+                                if (matched.phone) setNewSalonPhone(matched.phone);
+                              }
+                            }}
                             className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
                             required
-                          />
+                          >
+                            <option value="">-- Select Staff User (Owner) --</option>
+                            {staffOwnerOptions.map((staff) => (
+                              <option key={staff.id || staff.name} value={staff.name}>
+                                {staff.name} (STAFF) {staff.email ? `• ${staff.email}` : ""}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
@@ -3202,19 +3529,34 @@ export default function AdminPortal() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
                           <label className="block font-semibold text-zinc-300 uppercase mb-1">
                             City <span className="text-amber-400">*</span>
                           </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Pune"
-                            value={newSalonCity}
-                            onChange={(e) => setNewSalonCity(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
-                            required
-                          />
+                          {cities.length > 0 ? (
+                            <select
+                              value={newSalonCity}
+                              onChange={(e) => setNewSalonCity(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                              required
+                            >
+                              {cities.map((c) => (
+                                <option key={c.id} value={c.name}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder="e.g. Pune"
+                              value={newSalonCity}
+                              onChange={(e) => setNewSalonCity(e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                              required
+                            />
+                          )}
                         </div>
 
                         <div>
@@ -3229,29 +3571,6 @@ export default function AdminPortal() {
                             className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono"
                             required
                           />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                            State Code
-                          </label>
-                          <select
-                            value={newSalonState}
-                            onChange={(e) => setNewSalonState(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono font-semibold text-amber-300"
-                          >
-                            <option value="MH">MH - Maharashtra</option>
-                            <option value="KA">KA - Karnataka</option>
-                            <option value="DL">DL - Delhi NCR</option>
-                            <option value="GJ">GJ - Gujarat</option>
-                            {states
-                              .filter((s) => !["MH", "KA", "DL", "GJ"].includes(s.code))
-                              .map((s) => (
-                                <option key={s.id} value={s.code}>
-                                  {s.code} - {s.name}
-                                </option>
-                              ))}
-                          </select>
                         </div>
                       </div>
 
@@ -4417,16 +4736,38 @@ export default function AdminPortal() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    Owner Name <span className="text-amber-400">*</span>
+                  <label className="block font-semibold text-zinc-300 uppercase mb-1 flex items-center justify-between">
+                    <span>Owner (Staff User) <span className="text-amber-400">*</span></span>
+                    <span className="text-[10px] text-amber-400 font-normal">Staff Users in DB</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={editOwnerName}
-                    onChange={(e) => setEditOwnerName(e.target.value)}
+                    onChange={(e) => {
+                      const selectedName = e.target.value;
+                      setEditOwnerName(selectedName);
+                      const matched = staffOwnerOptions.find((s) => s.name === selectedName);
+                      if (matched) {
+                        if (matched.email && (!editSalonEmail || editSalonEmail.includes("stylestudio"))) {
+                          setEditSalonEmail(matched.email);
+                        }
+                        if (matched.phone && (!editSalonPhone || editSalonPhone === "9876543210")) {
+                          setEditSalonPhone(matched.phone);
+                        }
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
                     required
-                  />
+                  >
+                    <option value="">-- Select Staff User (Owner) --</option>
+                    {editOwnerName && !staffOwnerOptions.some((s) => s.name === editOwnerName) && (
+                      <option value={editOwnerName}>{editOwnerName} (Current Owner)</option>
+                    )}
+                    {staffOwnerOptions.map((staff) => (
+                      <option key={staff.id || staff.name} value={staff.name}>
+                        {staff.name} (STAFF) {staff.email ? `• ${staff.email}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -4471,18 +4812,33 @@ export default function AdminPortal() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block font-semibold text-zinc-300 uppercase mb-1">
                     City <span className="text-amber-400">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={editSalonCity}
-                    onChange={(e) => setEditSalonCity(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
-                    required
-                  />
+                  {cities.length > 0 ? (
+                    <select
+                      value={editSalonCity}
+                      onChange={(e) => setEditSalonCity(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      required
+                    >
+                      {cities.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editSalonCity}
+                      onChange={(e) => setEditSalonCity(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400"
+                      required
+                    />
+                  )}
                 </div>
 
                 <div>
@@ -4497,17 +4853,38 @@ export default function AdminPortal() {
                     required
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block font-semibold text-zinc-300 uppercase mb-1">
-                    State Code
-                  </label>
-                  <input
-                    type="text"
-                    value={editSalonState}
-                    onChange={(e) => setEditSalonState(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-white text-sm focus:outline-none focus:border-amber-400 font-mono font-semibold uppercase"
-                  />
+              {/* Active / Inactive Status Selector in Edit Modal */}
+              <div className="space-y-1.5">
+                <label className="block font-semibold text-zinc-300 uppercase mb-1">
+                  Salon Status
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditSalonStatus("ACTIVE")}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      editSalonStatus === "ACTIVE" || editSalonStatus === "OPEN"
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md shadow-emerald-500/10"
+                        : "bg-[#181e2b] border-[#2b354b] text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Active</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditSalonStatus("INACTIVE" as any)}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      editSalonStatus === "INACTIVE" || editSalonStatus === "CLOSED"
+                        ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-md shadow-rose-500/10"
+                        : "bg-[#181e2b] border-[#2b354b] text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-400" />
+                    <span>Inactive</span>
+                  </button>
                 </div>
               </div>
 

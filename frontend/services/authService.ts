@@ -80,8 +80,10 @@ export class AuthService {
 
         if (typeof window !== 'undefined') {
           localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(user));
+          localStorage.setItem('salonflow_user', JSON.stringify(user));
           if (token) {
             localStorage.setItem(STORAGE_KEY_AUTH_TOKEN, token);
+            localStorage.setItem('salonflow_token', token);
           }
         }
 
@@ -218,6 +220,8 @@ export class AuthService {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY_AUTH_USER);
       localStorage.removeItem(STORAGE_KEY_AUTH_TOKEN);
+      localStorage.removeItem('salonflow_user');
+      localStorage.removeItem('salonflow_token');
     }
   }
 }

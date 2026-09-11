@@ -17,7 +17,8 @@ import {
   UserPlus,
   User as UserIcon,
   LayoutDashboard,
-  Calendar
+  Calendar,
+  Shield
 } from 'lucide-react';
 import { useCustomer } from '../context/CustomerContext';
 import { NotificationDrawer } from './NotificationDrawer';
@@ -32,15 +33,23 @@ export const Navbar: React.FC = () => {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
+  // Do not render customer navbar on dedicated Admin Panel or Salon Portal
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/salon')) {
+    return null;
+  }
+
+  const isAdmin = user && (user.role?.toUpperCase() === 'ADMIN' || user.role?.toUpperCase() === 'ROLE_ADMIN');
+
   // Authenticated vs Guest Navigation Links
   const navLinks = isLoggedIn
     ? [
         { name: 'Dashboard', href: '/home', icon: LayoutDashboard },
+        ...(isAdmin ? [{ name: 'Admin Panel', href: '/admin', highlight: true, icon: Shield }] : []),
         { name: 'Services', href: '/services' },
         { 
           name: 'AI Style Match', 
           href: '/ai-recommend', 
-          highlight: true,
+          highlight: !isAdmin,
           icon: Sparkles 
         },
         { name: 'Appointments', href: '/appointments', icon: Calendar },
@@ -174,6 +183,17 @@ export const Navbar: React.FC = () => {
                       {user.name.split(' ')[0]}
                     </span>
                   </Link>
+
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all shadow-sm"
+                      title="Open Admin Portal"
+                    >
+                      <Shield className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Admin Portal</span>
+                    </Link>
+                  )}
 
                   {/* PROMINENT LOGOUT BUTTON */}
                   <button

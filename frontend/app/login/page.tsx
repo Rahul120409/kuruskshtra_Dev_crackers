@@ -11,8 +11,7 @@ import {
   Eye, 
   EyeOff, 
   AlertCircle, 
-  CheckCircle2, 
-  UserCheck
+  CheckCircle2
 } from 'lucide-react';
 import { useCustomer } from '../../context/CustomerContext';
 
@@ -30,6 +29,7 @@ function LoginFormContent() {
   const [isNotRegistered, setIsNotRegistered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [loggedInRole, setLoggedInRole] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,22 +61,31 @@ function LoginFormContent() {
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('salonflow_show_location_prompt', 'true');
         }
+
+        // Check user role verified from database
+        const userRole = (res.user?.role || '').toUpperCase();
+        setLoggedInRole(userRole);
+        const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN';
+        const isStaff = userRole === 'STAFF' || userRole === 'ROLE_STAFF' || userRole === 'SALON';
+
+        let targetUrl = redirectUrl;
+        if (isAdmin) {
+          targetUrl = '/admin';
+        } else if (isStaff) {
+          targetUrl = '/salon';
+        } else if (redirectUrl === '/home' || redirectUrl === '/admin') {
+          targetUrl = '/home';
+        }
+
         setTimeout(() => {
-          router.push(redirectUrl);
-        }, 500);
+          router.push(targetUrl);
+        }, 600);
       }
     } catch (err) {
       setErrorMessage('A network error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickDemoFill = () => {
-    setEmailOrPhone('rahul.sharma@example.com');
-    setPassword('password123');
-    setErrorMessage(null);
-    setIsNotRegistered(false);
   };
 
   return (
@@ -96,7 +105,7 @@ function LoginFormContent() {
             Sign In to SalonFlow
           </h1>
           <p className="text-xs text-slate-400">
-            Enter your credentials to access your customer dashboard and live queue passes.
+            Enter your credentials to access your dashboard.
           </p>
         </div>
 
@@ -128,7 +137,13 @@ function LoginFormContent() {
           {isSuccess && (
             <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Login successful! Opening your customer dashboard...</span>
+              <span>
+                {loggedInRole === 'ADMIN' || loggedInRole === 'ROLE_ADMIN'
+                  ? 'Admin Verified! Opening Admin Panel...'
+                  : loggedInRole === 'STAFF' || loggedInRole === 'ROLE_STAFF' || loggedInRole === 'SALON'
+                  ? 'Staff Verified! Opening Staff / Salon Portal...'
+                  : 'Login successful! Opening your dashboard...'}
+              </span>
             </div>
           )}
 
@@ -142,7 +157,7 @@ function LoginFormContent() {
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="e.g. rahul.sharma@example.com or +91..."
+                  placeholder="Enter your email or phone number"
                   value={emailOrPhone}
                   onChange={(e) => {
                     setEmailOrPhone(e.target.value);
@@ -156,10 +171,7 @@ function LoginFormContent() {
 
             {/* Password Input */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 block">Password</label>
-                <span className="text-[11px] text-slate-500">Demo: password123</span>
-              </div>
+              <label className="text-xs font-semibold text-slate-300 block">Password</label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -186,24 +198,12 @@ function LoginFormContent() {
             <button
               type="submit"
               disabled={isLoading || isSuccess}
-              className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50 mt-2"
+              className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50 mt-2 cursor-pointer"
             >
-              <span>{isLoading ? 'Verifying Account...' : 'Sign In'}</span>
+              <span>{isLoading ? 'Verifying Credentials...' : 'Sign In'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-
-          {/* Quick Demo Fill Button */}
-          <div className="pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={handleQuickDemoFill}
-              className="w-full py-2.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-850 border border-slate-800 text-xs font-semibold text-indigo-300 hover:text-white flex items-center justify-center gap-2 transition-colors"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Fill Demo User (Rahul Sharma)</span>
-            </button>
-          </div>
 
           {/* Registration Redirect Link */}
           <div className="text-center pt-2 text-xs text-slate-400">

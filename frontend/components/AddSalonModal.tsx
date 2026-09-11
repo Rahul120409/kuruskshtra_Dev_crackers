@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Store, 
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { salonService, CreateSalonRequest } from '../services/salonService';
+import { getAllStaffApi } from '../app/services/staff';
+import { getAllUsersApi } from '../app/services/auth';
 import { Salon } from '../types';
 
 interface AddSalonModalProps {
@@ -33,7 +35,7 @@ export const AddSalonModal: React.FC<AddSalonModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<CreateSalonRequest>({
     salonName: 'Style Studio',
-    ownerName: 'Rahul Sharma',
+    ownerName: '',
     phoneNumber: '9876543210',
     email: 'stylestudio.baner@gmail.com',
     salonAddress: 'High Street, Baner, Pune',
@@ -46,8 +48,57 @@ export const AddSalonModal: React.FC<AddSalonModalProps> = ({
     closingTime: '21:00',
   });
 
+  const [staffOptions, setStaffOptions] = useState<{ id: string; name: string; email: string; phone: string; role?: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadStaff() {
+      try {
+        const staffRes = await getAllStaffApi();
+        const usersRes = await getAllUsersApi();
+        const list: { id: string; name: string; email: string; phone: string; role?: string }[] = [];
+        const seen = new Set<string>();
+
+        if (usersRes.success && Array.isArray(usersRes.data)) {
+          usersRes.data
+            .filter((u) => {
+              const roleUpper = (u.role || '').toUpperCase();
+              return roleUpper === 'STAFF' || roleUpper === 'ROLE_STAFF';
+            })
+            .forEach((u) => {
+              const key = u.name ? u.name.trim().toLowerCase() : '';
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                list.push({
+                  id: u.id,
+                  name: u.name,
+                  email: u.email || '',
+                  phone: u.mobileNumber || u.phone || '',
+                  role: 'STAFF',
+                });
+              }
+            });
+        }
+
+        setStaffOptions(list);
+        if (list.length > 0 && !formData.ownerName) {
+          setFormData((prev) => ({
+            ...prev,
+            ownerName: list[0].name,
+            email: list[0].email || prev.email,
+            phoneNumber: list[0].phone || prev.phoneNumber,
+          }));
+        }
+      } catch (e) {
+        console.warn('Failed to fetch staff for salon modal:', e);
+      }
+    }
+
+    if (isOpen) {
+      loadStaff();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -131,19 +182,37 @@ export const AddSalonModal: React.FC<AddSalonModalProps> = ({
               />
             </div>
 
-            {/* Owner Name */}
+            {/* Owner Name Dropdown */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Owner Name</span>
+              <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Owner Name (Staff)</span>
+                </span>
+                <span className="text-[10px] text-indigo-400">Database Staff</span>
               </label>
-              <input
-                type="text"
+              <select
                 required
                 value={formData.ownerName}
-                onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
+                onChange={(e) => {
+                  const selectedName = e.target.value;
+                  const matched = staffOptions.find((s) => s.name === selectedName);
+                  setFormData({
+                    ...formData,
+                    ownerName: selectedName,
+                    ...(matched?.email ? { email: matched.email } : {}),
+                    ...(matched?.phone ? { phoneNumber: matched.phone } : {}),
+                  });
+                }}
                 className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-indigo-500 text-xs text-white focus:outline-none"
-              />
+              >
+                <option value="">-- Select Staff Member (Owner) --</option>
+                {staffOptions.map((staff) => (
+                  <option key={staff.id || staff.name} value={staff.name}>
+                    {staff.name} {staff.role ? `(${staff.role})` : ''} {staff.email ? `• ${staff.email}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Phone Number */}

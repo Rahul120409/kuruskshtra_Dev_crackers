@@ -120,7 +120,7 @@ export async function createCity(payload: CreateCityPayload): Promise<ApiRespons
     code: cCode,
   };
 
-  if (payload.stateId && !payload.stateId.startsWith("st-")) {
+  if (payload.stateId) {
     body.stateId = payload.stateId;
   }
   if (payload.stateCode) {

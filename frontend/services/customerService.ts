@@ -1,18 +1,18 @@
-import { 
-  SalonService, 
-  Hairstyle, 
-  SalonStaff, 
-  QueueToken, 
-  Appointment, 
-  Notification, 
+import {
+  SalonService,
+  Hairstyle,
+  SalonStaff,
+  QueueToken,
+  Appointment,
+  Notification,
   Feedback,
-  QueueStatus 
+  QueueStatus
 } from '../types';
-import { 
-  DEMO_SERVICES, 
-  DEMO_HAIRSTYLES, 
-  DEMO_STAFF, 
-  INITIAL_DEMO_TOKEN, 
+import {
+  DEMO_SERVICES,
+  DEMO_HAIRSTYLES,
+  DEMO_STAFF,
+  INITIAL_DEMO_TOKEN,
   INITIAL_NOTIFICATIONS,
   INITIAL_DEMO_APPOINTMENTS
 } from './mockData';
@@ -403,7 +403,7 @@ export class ApiCustomerService implements ICustomerService {
   private fallback: MockCustomerService;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8080';
+    this.baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
     this.fallback = new MockCustomerService();
   }
 
@@ -455,10 +455,15 @@ export class ApiCustomerService implements ICustomerService {
   }
 
   async getToken(tokenId: string): Promise<QueueToken | null> {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!tokenId || tokenId === 'active' || !uuidRegex.test(tokenId)) {
+      return this.fallback.getToken(tokenId);
+    }
     try {
       const res = await fetch(`${this.baseUrl}/api/queue/token/${tokenId}`);
       if (!res.ok) throw new Error('Get token API failed');
-      return await res.json();
+      const data = await res.json();
+      return data.data || data;
     } catch {
       return this.fallback.getToken(tokenId);
     }

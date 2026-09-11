@@ -22,7 +22,7 @@ export const Footer: React.FC = () => {
           <span>•</span>
           <span>Customer Experience</span>
           <span>•</span>
-          <span className="font-mono text-[11px] text-amber-500/90">API: 192.168.137.199:8081</span>
+          <span className="font-mono text-[11px] text-amber-500/90">{process.env.NEXT_PUBLIC_API_BASE_URL ? `API: ${process.env.NEXT_PUBLIC_API_BASE_URL}` : ''}</span>
         </div>
       </div>
     </footer>

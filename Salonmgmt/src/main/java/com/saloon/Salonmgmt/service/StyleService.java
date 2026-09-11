@@ -39,12 +39,16 @@ public class StyleService {
             code = code.trim().toUpperCase();
         }
 
+        String gender = (request.getGender() != null && !request.getGender().trim().isEmpty())
+                ? request.getGender().trim().toUpperCase() : "UNISEX";
+
         StyleType styleType = StyleType.builder()
                 .salonId(request.getSalonId())
                 .name(name)
                 .code(code)
                 .description(request.getDescription())
                 .imageUrl(request.getImageUrl())
+                .gender(gender)
                 .isActive(true)
                 .build();
 
@@ -53,9 +57,11 @@ public class StyleService {
     }
 
     @Transactional(readOnly = true)
-    public List<StyleTypeResponse> getAllStyleTypes(UUID salonId) {
+    public List<StyleTypeResponse> getAllStyleTypes(UUID salonId, String gender) {
         List<StyleType> types;
-        if (salonId != null) {
+        if (gender != null && !gender.trim().isEmpty()) {
+            types = styleTypeRepository.findByGenderOrderByNameAsc(gender.trim().toUpperCase());
+        } else if (salonId != null) {
             types = styleTypeRepository.findBySalonIdOrderByNameAsc(salonId);
         } else {
             types = styleTypeRepository.findAllByOrderByNameAsc();
@@ -70,6 +76,57 @@ public class StyleService {
         StyleType type = styleTypeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Style type not found with ID: " + id));
         return StyleTypeResponse.fromEntity(type);
+    }
+
+    @Transactional(readOnly = true)
+    public StyleTypeResponse getStyleTypeByIdOrCode(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            throw new IllegalArgumentException("Style type identifier cannot be empty");
+        }
+        try {
+            UUID uuid = UUID.fromString(identifier.trim());
+            return getStyleTypeById(uuid);
+        } catch (IllegalArgumentException e) {
+            return styleTypeRepository.findByCodeIgnoreCase(identifier.trim())
+                    .or(() -> styleTypeRepository.findByNameIgnoreCase(identifier.trim()))
+                    .map(StyleTypeResponse::fromEntity)
+                    .orElseThrow(() -> new IllegalArgumentException("Style type not found with code or identifier: " + identifier));
+        }
+    }
+
+    @Transactional
+    public StyleTypeResponse updateStyleType(UUID id, StyleTypeRequest request) {
+        StyleType type = styleTypeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Style type not found with ID: " + id));
+
+        if (request.getEffectiveName() != null && !request.getEffectiveName().isEmpty()) {
+            type.setName(request.getEffectiveName());
+        }
+        if (request.getCode() != null && !request.getCode().trim().isEmpty()) {
+            type.setCode(request.getCode().trim().toUpperCase());
+        }
+        if (request.getDescription() != null) {
+            type.setDescription(request.getDescription().trim());
+        }
+        if (request.getImageUrl() != null) {
+            type.setImageUrl(request.getImageUrl().trim());
+        }
+        if (request.getGender() != null && !request.getGender().trim().isEmpty()) {
+            type.setGender(request.getGender().trim().toUpperCase());
+        }
+        if (request.getIsActive() != null) {
+            type.setActive(request.getIsActive());
+        }
+
+        StyleType updated = styleTypeRepository.save(type);
+        return StyleTypeResponse.fromEntity(updated);
+    }
+
+    @Transactional
+    public void deleteStyleType(UUID id) {
+        StyleType type = styleTypeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Style type not found with ID: " + id));
+        styleTypeRepository.delete(type);
     }
 
     // --- Specific Style Logic ---
@@ -99,6 +156,10 @@ public class StyleService {
             code = code.trim().toUpperCase();
         }
 
+        String gender = (request.getGender() != null && !request.getGender().trim().isEmpty())
+                ? request.getGender().trim().toUpperCase()
+                : (styleType.getGender() != null ? styleType.getGender() : "UNISEX");
+
         SpecificStyle specificStyle = SpecificStyle.builder()
                 .styleType(styleType)
                 .name(name)
@@ -109,6 +170,7 @@ public class StyleService {
                 .imageUrl(request.getImageUrl())
                 .suitableFaceShapes(request.getSuitableFaceShapes())
                 .suitableHairTypes(request.getSuitableHairTypes())
+                .gender(gender)
                 .isActive(true)
                 .build();
 
@@ -117,9 +179,14 @@ public class StyleService {
     }
 
     @Transactional(readOnly = true)
-    public List<SpecificStyleResponse> getSpecificStylesByType(UUID styleTypeId) {
-        return specificStyleRepository.findByStyleTypeIdOrderByNameAsc(styleTypeId)
-                .stream()
+    public List<SpecificStyleResponse> getSpecificStylesByType(UUID styleTypeId, String gender) {
+        List<SpecificStyle> styles;
+        if (gender != null && !gender.trim().isEmpty()) {
+            styles = specificStyleRepository.findByStyleTypeIdAndGenderOrderByNameAsc(styleTypeId, gender.trim().toUpperCase());
+        } else {
+            styles = specificStyleRepository.findByStyleTypeIdOrderByNameAsc(styleTypeId);
+        }
+        return styles.stream()
                 .map(SpecificStyleResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -133,9 +200,41 @@ public class StyleService {
     }
 
     @Transactional(readOnly = true)
-    public List<SpecificStyleResponse> getAllSpecificStyles() {
-        return specificStyleRepository.findAllWithStyleTypeOrderByNameAsc()
-                .stream()
+    public List<SpecificStyleResponse> getSpecificStylesByIdentifier(String identifier, String gender) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        try {
+            UUID uuid = UUID.fromString(identifier.trim());
+            return getSpecificStylesByType(uuid, gender);
+        } catch (IllegalArgumentException e) {
+            String codeOrName = identifier.trim();
+            java.util.Optional<StyleType> styleTypeOpt = styleTypeRepository.findByCodeIgnoreCase(codeOrName);
+            if (!styleTypeOpt.isPresent()) {
+                styleTypeOpt = styleTypeRepository.findByNameIgnoreCase(codeOrName);
+            }
+            if (styleTypeOpt.isPresent()) {
+                return getSpecificStylesByType(styleTypeOpt.get().getId(), gender);
+            }
+
+            List<SpecificStyleResponse> byCode = getSpecificStylesByTypeCode(codeOrName);
+            if (!byCode.isEmpty()) {
+                return byCode;
+            }
+
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<SpecificStyleResponse> getAllSpecificStyles(String gender) {
+        List<SpecificStyle> styles;
+        if (gender != null && !gender.trim().isEmpty()) {
+            styles = specificStyleRepository.findByGenderOrderByNameAsc(gender.trim().toUpperCase());
+        } else {
+            styles = specificStyleRepository.findAllWithStyleTypeOrderByNameAsc();
+        }
+        return styles.stream()
                 .map(SpecificStyleResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -175,6 +274,9 @@ public class StyleService {
         }
         if (request.getSuitableHairTypes() != null) {
             style.setSuitableHairTypes(request.getSuitableHairTypes());
+        }
+        if (request.getGender() != null && !request.getGender().trim().isEmpty()) {
+            style.setGender(request.getGender().trim().toUpperCase());
         }
 
         SpecificStyle updated = specificStyleRepository.save(style);

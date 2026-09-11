@@ -24,6 +24,7 @@ public class SpecificStyleRequest {
 
     private String suitableFaceShapes;
     private String suitableHairTypes;
+    private String gender;
 
     public String getEffectiveName() {
         if (styleName != null && !styleName.trim().isEmpty()) {

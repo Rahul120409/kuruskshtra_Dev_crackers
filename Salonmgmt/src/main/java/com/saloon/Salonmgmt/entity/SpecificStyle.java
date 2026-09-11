@@ -49,6 +49,10 @@ public class SpecificStyle {
     @Column(name = "suitable_hair_types")
     private String suitableHairTypes;
 
+    @Column(name = "gender", length = 20)
+    @Builder.Default
+    private String gender = "UNISEX"; // MALE, FEMALE, UNISEX
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean isActive = true;

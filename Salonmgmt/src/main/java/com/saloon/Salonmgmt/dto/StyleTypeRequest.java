@@ -17,6 +17,8 @@ public class StyleTypeRequest {
     private String code;
     private String description;
     private String imageUrl;
+    private String gender;
+    private Boolean isActive;
 
     public String getEffectiveName() {
         if (styleTypeName != null && !styleTypeName.trim().isEmpty()) {

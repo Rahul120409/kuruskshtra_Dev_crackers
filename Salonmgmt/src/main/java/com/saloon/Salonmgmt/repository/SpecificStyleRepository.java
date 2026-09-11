@@ -18,4 +18,10 @@ public interface SpecificStyleRepository extends JpaRepository<SpecificStyle, UU
 
     @Query("SELECT s FROM SpecificStyle s JOIN FETCH s.styleType ORDER BY s.name ASC")
     List<SpecificStyle> findAllWithStyleTypeOrderByNameAsc();
+
+    @Query("SELECT s FROM SpecificStyle s WHERE UPPER(s.gender) = UPPER(:gender) OR UPPER(s.gender) = 'UNISEX' ORDER BY s.name ASC")
+    List<SpecificStyle> findByGenderOrderByNameAsc(@Param("gender") String gender);
+
+    @Query("SELECT s FROM SpecificStyle s WHERE s.styleType.id = :styleTypeId AND (UPPER(s.gender) = UPPER(:gender) OR UPPER(s.gender) = 'UNISEX') ORDER BY s.name ASC")
+    List<SpecificStyle> findByStyleTypeIdAndGenderOrderByNameAsc(@Param("styleTypeId") UUID styleTypeId, @Param("gender") String gender);
 }

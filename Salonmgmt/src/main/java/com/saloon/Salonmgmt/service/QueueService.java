@@ -14,6 +14,7 @@ import com.saloon.Salonmgmt.repository.QueueTokenRepository;
 import com.saloon.Salonmgmt.repository.SalonRepository;
 import com.saloon.Salonmgmt.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,7 @@ public class QueueService {
     private final QueueEventRepository queueEventRepository;
     private final SalonRepository salonRepository;
     private final StaffRepository staffRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public QueueTokenResponse joinQueue(JoinQueueRequest request) {
@@ -109,6 +111,8 @@ public class QueueService {
         Integer ongoingTokenNumber = findCurrentServingTokenNumber(request.getSalonId(), today);
         int customersAhead = Math.max(0, position - 1);
 
+        broadcastLiveQueueUpdate(savedToken.getSalonId());
+
         return QueueTokenResponse.fromEntity(savedToken, ongoingTokenNumber, customersAhead);
     }
 
@@ -185,6 +189,8 @@ public class QueueService {
         logEvent(updated.getId(), updated.getSalonId(), updated.getTokenNumber(), "CALLED");
         recalculateQueue(token.getSalonId(), token.getQueueDate());
 
+        broadcastLiveQueueUpdate(updated.getSalonId());
+
         Integer ongoingNum = findCurrentServingTokenNumber(token.getSalonId(), token.getQueueDate());
         return QueueTokenResponse.fromEntity(updated, ongoingNum, 0);
     }
@@ -208,6 +214,8 @@ public class QueueService {
 
         logEvent(updated.getId(), updated.getSalonId(), updated.getTokenNumber(), "STARTED");
         recalculateQueue(token.getSalonId(), token.getQueueDate());
+
+        broadcastLiveQueueUpdate(updated.getSalonId());
 
         return QueueTokenResponse.fromEntity(updated, updated.getTokenNumber(), 0);
     }
@@ -234,6 +242,8 @@ public class QueueService {
         // Automatically recalculate remaining queue positions & wait times!
         recalculateQueue(token.getSalonId(), token.getQueueDate());
 
+        broadcastLiveQueueUpdate(updated.getSalonId());
+
         Integer ongoingNum = findCurrentServingTokenNumber(token.getSalonId(), token.getQueueDate());
         return QueueTokenResponse.fromEntity(updated, ongoingNum, 0);
     }
@@ -248,6 +258,8 @@ public class QueueService {
 
         logEvent(updated.getId(), updated.getSalonId(), updated.getTokenNumber(), "CANCELLED");
         recalculateQueue(token.getSalonId(), token.getQueueDate());
+
+        broadcastLiveQueueUpdate(updated.getSalonId());
 
         Integer ongoingNum = findCurrentServingTokenNumber(token.getSalonId(), token.getQueueDate());
         return QueueTokenResponse.fromEntity(updated, ongoingNum, 0);
@@ -292,5 +304,13 @@ public class QueueService {
                 .timestamp(LocalDateTime.now())
                 .build();
         queueEventRepository.save(event);
+    }
+
+    private void broadcastLiveQueueUpdate(UUID salonId) {
+        try {
+            LiveQueueBoardResponse liveBoard = getLiveQueueBoard(salonId);
+            messagingTemplate.convertAndSend("/topic/salon/" + salonId + "/queue", liveBoard);
+        } catch (Exception ignored) {
+        }
     }
 }

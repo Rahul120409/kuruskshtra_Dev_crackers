@@ -41,9 +41,10 @@ public class StyleController {
 
     @GetMapping("/types")
     public ResponseEntity<ApiResponse<List<StyleTypeResponse>>> getAllStyleTypes(
-            @RequestParam(required = false) UUID salonId) {
+            @RequestParam(required = false) UUID salonId,
+            @RequestParam(required = false) String gender) {
         try {
-            List<StyleTypeResponse> types = styleService.getAllStyleTypes(salonId);
+            List<StyleTypeResponse> types = styleService.getAllStyleTypes(salonId, gender);
             return ResponseEntity.ok(ApiResponse.ok("Style types retrieved successfully", types));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -52,9 +53,9 @@ public class StyleController {
     }
 
     @GetMapping("/types/{id}")
-    public ResponseEntity<ApiResponse<StyleTypeResponse>> getStyleTypeById(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<StyleTypeResponse>> getStyleTypeById(@PathVariable String id) {
         try {
-            StyleTypeResponse type = styleService.getStyleTypeById(id);
+            StyleTypeResponse type = styleService.getStyleTypeByIdOrCode(id);
             return ResponseEntity.ok(ApiResponse.ok("Style type retrieved successfully", type));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -62,6 +63,36 @@ public class StyleController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to retrieve style type: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/types/{id}")
+    public ResponseEntity<ApiResponse<StyleTypeResponse>> updateStyleType(
+            @PathVariable UUID id,
+            @RequestBody StyleTypeRequest request) {
+        try {
+            StyleTypeResponse response = styleService.updateStyleType(id, request);
+            return ResponseEntity.ok(ApiResponse.ok("Style type updated successfully", response));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to update style type: " + e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/types/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteStyleType(@PathVariable UUID id) {
+        try {
+            styleService.deleteStyleType(id);
+            return ResponseEntity.ok(ApiResponse.ok("Style type deleted successfully", null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to delete style type: " + e.getMessage()));
         }
     }
 
@@ -83,9 +114,10 @@ public class StyleController {
     }
 
     @GetMapping("/specific")
-    public ResponseEntity<ApiResponse<List<SpecificStyleResponse>>> getAllSpecificStyles() {
+    public ResponseEntity<ApiResponse<List<SpecificStyleResponse>>> getAllSpecificStyles(
+            @RequestParam(required = false) String gender) {
         try {
-            List<SpecificStyleResponse> styles = styleService.getAllSpecificStyles();
+            List<SpecificStyleResponse> styles = styleService.getAllSpecificStyles(gender);
             return ResponseEntity.ok(ApiResponse.ok("Specific styles retrieved successfully", styles));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -95,9 +127,10 @@ public class StyleController {
 
     @GetMapping("/specific/type/{styleTypeId}")
     public ResponseEntity<ApiResponse<List<SpecificStyleResponse>>> getSpecificStylesByType(
-            @PathVariable UUID styleTypeId) {
+            @PathVariable String styleTypeId,
+            @RequestParam(required = false) String gender) {
         try {
-            List<SpecificStyleResponse> styles = styleService.getSpecificStylesByType(styleTypeId);
+            List<SpecificStyleResponse> styles = styleService.getSpecificStylesByIdentifier(styleTypeId, gender);
             return ResponseEntity.ok(ApiResponse.ok("Specific styles for type retrieved successfully", styles));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS style_types (
     code VARCHAR(50),
     description TEXT,
     image_url TEXT,
+    gender VARCHAR(20) DEFAULT 'UNISEX',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS specific_styles (
     image_url TEXT,
     suitable_face_shapes VARCHAR(255),
     suitable_hair_types VARCHAR(255),
+    gender VARCHAR(20) DEFAULT 'UNISEX',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -168,3 +170,35 @@ CREATE TABLE IF NOT EXISTS queue_events (
 
 CREATE INDEX IF NOT EXISTS idx_queue_events_salon ON queue_events(salon_id);
 CREATE INDEX IF NOT EXISTS idx_queue_events_token ON queue_events(token_id);
+
+-- 10. Appointments Table (Advance Bookings for User Panel & Salon Panel)
+CREATE TABLE IF NOT EXISTS appointments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    salon_id UUID NOT NULL REFERENCES salons(id) ON DELETE CASCADE,
+    salon_name VARCHAR(255),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    customer_name VARCHAR(255) NOT NULL,
+    customer_phone VARCHAR(50),
+    customer_email VARCHAR(255),
+    service_id UUID,
+    service_name VARCHAR(255),
+    service_price NUMERIC(10, 2),
+    service_duration_minutes INTEGER DEFAULT 30,
+    staff_id UUID REFERENCES staff(id) ON DELETE SET NULL,
+    staff_name VARCHAR(255),
+    appointment_date DATE NOT NULL,
+    appointment_time VARCHAR(20) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'CONFIRMED',
+    booking_source VARCHAR(20) NOT NULL DEFAULT 'ONLINE',
+    notes TEXT,
+    queue_token_id UUID,
+    queue_token_number INTEGER,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_salon ON appointments(salon_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_user ON appointments(user_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_status ON appointments(status);
+

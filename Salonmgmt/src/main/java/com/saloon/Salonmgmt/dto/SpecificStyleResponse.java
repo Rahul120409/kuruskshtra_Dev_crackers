@@ -24,6 +24,7 @@ public class SpecificStyleResponse {
     private String imageUrl;
     private String suitableFaceShapes;
     private String suitableHairTypes;
+    private String gender;
     private boolean isActive;
     private LocalDateTime createdAt;
 
@@ -42,6 +43,7 @@ public class SpecificStyleResponse {
                 .imageUrl(style.getImageUrl())
                 .suitableFaceShapes(style.getSuitableFaceShapes())
                 .suitableHairTypes(style.getSuitableHairTypes())
+                .gender(style.getGender())
                 .isActive(style.isActive())
                 .createdAt(style.getCreatedAt())
                 .build();

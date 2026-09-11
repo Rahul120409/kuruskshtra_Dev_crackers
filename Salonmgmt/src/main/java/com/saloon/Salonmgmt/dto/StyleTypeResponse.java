@@ -18,6 +18,7 @@ public class StyleTypeResponse {
     private String code;
     private String description;
     private String imageUrl;
+    private String gender;
     private boolean isActive;
     private int specificStyleCount;
     private LocalDateTime createdAt;
@@ -31,6 +32,7 @@ public class StyleTypeResponse {
                 .code(styleType.getCode())
                 .description(styleType.getDescription())
                 .imageUrl(styleType.getImageUrl())
+                .gender(styleType.getGender())
                 .isActive(styleType.isActive())
                 .specificStyleCount(styleType.getSpecificStyles() != null ? styleType.getSpecificStyles().size() : 0)
                 .createdAt(styleType.getCreatedAt())

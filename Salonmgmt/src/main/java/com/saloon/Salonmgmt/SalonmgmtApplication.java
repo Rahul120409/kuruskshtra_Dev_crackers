@@ -9,5 +9,6 @@ public class SalonmgmtApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(SalonmgmtApplication.class, args);
 	}
+	
 
 }

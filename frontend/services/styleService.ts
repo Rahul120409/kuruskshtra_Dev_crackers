@@ -222,7 +222,7 @@ class StyleService {
     if (typeof window !== 'undefined') {
       return ''; // browser relative proxy
     }
-    return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8081';
+    return (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
   }
 
   // --- Style Types API ---

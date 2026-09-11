@@ -1,32 +1,10 @@
 import { NextResponse } from 'next/server';
 
-const CANDIDATE_BACKEND_HOSTS = [
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8081',
-  'http://localhost:8081',
-  'http://127.0.0.1:8081',
-  'http://192.168.137.162:8081',
-];
+const BACKEND_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
 
 async function fetchFromBackend(endpoint: string, options?: RequestInit): Promise<Response> {
-  const hosts = Array.from(new Set(CANDIDATE_BACKEND_HOSTS));
-  let lastError: any = null;
-
-  for (const host of hosts) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`${host}${endpoint}`, {
-        ...options,
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      return res;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-
-  throw lastError || new Error('All backend hosts unreachable');
+  const url = `${BACKEND_BASE}${endpoint}`;
+  return fetch(url, options);
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {

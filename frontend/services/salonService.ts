@@ -33,7 +33,7 @@ export interface BackendSalonResponse {
   createdAt: string;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8081';
+const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
 function formatTimeString(timeStr?: string): string {
   if (!timeStr) return '09:00 AM';
@@ -136,42 +136,8 @@ function storeSalonsLocally(salons: Salon[]) {
 }
 
 async function fetchApi(endpoint: string, options?: RequestInit): Promise<Response> {
-  // In the browser, try relative path first to utilize the Next.js server proxy (zero CORS, zero PNA)
-  const candidateUrls: string[] = [];
-  if (typeof window !== 'undefined') {
-    candidateUrls.push(''); // Relative URL e.g. /api/salons
-  }
-
-  candidateUrls.push(
-    BASE_URL,
-    'http://192.168.137.199:8081',
-    'http://localhost:8081',
-    'http://127.0.0.1:8081',
-    'http://192.168.137.162:8081'
-  );
-
-  const uniqueCandidates = Array.from(new Set(candidateUrls));
-  let lastError: any = null;
-
-  for (const host of uniqueCandidates) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3500);
-      const url = host ? `${host}${endpoint}` : endpoint;
-      const res = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (res.ok || res.status === 201) {
-        return res;
-      }
-      lastError = new Error(`HTTP ${res.status} from ${url}`);
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError || new Error('All candidate backend hosts failed to connect');
+  const url = BASE_URL ? `${BASE_URL}${endpoint}` : endpoint;
+  return fetch(url, options);
 }
 
 class SalonService {
@@ -194,7 +160,7 @@ class SalonService {
         if (rawList) {
           const liveSalons = rawList.map(mapBackendSalonToFrontend);
           console.log(`✅ [salonService: getSalons] Successfully fetched ${liveSalons.length} salons from DB:`, liveSalons);
-          
+
           // Merge with any locally registered salons by user
           const localSalons = getStoredSalons();
           const liveIds = new Set(liveSalons.map((s: Salon) => s.id));
@@ -245,7 +211,7 @@ class SalonService {
       if ((res.ok || res.status === 201) && rawItem) {
         const mapped = mapBackendSalonToFrontend(rawItem);
         console.log("✅ [salonService: createSalon] SALON DATA SAVED SUCCESSFULLY IN DB:", mapped);
-        
+
         // Save to locally registered salons
         if (typeof window !== 'undefined') {
           try {

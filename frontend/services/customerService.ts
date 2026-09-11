@@ -1,18 +1,18 @@
-import { 
-  SalonService, 
-  Hairstyle, 
-  SalonStaff, 
-  QueueToken, 
-  Appointment, 
-  Notification, 
+import {
+  SalonService,
+  Hairstyle,
+  SalonStaff,
+  QueueToken,
+  Appointment,
+  Notification,
   Feedback,
-  QueueStatus 
+  QueueStatus
 } from '../types';
-import { 
-  DEMO_SERVICES, 
-  DEMO_HAIRSTYLES, 
-  DEMO_STAFF, 
-  INITIAL_DEMO_TOKEN, 
+import {
+  DEMO_SERVICES,
+  DEMO_HAIRSTYLES,
+  DEMO_STAFF,
+  INITIAL_DEMO_TOKEN,
   INITIAL_NOTIFICATIONS,
   INITIAL_DEMO_APPOINTMENTS
 } from './mockData';
@@ -56,13 +56,16 @@ const STORAGE_KEY_APPOINTMENTS = 'salonflow_appointments';
 
 export class MockCustomerService implements ICustomerService {
   private getLocalToken(): QueueToken | null {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === 'undefined') return INITIAL_DEMO_TOKEN;
     const raw = localStorage.getItem(STORAGE_KEY_TOKEN);
-    if (!raw) return null;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY_TOKEN, JSON.stringify(INITIAL_DEMO_TOKEN));
+      return INITIAL_DEMO_TOKEN;
+    }
     try {
       return JSON.parse(raw);
     } catch {
-      return null;
+      return INITIAL_DEMO_TOKEN;
     }
   }
 
@@ -76,13 +79,16 @@ export class MockCustomerService implements ICustomerService {
   }
 
   private getLocalNotifs(): Notification[] {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === 'undefined') return INITIAL_NOTIFICATIONS;
     const raw = localStorage.getItem(STORAGE_KEY_NOTIFS);
-    if (!raw) return [];
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY_NOTIFS, JSON.stringify(INITIAL_NOTIFICATIONS));
+      return INITIAL_NOTIFICATIONS;
+    }
     try {
       return JSON.parse(raw);
     } catch {
-      return [];
+      return INITIAL_NOTIFICATIONS;
     }
   }
 
@@ -92,13 +98,16 @@ export class MockCustomerService implements ICustomerService {
   }
 
   private getLocalAppointments(): Appointment[] {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === 'undefined') return INITIAL_DEMO_APPOINTMENTS;
     const raw = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
-    if (!raw) return [];
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY_APPOINTMENTS, JSON.stringify(INITIAL_DEMO_APPOINTMENTS));
+      return INITIAL_DEMO_APPOINTMENTS;
+    }
     try {
       return JSON.parse(raw);
     } catch {
-      return [];
+      return INITIAL_DEMO_APPOINTMENTS;
     }
   }
 
@@ -394,7 +403,7 @@ export class ApiCustomerService implements ICustomerService {
   private fallback: MockCustomerService;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8081';
+    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8080';
     this.fallback = new MockCustomerService();
   }
 
@@ -411,14 +420,6 @@ export class ApiCustomerService implements ICustomerService {
   }
 
   async getHairstyles(): Promise<Hairstyle[]> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/styles/specific`);
-      if (res.ok) {
-        const json = await res.json();
-        const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
-        if (list.length > 0) return list;
-      }
-    } catch {}
     return this.fallback.getHairstyles();
   }
 
@@ -426,8 +427,7 @@ export class ApiCustomerService implements ICustomerService {
     try {
       const res = await fetch(`${this.baseUrl}/api/staff`);
       if (!res.ok) throw new Error('API fetch failed');
-      const json = await res.json();
-      return Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+      return await res.json();
     } catch {
       return this.fallback.getStaff();
     }
@@ -447,14 +447,9 @@ export class ApiCustomerService implements ICustomerService {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error('Join queue API failed');
-      const json = await res.json();
-      const token = json.data || json;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY_TOKEN, JSON.stringify(token));
-      }
-      return token;
+      return await res.json();
     } catch (err) {
-      console.warn('Backend /api/queue/join unavailable, using local session.', err);
+      console.warn('Backend /api/queue/join unavailable, using MockCustomerService fallback.', err);
       return this.fallback.joinQueue(data);
     }
   }
@@ -463,8 +458,7 @@ export class ApiCustomerService implements ICustomerService {
     try {
       const res = await fetch(`${this.baseUrl}/api/queue/token/${tokenId}`);
       if (!res.ok) throw new Error('Get token API failed');
-      const json = await res.json();
-      return json.data || json;
+      return await res.json();
     } catch {
       return this.fallback.getToken(tokenId);
     }
@@ -474,7 +468,6 @@ export class ApiCustomerService implements ICustomerService {
     try {
       const res = await fetch(`${this.baseUrl}/api/queue/${tokenId}/cancel`, { method: 'PUT' });
       if (!res.ok) throw new Error('Cancel failed');
-      this.fallback.cancelToken(tokenId);
       return true;
     } catch {
       return this.fallback.cancelToken(tokenId);
@@ -485,8 +478,7 @@ export class ApiCustomerService implements ICustomerService {
     try {
       const res = await fetch(`${this.baseUrl}/api/notifications/${customerId}`);
       if (!res.ok) throw new Error('Notifs failed');
-      const json = await res.json();
-      return Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+      return await res.json();
     } catch {
       return this.fallback.getNotifications(customerId);
     }
@@ -528,50 +520,21 @@ export class ApiCustomerService implements ICustomerService {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error('Appointment API failed');
-      const json = await res.json();
-      const apt = json.data || json;
-      return apt;
+      return await res.json();
     } catch {
       return this.fallback.createAppointment(data);
     }
   }
 
   async getAppointments(customerId?: string): Promise<Appointment[]> {
-    try {
-      const url = customerId 
-        ? `${this.baseUrl}/api/appointments/customer/${customerId}`
-        : `${this.baseUrl}/api/appointments`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const json = await res.json();
-        const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
-        if (list.length > 0) return list;
-      }
-    } catch {}
     return this.fallback.getAppointments(customerId);
   }
 
   async addAppointment(data: Partial<Appointment>): Promise<Appointment> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/appointments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        const apt = json.data || json;
-        return apt;
-      }
-    } catch {}
     return this.fallback.addAppointment(data);
   }
 
   async cancelAppointment(appointmentId: string): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/appointments/${appointmentId}/cancel`, { method: 'PUT' });
-      if (res.ok) return true;
-    } catch {}
     return this.fallback.cancelAppointment(appointmentId);
   }
 

@@ -57,7 +57,7 @@ export class ApiAIService implements IAIService {
   private fallback: MockAIService;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8080';
+    this.baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
     this.fallback = new MockAIService();
   }
 

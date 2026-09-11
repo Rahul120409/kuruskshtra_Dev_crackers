@@ -1050,22 +1050,14 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setActivePortal('customer')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
-              activePortal === 'customer'
-                ? 'bg-primary text-on-primary shadow-sm'
-                : 'text-on-surface-variant hover:text-on-surface'
-            }`}
+            className="px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer bg-primary text-on-primary shadow-sm"
           >
             Customer View
           </button>
           <button
             type="button"
             onClick={() => setActivePortal('ai')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activePortal === 'ai'
-                ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
-                : 'text-on-surface-variant hover:text-amber-400'
-            }`}
+            className="px-3 py-1 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer text-on-surface-variant hover:text-amber-400"
           >
             <Sparkles className="w-3 h-3 text-amber-400" />
             <span>AI Studio</span>
@@ -1073,11 +1065,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setActivePortal('admin')}
-            className={`px-3 py-1 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-              activePortal === 'admin'
-                ? 'bg-primary text-on-primary shadow-sm'
-                : 'text-on-surface-variant hover:text-amber-400'
-            }`}
+            className="px-3 py-1 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer text-on-surface-variant hover:text-amber-400"
           >
             <Shield className="w-3 h-3 text-amber-400" />
             <span>Admin Portal</span>

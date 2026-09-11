@@ -1,19 +1,17 @@
 package com.saloon.Salonmgmt.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.saloon.Salonmgmt.dto.DayScheduleDto;
 import com.saloon.Salonmgmt.dto.SalonRequest;
 import com.saloon.Salonmgmt.dto.SalonResponse;
+import com.saloon.Salonmgmt.dto.SalonScheduleRequest;
 import com.saloon.Salonmgmt.dto.SalonScheduleResponse;
 import com.saloon.Salonmgmt.entity.Salon;
 import com.saloon.Salonmgmt.repository.SalonRepository;
+import com.saloon.Salonmgmt.util.ScheduleJsonUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -23,7 +21,6 @@ import java.util.stream.Collectors;
 public class SalonService {
 
     private final SalonRepository salonRepository;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
     public SalonResponse createSalon(SalonRequest request) {
@@ -79,17 +76,7 @@ public class SalonService {
                 .build();
 
         if (request.getWeeklySchedule() != null && !request.getWeeklySchedule().isEmpty()) {
-            try {
-                salon.setOperatingSchedule(objectMapper.writeValueAsString(request.getWeeklySchedule()));
-            } catch (Exception ignored) {}
-        } else if (request.getOperatingSchedule() != null) {
-            try {
-                if (request.getOperatingSchedule() instanceof String str) {
-                    salon.setOperatingSchedule(str);
-                } else {
-                    salon.setOperatingSchedule(objectMapper.writeValueAsString(request.getOperatingSchedule()));
-                }
-            } catch (Exception ignored) {}
+            salon.setOperatingSchedule(ScheduleJsonUtil.toJson(request.getWeeklySchedule()));
         }
 
         Salon saved = salonRepository.save(salon);
@@ -165,17 +152,7 @@ public class SalonService {
         }
 
         if (request.getWeeklySchedule() != null && !request.getWeeklySchedule().isEmpty()) {
-            try {
-                salon.setOperatingSchedule(objectMapper.writeValueAsString(request.getWeeklySchedule()));
-            } catch (Exception ignored) {}
-        } else if (request.getOperatingSchedule() != null) {
-            try {
-                if (request.getOperatingSchedule() instanceof String str) {
-                    salon.setOperatingSchedule(str);
-                } else {
-                    salon.setOperatingSchedule(objectMapper.writeValueAsString(request.getOperatingSchedule()));
-                }
-            } catch (Exception ignored) {}
+            salon.setOperatingSchedule(ScheduleJsonUtil.toJson(request.getWeeklySchedule()));
         }
 
         Salon updated = salonRepository.save(salon);
@@ -187,13 +164,7 @@ public class SalonService {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new IllegalArgumentException("Salon not found with ID: " + salonId));
 
-        List<DayScheduleDto> weeklyList = new ArrayList<>();
-        if (salon.getOperatingSchedule() != null && !salon.getOperatingSchedule().trim().isEmpty()) {
-            try {
-                JsonNode root = objectMapper.readTree(salon.getOperatingSchedule());
-                weeklyList = extractDaySchedules(root);
-            } catch (Exception ignored) {}
-        }
+        List<DayScheduleDto> weeklyList = ScheduleJsonUtil.fromJson(salon.getOperatingSchedule());
 
         return SalonScheduleResponse.builder()
                 .salonId(salon.getId())
@@ -205,66 +176,26 @@ public class SalonService {
     }
 
     @Transactional
-    public SalonScheduleResponse updateSchedule(UUID salonId, Object schedulePayload) {
+    public SalonScheduleResponse updateSchedule(UUID salonId, SalonScheduleRequest request) {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new IllegalArgumentException("Salon not found with ID: " + salonId));
 
-        if (schedulePayload == null) {
-            throw new IllegalArgumentException("Schedule payload cannot be null");
+        if (request == null || request.getWeeklySchedule() == null) {
+            throw new IllegalArgumentException("Schedule cannot be null");
         }
 
-        try {
-            List<DayScheduleDto> weeklyList;
-            if (schedulePayload instanceof String str) {
-                JsonNode root = objectMapper.readTree(str);
-                weeklyList = extractDaySchedules(root);
-            } else {
-                JsonNode root = objectMapper.valueToTree(schedulePayload);
-                weeklyList = extractDaySchedules(root);
-            }
+        List<DayScheduleDto> weeklyList = request.getWeeklySchedule();
+        String jsonString = ScheduleJsonUtil.toJson(weeklyList);
+        salon.setOperatingSchedule(jsonString);
+        Salon saved = salonRepository.save(salon);
 
-            String jsonString = objectMapper.writeValueAsString(weeklyList);
-            salon.setOperatingSchedule(jsonString);
-            Salon saved = salonRepository.save(salon);
-
-            return SalonScheduleResponse.builder()
-                    .salonId(saved.getId())
-                    .salonName(saved.getName())
-                    .weeklySchedule(weeklyList)
-                    .status(saved.getStatus())
-                    .updatedAt(saved.getUpdatedAt())
-                    .build();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid schedule JSON format: " + e.getMessage(), e);
-        }
-    }
-
-    private List<DayScheduleDto> extractDaySchedules(JsonNode root) {
-        if (root == null || root.isNull()) {
-            return new ArrayList<>();
-        }
-        if (root.isArray()) {
-            return objectMapper.convertValue(root, new TypeReference<List<DayScheduleDto>>() {});
-        }
-        if (root.isObject()) {
-            if (root.has("weeklySchedule") && root.get("weeklySchedule").isArray()) {
-                return objectMapper.convertValue(root.get("weeklySchedule"), new TypeReference<List<DayScheduleDto>>() {});
-            }
-            if (root.has("schedules") && root.get("schedules").isArray()) {
-                return objectMapper.convertValue(root.get("schedules"), new TypeReference<List<DayScheduleDto>>() {});
-            }
-            if (root.has("schedule") && root.get("schedule").isArray()) {
-                return objectMapper.convertValue(root.get("schedule"), new TypeReference<List<DayScheduleDto>>() {});
-            }
-            if (root.has("days") && root.get("days").isArray()) {
-                return objectMapper.convertValue(root.get("days"), new TypeReference<List<DayScheduleDto>>() {});
-            }
-            if (root.has("day") || root.has("dayOfWeek")) {
-                DayScheduleDto single = objectMapper.convertValue(root, DayScheduleDto.class);
-                return List.of(single);
-            }
-        }
-        return new ArrayList<>();
+        return SalonScheduleResponse.builder()
+                .salonId(saved.getId())
+                .salonName(saved.getName())
+                .weeklySchedule(weeklyList)
+                .status(saved.getStatus())
+                .updatedAt(saved.getUpdatedAt())
+                .build();
     }
 
     @Transactional

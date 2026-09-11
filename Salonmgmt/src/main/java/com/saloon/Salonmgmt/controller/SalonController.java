@@ -1,8 +1,6 @@
 package com.saloon.Salonmgmt.controller;
 
-import com.saloon.Salonmgmt.dto.ApiResponse;
-import com.saloon.Salonmgmt.dto.SalonRequest;
-import com.saloon.Salonmgmt.dto.SalonResponse;
+import com.saloon.Salonmgmt.dto.*;
 import com.saloon.Salonmgmt.service.SalonService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -88,11 +86,11 @@ public class SalonController {
     }
 
     @PutMapping("/{id}/schedule")
-    public ResponseEntity<ApiResponse<com.saloon.Salonmgmt.dto.SalonScheduleResponse>> updateSchedule(
+    public ResponseEntity<ApiResponse<SalonScheduleResponse>> updateSchedule(
             @PathVariable UUID id,
-            @RequestBody Object schedulePayload) {
+            @RequestBody SalonScheduleRequest request) {
         try {
-            com.saloon.Salonmgmt.dto.SalonScheduleResponse response = salonService.updateSchedule(id, schedulePayload);
+            SalonScheduleResponse response = salonService.updateSchedule(id, request);
             return ResponseEntity.ok(ApiResponse.ok("Salon schedule updated successfully", response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -104,16 +102,16 @@ public class SalonController {
     }
 
     @PostMapping("/{id}/schedule")
-    public ResponseEntity<ApiResponse<com.saloon.Salonmgmt.dto.SalonScheduleResponse>> registerSchedule(
+    public ResponseEntity<ApiResponse<SalonScheduleResponse>> registerSchedule(
             @PathVariable UUID id,
-            @RequestBody Object schedulePayload) {
-        return updateSchedule(id, schedulePayload);
+            @RequestBody SalonScheduleRequest request) {
+        return updateSchedule(id, request);
     }
 
     @GetMapping("/{id}/schedule")
-    public ResponseEntity<ApiResponse<com.saloon.Salonmgmt.dto.SalonScheduleResponse>> getSchedule(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<SalonScheduleResponse>> getSchedule(@PathVariable UUID id) {
         try {
-            com.saloon.Salonmgmt.dto.SalonScheduleResponse response = salonService.getSchedule(id);
+            SalonScheduleResponse response = salonService.getSchedule(id);
             return ResponseEntity.ok(ApiResponse.ok("Salon schedule retrieved successfully", response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

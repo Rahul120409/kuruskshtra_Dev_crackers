@@ -43,7 +43,7 @@ body {
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4f46e5;
+  background: #334155;
 }
 
 /* Card and Panel Utilities (Local) */

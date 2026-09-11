@@ -57,15 +57,22 @@ export default function LiveQueuePage() {
         </p>
         <div className="pt-2 flex flex-col gap-2">
           <Link
-            href="/ai-recommend"
+            href="/home?joinQueue=true"
             className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20"
           >
-            <Sparkles className="w-4 h-4 fill-slate-950" />
-            <span>AI Style Match & Queue</span>
+            <Scissors className="w-4 h-4" />
+            <span>Join Live Queue (Choose Haircut & Token)</span>
+          </Link>
+          <Link
+            href="/ai-recommend"
+            className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs border border-zinc-700/60 flex items-center justify-center gap-2 transition-all"
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>AI Style Match & Recommendations</span>
           </Link>
           <button
             onClick={resetDemoQueue}
-            className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs border border-zinc-700/60 transition-all"
+            className="w-full py-2 rounded-xl text-zinc-400 hover:text-zinc-200 text-xs transition-all"
           >
             Load Sample Token #108
           </button>

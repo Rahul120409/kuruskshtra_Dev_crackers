@@ -179,6 +179,7 @@ class SalonService {
    * Real-time fetch of all salons from backend API with localStorage resilience
    */
   async getSalons(): Promise<Salon[]> {
+    console.log("💈 [salonService: getSalons] Querying /api/salons...");
     try {
       const res = await fetchApi('/api/salons', {
         cache: 'no-store',
@@ -189,8 +190,10 @@ class SalonService {
 
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const liveSalons = json.data.map(mapBackendSalonToFrontend);
+        const rawList = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
+        if (rawList) {
+          const liveSalons = rawList.map(mapBackendSalonToFrontend);
+          console.log(`✅ [salonService: getSalons] Successfully fetched ${liveSalons.length} salons from DB:`, liveSalons);
           
           // Merge with any locally registered salons by user
           const localSalons = getStoredSalons();
@@ -205,7 +208,7 @@ class SalonService {
         }
       }
     } catch (err) {
-      console.warn('Backend salon fetch error, checking local storage cache:', err);
+      console.warn('❌ [salonService: getSalons] Backend salon fetch notice, using cache:', err);
     }
 
     // Resilience fallback: Return cached/registered salons so salons never vanish
@@ -222,6 +225,7 @@ class SalonService {
    * Real-time creation of a new salon on the backend via POST /api/salons
    */
   async createSalon(data: CreateSalonRequest): Promise<{ success: boolean; salon?: Salon; message?: string }> {
+    console.log("💈 [salonService: createSalon] Initiating salon registration with payload:", data);
     try {
       const res = await fetchApi('/api/salons', {
         method: 'POST',
@@ -232,9 +236,15 @@ class SalonService {
         body: JSON.stringify(data),
       });
 
+      console.log(`💈 [salonService: createSalon] HTTP status: ${res.status}`);
       const json = await res.json();
-      if ((res.ok || res.status === 201) && json.success && json.data) {
-        const mapped = mapBackendSalonToFrontend(json.data);
+      console.log("💈 [salonService: createSalon] Response JSON:", json);
+
+      const rawItem = json?.data || (json?.id ? json : null);
+
+      if ((res.ok || res.status === 201) && rawItem) {
+        const mapped = mapBackendSalonToFrontend(rawItem);
+        console.log("✅ [salonService: createSalon] SALON DATA SAVED SUCCESSFULLY IN DB:", mapped);
         
         // Save to locally registered salons
         if (typeof window !== 'undefined') {
@@ -249,15 +259,16 @@ class SalonService {
           }
         }
 
-        return { success: true, salon: mapped, message: json.message };
+        return { success: true, salon: mapped, message: json.message || "Salon saved" };
       }
 
+      console.warn("⚠️ [salonService: createSalon] Backend did not return saved item:", json);
       return {
         success: false,
         message: json.message || 'Failed to create salon on server',
       };
     } catch (err: any) {
-      console.error('Error creating salon on backend:', err);
+      console.error('❌ [salonService: createSalon] Error saving salon on backend:', err);
       return {
         success: false,
         message: err.message || 'Network error connecting to backend API',

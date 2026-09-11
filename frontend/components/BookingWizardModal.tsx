@@ -81,6 +81,17 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
     return staffMembers.find((st) => st.id === selectedStaffId) || staffMembers[0];
   }, [staffMembers, selectedStaffId]);
 
+  React.useEffect(() => {
+    if (isOpen && salon) {
+      console.log(`💈 [BOOKING WIZARD ACTIVE] Salon: "${salon.name}", Current Step ${step}: ${
+        step === 1 ? '1. Haircut & Grooming Service Selection' :
+        step === 2 ? '2. Stylist & Slot Selection' :
+        step === 3 ? '3. Live Token Details Pass Review' :
+        '4. Booking Summary & Payment Confirmation'
+      }`);
+    }
+  }, [isOpen, salon, step]);
+
   if (!isOpen || !salon) return null;
 
   const categories = ['All', 'Haircuts', 'Beard & Shave', 'Spa & Treatments', 'Color & Styling'];
@@ -101,6 +112,15 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
 
   const handleCompleteBooking = async () => {
     setIsSubmitting(true);
+    console.log("🚀 [BOOKING WIZARD] Completing Booking & Generating Token Pass:", {
+      salonId: salon.id,
+      salonName: salon.name,
+      service: selectedService.name,
+      price: selectedService.price,
+      staff: selectedStaff ? selectedStaff.name : 'First Available Stylist',
+      bookingMode,
+      paymentMethod,
+    });
     try {
       const token = await joinLiveQueue(
         selectedService.id,
@@ -108,6 +128,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         undefined,
         salon.id
       );
+      console.log("✅ [BOOKING WIZARD] Live Queue Token Assigned Successfully:", token);
 
       // Also record as an appointment in appointments store
       await addAppointment({
@@ -115,7 +136,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         salonId: salon.id,
         salonName: salon.name,
         salonAddress: salon.address,
-        salonArea: salon.area,
+        salonArea: salon.area || salon.city || 'Central District',
         serviceId: selectedService.id,
         serviceName: selectedService.name,
         servicePrice: selectedService.price,
@@ -133,6 +154,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         paymentStatus: paymentMethod === 'COUNTER' ? 'PENDING_AT_COUNTER' : 'PAID',
       });
 
+      console.log("🎉 [BOOKING WIZARD] Booking Summary recorded and confirmed! Routing to /appointments...");
       triggerCelebration();
       setIsSuccess(true);
 
@@ -142,22 +164,31 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         router.push('/appointments');
       }, 1600);
     } catch (err) {
-      console.error('Booking failed:', err);
+      console.error('❌ [BOOKING WIZARD] Booking failed:', err);
       setIsSubmitting(false);
     }
   };
 
   const handleNext = () => {
     if (step < 4) {
-      setStep((prev) => (prev + 1) as BookingStep);
+      const next = (step + 1) as BookingStep;
+      console.log(`➡️ [BOOKING WIZARD] Navigating to Step ${next}:`,
+        next === 2 ? '2. Stylist & Slot Selection' :
+        next === 3 ? '3. Live Token Details Pass Review' :
+        '4. Booking Summary & Payment Options'
+      );
+      setStep(next);
     } else {
+      console.log("💳 [BOOKING WIZARD] Submitting Step 4 Booking Summary with Payment:", paymentMethod);
       handleCompleteBooking();
     }
   };
 
   const handleBack = () => {
     if (step > 1) {
-      setStep((prev) => (prev - 1) as BookingStep);
+      const prev = (step - 1) as BookingStep;
+      console.log(`⬅️ [BOOKING WIZARD] Returning to Step ${prev}`);
+      setStep(prev);
     }
   };
 
@@ -175,12 +206,12 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold text-white tracking-wide">{salon.name}</h3>
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {salon.area}
+                  {salon.area || salon.city || 'Central District'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                {salon.address}
+                {salon.address || `${salon.name}, Central District`}
               </p>
             </div>
           </div>
@@ -649,9 +680,9 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                   <div className="flex items-center justify-between text-slate-400">
                     <span className="flex items-center gap-1.5">
                       <Store className="w-3.5 h-3.5 text-indigo-400" />
-                      {salon.name} ({salon.area})
+                      {salon.name} ({salon.area || salon.city || 'Central District'})
                     </span>
-                    <span className="text-emerald-400">Open until {salon.closingTime}</span>
+                    <span className="text-emerald-400">Open until {salon.closingTime || '09:00 PM'}</span>
                   </div>
                 </div>
               </div>

@@ -1,22 +1,12 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { ThemeProvider } from '../context/ThemeContext';
 import { CustomerProvider } from '../context/CustomerContext';
 import { Navbar } from '../components/Navbar';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
-
 export const metadata: Metadata = {
-  title: 'SalonFlow AI — Smart Salon, Live Queue & Admin Operations',
-  description: 'Enterprise salon management, AI hairstyle recommendations, smart appointments, and live queue tracking.',
+  title: 'LuxeTrim — Haute Coiffure & Bespoke Grooming Lounge',
+  description: 'Live atelier occupancy, real-time wait estimation, and instant chair reservations across premier grooming sanctuaries.',
 };
 
 export default function RootLayout({
@@ -27,27 +17,68 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      suppressHydrationWarning
+      className="dark"
     >
-      <body className="min-h-full flex flex-col bg-[#090d16] text-zinc-100 selection:bg-amber-500 selection:text-black">
-        <CustomerProvider>
-          <Navbar />
-          <main className="flex-1 pb-16">{children}</main>
-          <footer className="border-t border-zinc-800/80 bg-slate-950 py-8 text-center text-xs text-zinc-500">
-            <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p>© 2026 SalonFlow AI. Built for 24-Hour Parallel Hackathon.</p>
-              <div className="flex items-center gap-4 text-zinc-400">
-                <a href="/admin" className="text-amber-400 hover:text-amber-300 transition-colors font-medium">
-                  Admin Operations Portal
-                </a>
-                <span>•</span>
-                <span>Customer Experience</span>
-                <span>•</span>
-                <span className="font-mono text-[11px] text-amber-500/90">API: 192.168.137.199:8080</span>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Inter:wght@300;400;500;600&family=Manrope:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+          rel="stylesheet"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var saved = localStorage.getItem('salonflow_theme');
+                  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var theme = saved || (prefersDark ? 'dark' : 'light');
+                  if (theme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    document.documentElement.style.colorScheme = 'light';
+                  } else {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="bg-surface font-body-md text-on-surface antialiased transition-colors duration-200 min-h-screen flex flex-col">
+        <ThemeProvider>
+          <CustomerProvider>
+            <Navbar />
+            <main className="w-full pt-20 bg-surface flex-1">
+              {children}
+            </main>
+            <footer className="w-full bg-surface-container-lowest mt-space-xl transition-colors duration-200">
+              <div className="w-full px-margin-desktop py-space-xl flex flex-col md:flex-row items-center justify-between gap-space-md">
+                <div className="flex items-center gap-space-sm">
+                  <span className="font-headline-sm text-headline-sm text-primary">LuxeTrim</span>
+                  <span className="font-body-sm text-body-sm text-on-surface-variant">— Haute Coiffure &amp; Bespoke Grooming Lounge</span>
+                </div>
+                <div className="flex items-center gap-space-lg flex-wrap justify-center">
+                  <a className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Private Concierge</a>
+                  <a className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Salon Code &amp; Ethics</a>
+                  <a className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Bespoke Suites</a>
+                  <a className="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Client Care</a>
+                  <a className="font-body-sm text-body-sm text-primary font-bold hover:underline transition-colors" href="/admin">Admin Portal</a>
+                </div>
+                <div className="font-body-sm text-body-sm text-outline">
+                  © 2025 LuxeTrim Atelier International. All privileges reserved.
+                </div>
               </div>
-            </div>
-          </footer>
-        </CustomerProvider>
+            </footer>
+          </CustomerProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

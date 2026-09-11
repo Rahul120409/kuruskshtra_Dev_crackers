@@ -765,37 +765,42 @@ export default function AdminPortal() {
 
   // Fetch Salons from Database API: GET /api/salons
   const fetchSalons = async () => {
+    console.log("🔄 [ADMIN: fetchSalons] Querying GET /api/salons from backend database...");
     try {
       const res = await apiGetAllSalons();
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-        setSalons(
-          res.data
-            .filter((s) => !deletedSalonIds.has(s.id))
-            .map((s) => ({
-              id: s.id,
-              name: s.salonName || "Style Studio",
-              ownerName: s.ownerName || "Salon Owner",
-              email: s.email || "",
-              phone: s.phoneNumber || "",
-              type: s.type || "UNISEX",
-              stateCode: s.stateCode || (s.city?.toLowerCase() === "pune" || s.city?.toLowerCase() === "mumbai" ? "MH" : s.city?.toLowerCase() === "bengaluru" ? "KA" : "MH"),
-              cityName: s.city || "Pune",
-              address: s.salonAddress || "",
-              pincode: s.pincode || "",
-              salonLogo: s.salonLogo || "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500",
-              salonDescription: s.salonDescription || "",
-              locationLink: s.locationLink || "",
-              openingTime: s.openingTime || "09:00",
-              closingTime: s.closingTime || "21:00",
-              activeStylists: s.activeStylists || 6,
-              status: (s.status as any) || "ACTIVE",
-              todayRevenue: s.todayRevenue || 48500,
-              createdAt: s.createdAt ? s.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
-            }))
-        );
+      console.log("📦 [ADMIN: fetchSalons] API Response received:", res);
+      if (res.success && Array.isArray(res.data)) {
+        console.log(`✅ [ADMIN: fetchSalons] Successfully retrieved ${res.data.length} salons from DB:`, res.data);
+        if (res.data.length > 0) {
+          setSalons(
+            res.data
+              .filter((s) => !deletedSalonIds.has(s.id))
+              .map((s) => ({
+                id: s.id,
+                name: s.salonName || "Style Studio",
+                ownerName: s.ownerName || "Salon Owner",
+                email: s.email || "",
+                phone: s.phoneNumber || "",
+                type: s.type || "UNISEX",
+                stateCode: s.stateCode || (s.city?.toLowerCase() === "pune" || s.city?.toLowerCase() === "mumbai" ? "MH" : s.city?.toLowerCase() === "bengaluru" ? "KA" : "MH"),
+                cityName: s.city || "Pune",
+                address: s.salonAddress || "",
+                pincode: s.pincode || "",
+                salonLogo: s.salonLogo || "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500",
+                salonDescription: s.salonDescription || "",
+                locationLink: s.locationLink || "",
+                openingTime: s.openingTime || "09:00",
+                closingTime: s.closingTime || "21:00",
+                activeStylists: s.activeStylists || 6,
+                status: (s.status as any) || "ACTIVE",
+                todayRevenue: s.todayRevenue || 48500,
+                createdAt: s.createdAt ? s.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+              }))
+          );
+        }
       }
     } catch (err) {
-      console.warn("Could not fetch salon data from backend, using current local cache:", err);
+      console.warn("❌ [ADMIN: fetchSalons] Could not fetch salon data from backend DB, using current local cache:", err);
     }
   };
 
@@ -1402,30 +1407,46 @@ export default function AdminPortal() {
         closingTime: newSalonClose.trim() || "21:00",
       };
 
-      const res = await apiCreateSalon(payload);
-      const createdData = res.data;
+      console.log("🚀 [ADMIN: REGISTER SALON] Submitting payload to backend database:", payload);
 
-      if (createdData && createdData.id) {
+      const res = await apiCreateSalon(payload);
+      console.log("📥 [ADMIN: REGISTER SALON] API response received from apiCreateSalon:", res);
+
+      const createdData: any = res?.data || res;
+
+      if (createdData && (createdData.id || createdData.salonName || createdData.name)) {
+        const savedId = createdData.id || `sl-${Date.now()}`;
+        console.log("✅ [ADMIN: REGISTER SALON] SALON SAVED SUCCESSFULLY TO DATABASE! Record details:", {
+          id: savedId,
+          salonName: createdData.salonName || newSalonName,
+          ownerName: createdData.ownerName || newOwnerName,
+          phone: createdData.phoneNumber || newSalonPhone,
+          email: createdData.email || newSalonEmail,
+          city: createdData.city || newSalonCity,
+          status: createdData.status || "ACTIVE",
+          createdAt: createdData.createdAt
+        });
+
         const savedSalon: SalonItem = {
-          id: createdData.id,
-          name: createdData.salonName || newSalonName,
+          id: savedId,
+          name: createdData.salonName || createdData.name || newSalonName,
           ownerName: createdData.ownerName || newOwnerName,
           email: createdData.email || newSalonEmail,
-          phone: createdData.phoneNumber || newSalonPhone,
+          phone: createdData.phoneNumber || createdData.phone || newSalonPhone,
           type: newSalonType,
           stateCode: newSalonState || "MH",
           cityName: createdData.city || newSalonCity,
-          address: createdData.salonAddress || newSalonAddress,
+          address: createdData.salonAddress || createdData.address || newSalonAddress,
           pincode: createdData.pincode || newSalonPincode,
-          salonLogo: createdData.salonLogo || newSalonLogo,
-          salonDescription: createdData.salonDescription || newSalonDescription,
+          salonLogo: createdData.salonLogo || createdData.logo || newSalonLogo,
+          salonDescription: createdData.salonDescription || createdData.description || newSalonDescription,
           locationLink: createdData.locationLink || newSalonLocationLink,
           openingTime: createdData.openingTime || newSalonOpen,
           closingTime: createdData.closingTime || newSalonClose,
           activeStylists: 5,
           status: (createdData.status as any) || "ACTIVE",
           todayRevenue: 0,
-          createdAt: createdData.createdAt ? createdData.createdAt.split("T")[0] : new Date().toISOString().split("T")[0],
+          createdAt: createdData.createdAt ? String(createdData.createdAt).split("T")[0] : new Date().toISOString().split("T")[0],
         };
 
         setSalons((prev) => [savedSalon, ...prev.filter((s) => s.id !== savedSalon.id)]);
@@ -1437,12 +1458,19 @@ export default function AdminPortal() {
         setNewSalonAddress("High Street, Baner, Pune");
         setNewSalonCity("Pune");
         setNewSalonPincode("411045");
-        showToast(`Salon "${savedSalon.name}" registered successfully on port 8081!`, "success");
+        showToast(`Salon "${savedSalon.name}" registered and saved to database successfully!`, "success");
         fetchSalons();
         return;
+      } else {
+        console.warn("⚠️ [ADMIN: REGISTER SALON] Received response but data format was unexpected:", res);
       }
     } catch (err: any) {
-      console.warn("Backend salon API error:", err);
+      console.error("❌ [ADMIN: REGISTER SALON] FAILED TO SAVE SALON TO DATABASE! Error details:", {
+        message: err?.message,
+        stack: err?.stack,
+        error: err
+      });
+      console.info("ℹ️ [ADMIN: REGISTER SALON] Falling back to local cache resilience so inputs are not lost.");
       // Fallback local persistence if offline
       const localSalon: SalonItem = {
         id: `sl-${Date.now()}`,

@@ -14,16 +14,13 @@ async function fetchFromBackend(endpoint: string, options?: RequestInit): Promis
   for (const host of hosts) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
+      const timeout = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(`${host}${endpoint}`, {
         ...options,
         signal: controller.signal,
       });
       clearTimeout(timeout);
-      if (res.ok || res.status === 201) {
-        return res;
-      }
-      lastError = new Error(`HTTP ${res.status} from ${host}`);
+      return res;
     } catch (err) {
       lastError = err;
     }
@@ -32,26 +29,28 @@ async function fetchFromBackend(endpoint: string, options?: RequestInit): Promis
   throw lastError || new Error('All backend hosts unreachable');
 }
 
-export async function GET() {
-  console.log('🖥️ [NEXT ROUTE: GET /api/salons] Fetching salons from backend...');
+export async function GET(req: Request) {
   try {
-    const res = await fetchFromBackend('/api/salons', {
+    const url = new URL(req.url);
+    const search = url.search; // preserves ?salonId=...
+    const endpoint = `/api/staff${search}`;
+    console.log(`💈 [API PROXY: GET /api/staff] Forwarding to backend: ${endpoint}`);
+
+    const res = await fetchFromBackend(endpoint, {
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       cache: 'no-store',
     });
 
     const data = await res.json();
-    const count = data?.data ? (Array.isArray(data.data) ? data.data.length : 1) : (Array.isArray(data) ? data.length : 0);
-    console.log(`🖥️ [NEXT ROUTE: GET /api/salons] Successfully retrieved ${count} salons from backend (HTTP ${res.status})`);
-    return NextResponse.json(data);
+    return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    console.error('❌ [NEXT ROUTE: GET /api/salons] Backend error:', err?.message);
+    console.error('❌ [API PROXY: GET /api/staff] Error:', err?.message || err);
     return NextResponse.json(
       {
         success: false,
-        message: err?.message || 'Could not fetch salons from backend',
+        message: err?.message || 'Failed to fetch staff data from backend',
         data: [],
       },
       { status: 502 }
@@ -61,26 +60,27 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const endpoint = `/api/staff`;
     const body = await req.json();
-    console.log('🖥️ [NEXT ROUTE: POST /api/salons] Received salon to save in DB:', body);
-    const res = await fetchFromBackend('/api/salons', {
+    console.log(`💈 [API PROXY: POST /api/staff] Forwarding to backend: ${endpoint}`, body);
+
+    const res = await fetchFromBackend(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       body: JSON.stringify(body),
     });
 
     const data = await res.json();
-    console.log(`🖥️ [NEXT ROUTE: POST /api/salons] Backend returned HTTP ${res.status}:`, data);
     return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    console.error('❌ [NEXT ROUTE: POST /api/salons] Failed to save salon to backend DB:', err?.message);
+    console.error('❌ [API PROXY: POST /api/staff] Error:', err?.message || err);
     return NextResponse.json(
       {
         success: false,
-        message: err?.message || 'Failed to create salon on backend',
+        message: err?.message || 'Failed to create staff on backend',
       },
       { status: 502 }
     );

@@ -1,29 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  Scissors, 
-  Sparkles, 
-  Clock, 
-  Bell, 
   Menu, 
   X, 
-  PlayCircle, 
-  QrCode, 
   LogOut, 
   LogIn, 
   UserPlus,
   User as UserIcon,
   LayoutDashboard,
   Calendar,
-  Shield
+  Shield,
+  Sparkles,
+  PlayCircle
 } from 'lucide-react';
 import { useCustomer } from '../context/CustomerContext';
 import { NotificationDrawer } from './NotificationDrawer';
 import { DemoControlDrawer } from './DemoControlDrawer';
 import { WalkinQrModal } from './WalkinQrModal';
+import { LocationModal } from './LocationModal';
+import { ThemeToggle } from './ThemeToggle';
+import { LocationData, DEFAULT_USER_LOCATION } from '../services/locationService';
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
@@ -32,293 +31,250 @@ export const Navbar: React.FC = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<LocationData>(DEFAULT_USER_LOCATION);
 
   // Do not render customer navbar on dedicated Admin Panel or Salon Portal
   if (pathname?.startsWith('/admin') || pathname?.startsWith('/salon')) {
     return null;
   }
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('salonflow_user_location');
+      if (saved) {
+        try {
+          setUserLocation(JSON.parse(saved));
+        } catch (e) {
+          console.error('Failed to parse location in navbar', e);
+        }
+      }
+    }
+  }, []);
+
+  const handleSelectLocation = (loc: LocationData) => {
+    setUserLocation(loc);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('salonflow_user_location', JSON.stringify(loc));
+      window.dispatchEvent(new Event('storage'));
+    }
+  };
+
   const isAdmin = user && (user.role?.toUpperCase() === 'ADMIN' || user.role?.toUpperCase() === 'ROLE_ADMIN');
 
-  // Authenticated vs Guest Navigation Links
-  const navLinks = isLoggedIn
-    ? [
-        { name: 'Dashboard', href: '/home', icon: LayoutDashboard },
-        ...(isAdmin ? [{ name: 'Admin Panel', href: '/admin', highlight: true, icon: Shield }] : []),
-        { name: 'Services', href: '/services' },
-        { 
-          name: 'AI Style Match', 
-          href: '/ai-recommend', 
-          highlight: !isAdmin,
-          icon: Sparkles 
-        },
-        { name: 'Appointments', href: '/appointments', icon: Calendar },
-        { name: 'Live Queue', href: '/queue' },
-        { name: 'Feedback', href: '/feedback' },
-      ]
-    : [
-        { name: 'Landing', href: '/' },
-        { name: 'Services Menu', href: '/services' },
-        { 
-          name: 'AI Style Match', 
-          href: '/ai-recommend', 
-          highlight: true,
-          icon: Sparkles 
-        },
-        { name: 'Live Queue Pass', href: '/queue' },
-      ];
+  const navLinks = [
+    { name: 'Discover Salons', href: '/home' },
+    { name: 'Live Queues', href: '/queue' },
+    { name: 'AI Style Match', href: '/ai-recommend', highlight: true },
+    { name: 'My Appointments', href: '/appointments' },
+    { name: 'Concierge & VIP Club', href: '/services' },
+    ...(isAdmin ? [{ name: 'Admin Panel', href: '/admin', highlight: true }] : []),
+  ];
 
   const hasActiveToken = activeToken && ['WAITING', 'CALLED', 'IN_SERVICE'].includes(activeToken.status);
+  const displayDistrict = userLocation?.area ? `${userLocation.area}, ${userLocation.city || 'Beverly Hills'}` : 'Downtown West, Beverly Hills';
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            
-            {/* Brand Logo (Always links to Landing / for public or Home if logged in) */}
-            <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 p-0.5 flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-                <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                  <Scissors className="w-4 h-4 text-indigo-400 transform -rotate-45" />
-                </div>
-              </div>
+      <header className="fixed top-0 w-full z-50 bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.25)] transition-colors duration-200">
+        <div className="h-20 w-full px-margin-desktop flex items-center justify-between">
+          
+          {/* Left: Brand Crest & District Location Button */}
+          <div className="flex items-center gap-space-lg">
+            <Link href="/" className="flex items-center gap-space-sm group">
+              <img
+                alt="LuxeTrim Crest Icon"
+                className="h-8 w-auto object-contain group-hover:scale-105 transition-transform"
+                src="https://lh3.googleusercontent.com/aida/AEtjO1WqI_yLFEXpYRxhPJLhzsvEUoujuSmfBPFaXqFFG_WFmogffK_d4BSGEtdDdFACGggt6kQL-R9FVJwSja0K6cLHB1UMsc2O8GrU2ehEpVQjmiJvXXAYu0gibt4kxJ72I3E5iJfBkIp0Ko58hUHcdHOb3EwO6wE7Y-QtFO4hFRF8HnWMipJ7-a5LMbK-4oXkosht4cvD_DpiKvRT_-peA8DArqHHSHCMBlYc6_AP50tKczE0wQKOq-yuH-o"
+              />
               <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-base font-bold tracking-tight text-white">SalonFlow</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono font-bold border border-indigo-500/30">
-                    AI
-                  </span>
-                </div>
-                <span className="text-[9px] text-slate-400 tracking-wider uppercase font-medium">Smart Studio & Queue</span>
+                <span className="font-headline-sm text-headline-sm tracking-tight text-primary">LuxeTrim</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Atelier Concierge</span>
               </div>
             </Link>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navLinks.map((link) => {
-                const isActive = pathname === link.href;
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                      isActive
-                        ? 'bg-slate-800 text-indigo-300 border border-slate-700'
-                        : link.highlight
-                        ? 'text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-900'
-                    }`}
-                  >
-                    {Icon && <Icon className="w-3.5 h-3.5" />}
-                    {link.name}
-                  </Link>
-                );
-              })}
-            </nav>
+            <div className="h-8 w-px bg-surface-container-highest hidden sm:block"></div>
 
-            {/* Right Action Icons & Auth Controls */}
-            <div className="flex items-center gap-2">
-              
-              {/* Active Token Pill (if in queue) */}
-              {hasActiveToken && (
+            {/* District Atelier Selector */}
+            <button
+              type="button"
+              onClick={() => setIsLocationModalOpen(true)}
+              className="flex items-center gap-space-xs px-space-md py-space-xs rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors text-left cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-primary text-base">location_on</span>
+              <div className="flex flex-col">
+                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">District Atelier</span>
+                <span className="font-body-sm text-body-sm text-on-surface font-medium max-w-[160px] truncate">{displayDistrict}</span>
+              </div>
+              <span className="material-symbols-outlined text-outline text-sm ml-space-xs">expand_more</span>
+            </button>
+          </div>
+
+          {/* Center Navigation Links */}
+          <nav className="hidden xl:flex items-center gap-space-md">
+            {navLinks.map((link) => {
+              const isActive = pathname === link.href || (pathname === '/' && link.href === '/home');
+              return (
                 <Link
-                  href="/queue"
-                  className={`hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border transition-all ${
-                    activeToken.status === 'CALLED'
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 animate-pulse'
-                      : 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/25'
+                  key={link.name}
+                  href={link.href}
+                  className={`px-space-md py-space-xs transition-colors ${
+                    isActive
+                      ? 'bg-primary-container text-on-primary-container font-semibold rounded-lg'
+                      : link.highlight
+                      ? 'font-label-lg text-label-lg text-primary font-bold hover:text-primary-container'
+                      : 'font-label-lg text-label-lg text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${
-                    activeToken.status === 'CALLED' ? 'bg-emerald-400' : 'bg-indigo-400'
-                  }`} />
-                  <span>#{activeToken.tokenNumber}</span>
-                  <span className="text-slate-500">|</span>
-                  <span className="text-slate-300">
-                    {activeToken.status === 'CALLED' ? 'Your Turn' : `${activeToken.estimatedWait}m wait`}
+                  {link.name}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Right Action Icons & Controls */}
+          <div className="flex items-center gap-space-md">
+            
+            {/* Quick Search */}
+            <Link
+              href="/home"
+              className="relative hidden md:flex items-center cursor-pointer"
+            >
+              <div className="flex items-center gap-space-sm px-space-md py-space-xs rounded-lg bg-surface-container text-outline hover:text-on-surface-variant transition-colors">
+                <span className="material-symbols-outlined text-lg">search</span>
+                <span className="font-body-sm text-body-sm">Search stylists, cuts, suites...</span>
+                <kbd className="px-space-xs py-0.5 rounded bg-surface-container-high font-label-sm text-label-sm text-outline">⌘K</kbd>
+              </div>
+            </Link>
+
+            {/* Notifications Button */}
+            <button
+              type="button"
+              onClick={() => setIsNotifOpen(true)}
+              aria-label="View alerts"
+              className="relative p-space-xs rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined">notifications</span>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_rgba(78,222,163,0.8)]"></span>
+            </button>
+
+            {/* Dark/Light Theme Switcher */}
+            <ThemeToggle />
+
+            {/* Auth Area: Logged In vs Guest */}
+            {isLoggedIn && user ? (
+              <div className="flex items-center gap-space-xs pl-space-xs">
+                {/* User Profile Badge */}
+                <Link
+                  href="/profile"
+                  className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high border border-outline-variant transition-colors"
+                  title="View Profile"
+                >
+                  <img
+                    src={user.profileImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}
+                    alt={user.name}
+                    className="w-7 h-7 rounded-full object-cover ring-1 ring-outline"
+                  />
+                  <span className="font-body-sm text-body-sm text-on-surface font-medium hidden lg:inline truncate max-w-[100px]">
+                    {user.name.split(' ')[0]}
                   </span>
                 </Link>
-              )}
 
-              {/* Fast Walk-In QR Scan */}
-              <button
-                onClick={() => setIsQrModalOpen(true)}
-                title="Salon Walk-in QR Check-in"
-                className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-indigo-400 transition-colors"
-              >
-                <QrCode className="w-4 h-4" />
-              </button>
-
-              {/* Notification Bell */}
-              <button
-                onClick={() => setIsNotifOpen(true)}
-                className="relative p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
-                aria-label="Notifications"
-              >
-                <Bell className="w-4 h-4" />
-                {unreadNotifCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">
-                    {unreadNotifCount}
-                  </span>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all shadow-sm"
+                    title="Open Admin Portal"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Admin</span>
+                  </Link>
                 )}
-              </button>
 
-              {/* Auth Area: Logged In vs Guest */}
-              {isLoggedIn && user ? (
-                <div className="flex items-center gap-2 pl-1">
-                  {/* User Profile Badge */}
-                  <Link
-                    href="/profile"
-                    className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-indigo-500/40 transition-colors"
-                    title="View Profile"
-                  >
-                    <img
-                      src={user.profileImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80'}
-                      alt={user.name}
-                      className="w-5 h-5 rounded-full object-cover border border-indigo-400"
-                    />
-                    <span className="text-xs font-semibold text-slate-200 hidden lg:inline">
-                      {user.name.split(' ')[0]}
-                    </span>
-                  </Link>
+                {/* Sign Out Button */}
+                <button
+                  onClick={logoutUser}
+                  title="Sign Out of Account"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface text-xs font-semibold transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary text-xs font-bold transition-all shadow-sm shadow-primary/20"
+                >
+                  Register
+                </Link>
+              </div>
+            )}
 
-                  {isAdmin && (
-                    <Link
-                      href="/admin"
-                      className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all shadow-sm"
-                      title="Open Admin Portal"
-                    >
-                      <Shield className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Admin Portal</span>
-                    </Link>
-                  )}
+            {/* Demo Script Controller */}
+            <button
+              onClick={() => setIsDemoOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary border border-outline-variant text-xs font-semibold transition-all ml-1 cursor-pointer"
+              title="Open Hackathon Demo Controller"
+            >
+              <PlayCircle className="w-3.5 h-3.5 text-primary" />
+              <span className="hidden xl:inline">Demo</span>
+            </button>
 
-                  {/* PROMINENT LOGOUT BUTTON */}
-                  <button
-                    onClick={logoutUser}
-                    title="Sign Out of Account"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all shadow-sm"
-                  >
-                    <LogOut className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <Link
-                    href="/login"
-                    className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white text-xs font-semibold transition-colors"
-                  >
-                    Sign In
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-sm shadow-indigo-600/20"
-                  >
-                    Register
-                  </Link>
-                </div>
-              )}
-
-              {/* Demo Script Controller */}
-              <button
-                onClick={() => setIsDemoOpen(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-800 text-xs font-semibold transition-all ml-1"
-                title="Open Hackathon Demo Controller"
-              >
-                <PlayCircle className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="hidden xl:inline">Demo</span>
-              </button>
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="md:hidden p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
-              >
-                {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-
-            </div>
+            {/* Mobile Hamburger Menu Button */}
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="xl:hidden p-space-xs rounded-lg bg-surface-container text-on-surface-variant hover:text-on-surface cursor-pointer"
+              aria-label="Toggle menu"
+            >
+              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
 
           </div>
+
         </div>
 
         {/* Mobile Navigation Dropdown */}
         {isMenuOpen && (
-          <div className="md:hidden border-t border-slate-800 bg-slate-950 px-4 pt-2 pb-4 space-y-1">
-            {hasActiveToken && (
-              <Link
-                href="/queue"
-                onClick={() => setIsMenuOpen(false)}
-                className="flex items-center justify-between p-3 mb-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300"
-              >
-                <span className="font-semibold text-xs">Active Queue: Token #{activeToken.tokenNumber}</span>
-                <span className="text-xs text-slate-300">{activeToken.estimatedWait}m wait</span>
-              </Link>
-            )}
-
+          <div className="xl:hidden border-t border-outline-variant/30 bg-surface px-margin-desktop py-space-md space-y-2 shadow-2xl">
             {navLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
                 onClick={() => setIsMenuOpen(false)}
-                className={`block px-3 py-2 rounded-lg text-xs font-semibold ${
-                  pathname === link.href
-                    ? 'bg-slate-800 text-indigo-300'
-                    : 'text-slate-300 hover:bg-slate-900'
-                }`}
+                className="block px-space-md py-space-xs font-label-lg text-label-lg text-on-surface hover:bg-surface-container rounded-lg"
               >
                 {link.name}
               </Link>
             ))}
-
-            {/* Mobile Auth Bar with Logout */}
-            <div className="pt-3 border-t border-slate-800">
-              {isLoggedIn && user ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 px-1">
-                    <img
-                      src={user.profileImage}
-                      alt={user.name}
-                      className="w-7 h-7 rounded-full object-cover border border-indigo-400"
-                    />
-                    <div>
-                      <p className="text-xs text-white font-bold">{user.name}</p>
-                      <p className="text-[10px] text-slate-400">{user.email}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      logoutUser();
-                      setIsMenuOpen(false);
-                    }}
-                    className="w-full py-2.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4 text-rose-400" />
-                    <span>Sign Out of Account</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <Link
-                    href="/login"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="py-2.5 text-center rounded-lg bg-slate-900 text-xs font-semibold text-slate-200 border border-slate-800"
-                  >
-                    Sign In
-                  </Link>
-                  <Link
-                    href="/register"
-                    onClick={() => setIsMenuOpen(false)}
-                    className="py-2.5 text-center rounded-lg bg-indigo-600 text-xs font-bold text-white shadow-sm"
-                  >
-                    Register
-                  </Link>
-                </div>
-              )}
+            <div className="pt-2 border-t border-outline-variant/30 flex items-center justify-between">
+              <span className="font-label-sm text-label-sm text-on-surface-variant">Theme</span>
+              <ThemeToggle showLabel={true} />
             </div>
+            {isLoggedIn ? (
+              <div className="pt-2 border-t border-outline-variant/30 flex items-center justify-between">
+                <span className="font-body-sm text-body-sm text-on-surface">{user?.name}</span>
+                <button
+                  onClick={logoutUser}
+                  className="px-3 py-1 rounded bg-rose-500/10 text-rose-300 text-xs font-bold"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-outline-variant/30 flex items-center gap-2">
+                <Link href="/login" className="px-3 py-1 text-xs font-semibold text-on-surface">Sign In</Link>
+                <Link href="/register" className="px-3 py-1 text-xs font-bold bg-primary text-on-primary rounded">Register</Link>
+              </div>
+            )}
           </div>
         )}
       </header>
@@ -326,6 +282,12 @@ export const Navbar: React.FC = () => {
       <NotificationDrawer isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
       <DemoControlDrawer isOpen={isDemoOpen} onClose={() => setIsDemoOpen(false)} />
       <WalkinQrModal isOpen={isQrModalOpen} onClose={() => setIsQrModalOpen(false)} />
+      <LocationModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        onSelectLocation={handleSelectLocation}
+        currentLocation={userLocation}
+      />
     </>
   );
 };

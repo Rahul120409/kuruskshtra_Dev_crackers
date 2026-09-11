@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
   Clock, 
@@ -17,10 +18,10 @@ import {
   Plus, 
   Store, 
   Banknote, 
-  Smartphone,
-  Navigation,
-  Star,
-  Sparkles
+  Smartphone, 
+  Navigation, 
+  Star, 
+  Sparkles 
 } from 'lucide-react';
 import { useCustomer } from '../../context/CustomerContext';
 import { Appointment, Salon } from '../../types';
@@ -28,6 +29,7 @@ import { salonService } from '../../services/salonService';
 import { BookingWizardModal } from '../../components/BookingWizardModal';
 
 export default function AppointmentsPage() {
+  const router = useRouter();
   const { user, appointments, cancelAppointment, activeToken } = useCustomer();
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -74,8 +76,14 @@ export default function AppointmentsPage() {
   };
 
   const handleOpenBooking = (salonToBook?: Salon) => {
-    setSelectedSalon(salonToBook || (salons.length > 0 ? salons[0] : null));
-    setIsBookingOpen(true);
+    const target = salonToBook || (salons.length > 0 ? salons[0] : null);
+    if (target) {
+      const area = (target as any).area || target.city || target.address || '';
+      const wait = target.currentWaitMinutes || 18;
+      router.push(`/booking?salonId=${encodeURIComponent(target.id)}&salonName=${encodeURIComponent(target.name)}&area=${encodeURIComponent(area)}&wait=${wait}`);
+    } else {
+      router.push('/booking');
+    }
   };
 
   return (

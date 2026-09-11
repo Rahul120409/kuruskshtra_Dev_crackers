@@ -1,151 +1,297 @@
 @import "tailwindcss";
 
-:root {
-  --background: #080c14;
-  --surface: #0f172a;
-  --surface-border: rgba(255, 255, 255, 0.08);
-  --foreground: #f8fafc;
-  --muted: #94a3b8;
-  --primary: #4f46e5;
-  --primary-glow: rgba(79, 70, 229, 0.35);
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
+@custom-variant dark (&:where(.dark, .dark *));
 
-  /* Admin & Dashboard Theme Variables from back branch */
-  --gold-primary: #d4af37;
-  --gold-secondary: #e0a96d;
-  --gold-accent: #f59e0b;
-  --surface-dark: #0B111D;
-  --surface-card: #0F1726;
-  --surface-cardHighlight: #131D31;
-  --surface-borderGlow: #334155;
+@theme {
+  /* Dynamic Palette Tokens linked to CSS Variables */
+  --color-surface: var(--surface);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-variant: var(--surface-variant);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+
+  --color-background: var(--background);
+  --color-on-background: var(--on-background);
+
+  --color-primary: var(--primary);
+  --color-primary-container: var(--primary-container);
+  --color-primary-fixed: var(--primary-fixed);
+  --color-primary-fixed-dim: var(--primary-fixed-dim);
+  --color-on-primary: var(--on-primary);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-on-primary-fixed: var(--on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--on-primary-fixed-variant);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-secondary-fixed: var(--secondary-fixed);
+  --color-secondary-fixed-dim: var(--secondary-fixed-dim);
+  --color-on-secondary: var(--on-secondary);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-on-secondary-fixed: var(--on-secondary-fixed);
+  --color-on-secondary-fixed-variant: var(--on-secondary-fixed-variant);
+
+  --color-tertiary: var(--tertiary);
+  --color-tertiary-container: var(--tertiary-container);
+  --color-tertiary-fixed: var(--tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--tertiary-fixed-dim);
+  --color-on-tertiary: var(--on-tertiary);
+  --color-on-tertiary-container: var(--on-tertiary-container);
+  --color-on-tertiary-fixed: var(--on-tertiary-fixed);
+  --color-on-tertiary-fixed-variant: var(--on-tertiary-fixed-variant);
+
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+  --color-inverse-surface: var(--inverse-surface);
+  --color-inverse-on-surface: var(--inverse-on-surface);
+  --color-inverse-primary: var(--inverse-primary);
+
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
+
+  /* Spacing Tokens */
+  --spacing-margin-desktop: 2.5rem;
+  --spacing-margin: 3rem;
+  --spacing-gutter-desktop: 1.5rem;
+  --spacing-gutter: 1rem;
+  --spacing-space-xl: 2.25rem;
+  --spacing-space-lg: 1.5rem;
+  --spacing-space-md: 1rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-xs: 0.25rem;
+}
+
+:root {
+  /* ==========================================================================
+     LuxeTrim Haute Atelier — Light Mode Design Tokens
+     ========================================================================== */
+  --on-tertiary-container: #3d2a00;
+  --tertiary-fixed: #ffdea5;
+  --secondary: #585e6f;
+  --tertiary-fixed-dim: #e9c176;
+  --primary-fixed: #ffdf9f;
+  --on-error-container: #93000a;
+  --surface-container-lowest: #ffffff;
+  --background: #faf9f7;
+  --on-secondary-container: #5d6273;
+  --on-secondary-fixed: #151b29;
+  --surface-tint: #795900;
+  --tertiary: #775a19;
+  --on-secondary: #ffffff;
+  --surface-dim: #dadad8;
+  --on-surface: #1a1c1b;
+  --on-error: #ffffff;
+  --on-primary-container: #3b2a00;
+  --on-primary-fixed-variant: #5b4300;
+  --on-tertiary-fixed: #261900;
+  --surface-container-low: #f4f3f1;
+  --surface-variant: #e3e2e0;
+  --tertiary-container: #b38f4a;
+  --secondary-fixed-dim: #c1c6d9;
+  --surface-bright: #faf9f7;
+  --inverse-primary: #efc056;
+  --primary: #795900;
+  --on-primary: #ffffff;
+  --error-container: #ffdad6;
+  --error: #ba1a1a;
+  --outline: #807664;
+  --on-surface-variant: #4e4636;
+  --surface-container-high: #e9e8e6;
+  --inverse-on-surface: #f1f1ef;
+  --on-primary-fixed: #261a00;
+  --inverse-surface: #2f3130;
+  --secondary-fixed: #dde2f6;
+  --surface-container: #efeeec;
+  --on-tertiary: #ffffff;
+  --outline-variant: #d2c5b0;
+  --primary-container: #b88e28;
+  --on-tertiary-fixed-variant: #5d4201;
+  --secondary-container: #dadff3;
+  --primary-fixed-dim: #efc056;
+  --surface: #faf9f7;
+  --surface-container-highest: #e3e2e0;
+  --on-secondary-fixed-variant: #414756;
+  --on-background: #1a1c1b;
+
+  --font-family-headline: 'Bodoni Moda', Georgia, serif;
+  --font-family-body: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html.dark,
+.dark {
+  /* ==========================================================================
+     LuxeTrim Atelier Concierge — Dark Mode Tokens
+     ========================================================================== */
+  --on-primary-container: #554300;
+  --primary-fixed: #ffe088;
+  --on-primary: #3c2f00;
+  --on-tertiary-container: #5a4106;
+  --on-secondary-fixed: #002113;
+  --outline-variant: #4d4635;
+  --secondary-fixed: #6ffbbe;
+  --inverse-surface: #dae2fd;
+  --secondary: #4edea3;
+  --on-secondary-container: #00311f;
+  --surface-container-highest: #2d3449;
+  --surface: #0b1326;
+  --on-tertiary-fixed-variant: #5c4308;
+  --outline: #99907c;
+  --inverse-primary: #735c00;
+  --surface-dim: #0b1326;
+  --tertiary-fixed-dim: #e7c17c;
+  --on-secondary-fixed-variant: #005236;
+  --surface-variant: #2d3449;
+  --surface-bright: #31394d;
+  --error: #ffb4ab;
+  --on-error-container: #ffdad6;
+  --primary: #f2ca50;
+  --error-container: #93000a;
+  --on-tertiary-fixed: #261900;
+  --surface-container-low: #131b2e;
+  --secondary-container: #00a572;
+  --on-primary-fixed-variant: #574500;
+  --on-secondary: #003824;
+  --tertiary-fixed: #ffdea4;
+  --tertiary: #efc984;
+  --surface-container: #171f33;
+  --secondary-fixed-dim: #4edea3;
+  --primary-container: #d4af37;
+  --background: #0b1326;
+  --surface-container-high: #222a3d;
+  --on-background: #dae2fd;
+  --surface-tint: #e9c349;
+  --primary-fixed-dim: #e9c349;
+  --tertiary-container: #d2ae6b;
+  --on-primary-fixed: #241a00;
+  --surface-container-lowest: #060e20;
+  --inverse-on-surface: #283044;
+  --on-error: #690005;
+  --on-tertiary: #412d00;
+  --on-surface-variant: #d0c5af;
+  --on-surface: #dae2fd;
+
+  --font-family-headline: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  background-color: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-family-body);
   min-height: 100vh;
   overflow-x: hidden;
+  overscroll-behavior: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #080c14;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  display: none;
 }
 
-/* Card and Panel Utilities (Local) */
+/* Material Symbols Outlined font styling */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Typography Classes from reference */
+.font-headline-sm { font-family: var(--font-family-headline); }
+.font-numeric-ticket { font-family: var(--font-family-headline); }
+.font-display-lg { font-family: var(--font-family-headline); }
+.font-body-md { font-family: var(--font-family-body); }
+.font-body-sm { font-family: var(--font-family-body); }
+.font-body-lg { font-family: var(--font-family-body); }
+.font-label-lg { font-family: var(--font-family-headline); }
+.font-headline-lg { font-family: var(--font-family-headline); }
+.font-headline-md { font-family: var(--font-family-headline); }
+.font-label-md { font-family: var(--font-family-headline); }
+.font-label-sm { font-family: var(--font-family-headline); }
+
+.text-headline-sm { font-size: 1.125rem; line-height: 1.625rem; font-weight: 500; }
+.text-numeric-ticket { font-size: 3.75rem; line-height: 4rem; letter-spacing: -0.03em; font-weight: 700; }
+.text-display-lg { font-size: 3.25rem; line-height: 3.75rem; letter-spacing: -0.02em; font-weight: 600; }
+.text-body-md { font-size: 0.875rem; line-height: 1.45rem; font-weight: 400; }
+.text-body-sm { font-size: 0.75rem; line-height: 1.25rem; font-weight: 400; }
+.text-body-lg { font-size: 1rem; line-height: 1.6rem; font-weight: 400; }
+.text-label-lg { font-size: 0.875rem; line-height: 1.25rem; letter-spacing: 0.04em; font-weight: 600; }
+.text-headline-lg { font-size: 2rem; line-height: 2.5rem; letter-spacing: -0.015em; font-weight: 600; }
+.text-headline-md { font-size: 1.375rem; line-height: 1.875rem; letter-spacing: -0.01em; font-weight: 500; }
+.text-label-md { font-size: 0.75rem; line-height: 1rem; letter-spacing: 0.06em; font-weight: 600; }
+.text-label-sm { font-size: 0.625rem; line-height: 0.875rem; letter-spacing: 0.08em; font-weight: 600; }
+
+/* Spacing and Utilities */
+.px-margin-desktop { padding-left: 2.5rem; padding-right: 2.5rem; }
+@media (max-width: 768px) {
+  .px-margin-desktop { padding-left: 1.25rem; padding-right: 1.25rem; }
+}
+.py-space-xl { padding-top: 2.25rem; padding-bottom: 2.25rem; }
+.py-space-lg { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+.py-space-md { padding-top: 1rem; padding-bottom: 1rem; }
+.py-space-sm { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.py-space-xs { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.px-space-xl { padding-left: 2.25rem; padding-right: 2.25rem; }
+.px-space-lg { padding-left: 1.5rem; padding-right: 1.5rem; }
+.px-space-md { padding-left: 1rem; padding-right: 1rem; }
+.px-space-sm { padding-left: 0.5rem; padding-right: 0.5rem; }
+.px-space-xs { padding-left: 0.25rem; padding-right: 0.25rem; }
+.p-space-xl { padding: 2.25rem; }
+.p-space-lg { padding: 1.5rem; }
+.p-space-md { padding: 1rem; }
+.p-space-sm { padding: 0.5rem; }
+.p-space-xs { padding: 0.25rem; }
+
+.gap-gutter-desktop { gap: 1.5rem; }
+.gap-gutter { gap: 1rem; }
+.gap-space-xl { gap: 2.25rem; }
+.gap-space-lg { gap: 1.5rem; }
+.gap-space-md { gap: 1rem; }
+.gap-space-sm { gap: 0.5rem; }
+.gap-space-xs { gap: 0.25rem; }
+
+.my-space-md { margin-top: 1rem; margin-bottom: 1rem; }
+.my-space-lg { margin-top: 1.5rem; margin-bottom: 1.5rem; }
+.mt-space-xs { margin-top: 0.25rem; }
+.mt-space-sm { margin-top: 0.5rem; }
+.mt-space-md { margin-top: 1rem; }
+.mt-space-lg { margin-top: 1.5rem; }
+.mt-space-xl { margin-top: 2.25rem; }
+.pb-space-sm { padding-bottom: 0.5rem; }
+.pb-space-md { padding-bottom: 1rem; }
+.pt-space-xs { padding-top: 0.25rem; }
+.pt-space-sm { padding-top: 0.5rem; }
+.pl-space-xs { padding-left: 0.25rem; }
+.ml-space-xs { margin-left: 0.25rem; }
+
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Backward Compatibility Utilities for Admin Portal */
 .panel-card {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: 0.75rem;
 }
-
-.panel-card-indigo {
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(15, 23, 42, 0.85));
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(79, 70, 229, 0.3);
-}
-
-.indigo-glow-shadow {
-  box-shadow: 0 0 25px -5px rgba(79, 70, 229, 0.3);
-}
-
-.emerald-glow-shadow {
-  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.3);
-}
-
-/* Dashboard Theme Utilities (from back branch) */
-.font-mono-num {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
-}
-
-.glow-amber-subtle {
-  box-shadow: 0 0 35px -5px rgba(245, 158, 11, 0.12);
-}
-
-.glow-cyan-subtle {
-  box-shadow: 0 0 35px -5px rgba(34, 211, 238, 0.12);
-}
-
-.grid-pattern {
-  background-size: 32px 32px;
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-}
-
-/* Gold Gradient Utilities (from back branch) */
 .text-gold-gradient {
-  background: linear-gradient(135deg, #fce8b3 0%, #d4af37 50%, #c28e24 100%);
+  background: linear-gradient(135deg, var(--primary-fixed) 0%, var(--primary) 50%, var(--primary-container) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-}
-
-.bg-gold-gradient {
-  background: linear-gradient(135deg, #e5b94c 0%, #c49626 100%);
-}
-
-.gold-glow {
-  box-shadow: 0 0 25px -5px rgba(212, 175, 55, 0.25);
-}
-
-.glass-panel {
-  background: rgba(18, 22, 32, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(212, 175, 55, 0.15);
-}
-
-.glass-card {
-  background: rgba(24, 29, 42, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(38, 47, 68, 0.8);
-}
-
-/* Animations */
-@keyframes radarSweep {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  50% {
-    opacity: 0.9;
-  }
-  100% {
-    transform: translateY(100%);
-    opacity: 0;
-  }
-}
-
-.animate-radar {
-  animation: radarSweep 2.2s ease-in-out infinite;
-}
-
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.05);
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 2.5s infinite;
 }

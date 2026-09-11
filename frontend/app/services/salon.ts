@@ -85,7 +85,10 @@ export async function createSalon(payload: CreateSalonPayload): Promise<ApiRespo
     closingTime: payload.closingTime || "21:00",
   };
 
-  const res = await fetch(`${API_BASE_URL}/api/salons`, {
+  const targetUrl = `${API_BASE_URL}/api/salons`;
+  console.log(`🌐 [SERVICES: createSalon] Initiating POST ${targetUrl} with body:`, body);
+
+  const res = await fetch(targetUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -94,8 +97,13 @@ export async function createSalon(payload: CreateSalonPayload): Promise<ApiRespo
     body: JSON.stringify(body),
   });
 
+  console.log(`🌐 [SERVICES: createSalon] Received HTTP ${res.status} ${res.statusText} from ${targetUrl}`);
+
   const json = await res.json();
+  console.log("🌐 [SERVICES: createSalon] Response JSON from backend:", json);
+
   if (!res.ok) {
+    console.error("❌ [SERVICES: createSalon] Request failed with error:", json);
     throw new Error(json?.message || "Failed to create salon");
   }
   return normalizeResponse<SalonData>(json, "Salon created successfully");
@@ -103,7 +111,10 @@ export async function createSalon(payload: CreateSalonPayload): Promise<ApiRespo
 
 // 2. Get All Salons: GET /api/salons
 export async function getAllSalons(): Promise<ApiResponse<SalonData[]>> {
-  const res = await fetch(`${API_BASE_URL}/api/salons`, {
+  const targetUrl = `${API_BASE_URL}/api/salons`;
+  console.log(`🌐 [SERVICES: getAllSalons] Initiating GET ${targetUrl}...`);
+
+  const res = await fetch(targetUrl, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -111,8 +122,14 @@ export async function getAllSalons(): Promise<ApiResponse<SalonData[]>> {
     },
   });
 
+  console.log(`🌐 [SERVICES: getAllSalons] Received HTTP ${res.status} ${res.statusText}`);
+
   const json = await res.json();
+  const count = json?.data ? (Array.isArray(json.data) ? json.data.length : 1) : (Array.isArray(json) ? json.length : 0);
+  console.log(`🌐 [SERVICES: getAllSalons] Salons in database count: ${count}`, json);
+
   if (!res.ok) {
+    console.error("❌ [SERVICES: getAllSalons] Failed to retrieve salons:", json);
     throw new Error(json?.message || "Failed to retrieve salons");
   }
   return normalizeResponse<SalonData[]>(json, "Salons retrieved successfully");

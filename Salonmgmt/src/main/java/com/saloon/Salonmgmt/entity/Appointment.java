@@ -5,6 +5,7 @@ import com.saloon.Salonmgmt.entity.enums.BookingSource;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -78,6 +79,19 @@ public class Appointment {
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    // New fields for late handling and cancellation fee
+    @Column(name = "late_timestamp")
+    private LocalDateTime lateTimestamp;
+
+    @Column(name = "cancellation_fee", precision = 10, scale = 2)
+    private BigDecimal cancellationFee;
+
+    @Column(name = "rating")
+    private Integer rating;
+
+    @Column(name = "feedback", columnDefinition = "TEXT")
+    private String feedback;
 
     @Column(name = "queue_token_id")
     private UUID queueTokenId;

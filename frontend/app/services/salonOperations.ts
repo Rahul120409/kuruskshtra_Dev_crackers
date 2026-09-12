@@ -12,7 +12,7 @@ export interface QueueTokenData {
   servicePrice: number;
   staffId?: string;
   staffName?: string;
-  status: "WAITING" | "CALLED" | "IN_SERVICE" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+  status: "WAITING" | "CALLED" | "IN_SERVICE" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | "LATE" | "ON_HOLD";
   position: number;
   estimatedWait: number; // in minutes
   createdAt: string;
@@ -72,7 +72,7 @@ export interface AppointmentReviewData {
   staffName?: string;
   rating: number;
   message?: string;
-  createdAt: string;
+  createdAt?: string;
 }
 
 export interface StylistData {
@@ -120,11 +120,11 @@ function normalizeResponse<T>(json: any, defaultMessage = "Success"): ApiRespons
 
 export interface LiveQueueBoardData {
   salonId: string;
-  queueDate: string;
+  queueDate?: string;
   currentServingTokenNumber?: number | null;
   currentServingCustomer?: string | null;
   lastCalledTokenNumber?: number | null;
-  nextAvailableTokenNumber: number;
+  nextAvailableTokenNumber?: number;
   totalWaiting: number;
   activeStylistsCount: number;
   activeQueue: QueueTokenData[];
@@ -170,23 +170,60 @@ export async function getLiveQueueBoardApi(salonId: string): Promise<ApiResponse
   }
 }
 
-// 1b. Get Live Queue Tokens List
-export async function getLiveQueue(salonId: string): Promise<ApiResponse<QueueTokenData[]>> {
+// 1b. Get Live Queue
+export async function getLiveQueue(salonId: string): Promise<ApiResponse<LiveQueueBoardData>> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/queue/live/${salonId}`, {
       method: "GET",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
     });
     const json = await res.json();
-    const board = json?.data;
-    const tokens = board?.activeQueue || (Array.isArray(json) ? json : []);
-    return {
-      success: true,
-      message: json.message || "Queue retrieved successfully",
-      data: tokens,
-    };
-  } catch {
-    return { success: false, message: "Live queue fetched locally", data: [] };
+    if (json && json.data) {
+      const board = json.data;
+      const rawQueue: any[] = Array.isArray(board.activeQueue) 
+        ? board.activeQueue 
+        : (Array.isArray(board) ? board : []);
+
+      const activeQueue: QueueTokenData[] = rawQueue.map((t: any) => ({
+        id: t.id ? String(t.id) : `tok-${t.tokenNumber}`,
+        tokenId: t.id ? String(t.id) : undefined,
+        tokenNumber: t.tokenNumber,
+        salonId: t.salonId || salonId,
+        customerName: t.customerName || "Customer",
+        customerPhone: t.customerPhone || "",
+        serviceId: t.serviceId,
+        serviceName: t.serviceName || "Haircut & Styling",
+        servicePrice: t.servicePrice || 500,
+        staffId: t.staffId,
+        staffName: t.staffName || "",
+        status: t.status || "WAITING",
+        position: t.position || 1,
+        estimatedWait: t.estimatedWaitMinutes ?? t.estimatedWait ?? 0,
+        createdAt: t.joinedAt ? new Date(t.joinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (t.createdAt || "Just now"),
+        calledAt: t.calledAt ? new Date(t.calledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+        startedAt: t.startedAt ? new Date(t.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+        completedAt: t.completedAt ? new Date(t.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+      }));
+
+      return {
+        success: true,
+        message: "Queue retrieved successfully",
+        data: {
+          salonId: board.salonId || salonId,
+          queueDate: board.queueDate,
+          currentServingTokenNumber: board.currentServingTokenNumber,
+          currentServingCustomer: board.currentServingCustomer,
+          lastCalledTokenNumber: board.lastCalledTokenNumber,
+          nextAvailableTokenNumber: board.nextAvailableTokenNumber,
+          totalWaiting: board.totalWaiting ?? activeQueue.filter((t) => t.status === "WAITING").length,
+          activeStylistsCount: board.activeStylistsCount ?? 1,
+          activeQueue,
+        },
+      };
+    }
+    return { success: false, message: "Queue empty", data: { salonId, totalWaiting: 0, activeStylistsCount: 1, activeQueue: [] } };
+  } catch (err) {
+    return { success: false, message: "Failed to connect to live queue API", data: { salonId, totalWaiting: 0, activeStylistsCount: 1, activeQueue: [] } };
   }
 }
 
@@ -204,13 +241,11 @@ export async function callQueueTokenApi(tokenId: string): Promise<ApiResponse<an
   }
 }
 
-// 3. Start Service: PUT /api/queue/{tokenId}/start?staffId={staffId}
+// 3. Start Service: PUT /api/queue/{tokenId}/start
 export async function startQueueServiceApi(tokenId: string, staffId?: string): Promise<ApiResponse<any>> {
   try {
-    const url = staffId
-      ? `${API_BASE_URL}/api/queue/${tokenId}/start?staffId=${staffId}`
-      : `${API_BASE_URL}/api/queue/${tokenId}/start`;
-    const res = await fetch(url, {
+    const query = staffId ? `?staffId=${encodeURIComponent(staffId)}` : "";
+    const res = await fetch(`${API_BASE_URL}/api/queue/${tokenId}/start${query}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
     });
@@ -235,6 +270,20 @@ export async function completeQueueServiceApi(tokenId: string): Promise<ApiRespo
   }
 }
 
+// 4a. Mark Token Late / On-Hold
+export async function markTokenLateApi(tokenId: string): Promise<ApiResponse<any>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/queue/${tokenId}/hold`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+    });
+    const json = await res.json();
+    return normalizeResponse<any>(json, "Customer marked late / on-hold");
+  } catch {
+    return { success: true, message: "Customer marked late locally", data: null };
+  }
+}
+
 // 4b. Cancel Token: PUT /api/queue/{tokenId}/cancel
 export async function cancelQueueTokenApi(tokenId: string): Promise<ApiResponse<any>> {
   try {
@@ -249,13 +298,51 @@ export async function cancelQueueTokenApi(tokenId: string): Promise<ApiResponse<
   }
 }
 
-// 5. Join / Issue Walk-In Queue Token: POST /api/queue/join
-export async function joinQueueApi(payload: JoinQueueApiPayload | Partial<QueueTokenData>): Promise<ApiResponse<any>> {
+// 4c. Late Check-In / Restore Token
+export async function lateCheckInTokenApi(tokenId: string): Promise<ApiResponse<any>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/queue/${tokenId}/restore`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+    });
+    const json = await res.json();
+    return normalizeResponse<any>(json, "Customer restored to queue");
+  } catch {
+    return { success: true, message: "Customer restored locally", data: null };
+  }
+}
+
+// 4d. Notify Customer via WhatsApp (Powered by Backend CallMeBot): POST /api/queue/{tokenId}/notify
+export async function notifyQueueCustomerApi(tokenId: string, message?: string): Promise<ApiResponse<any>> {
+  try {
+    const query = message ? `?message=${encodeURIComponent(message)}` : "";
+    const res = await fetch(`${API_BASE_URL}/api/queue/${tokenId}/notify${query}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+    });
+    const json = await res.json();
+    return normalizeResponse<any>(json, "WhatsApp notification sent successfully");
+  } catch {
+    return { success: true, message: "Notification triggered locally", data: null };
+  }
+}
+
+// 5. Join / Create Queue Token: POST /api/queue/join
+export async function joinQueueApi(payload: JoinQueueApiPayload | Partial<QueueTokenData> | any): Promise<ApiResponse<any>> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/queue/join`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        salonId: payload.salonId,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        serviceName: payload.serviceName || "Signature Haircut",
+        servicePrice: payload.servicePrice || 0,
+        serviceDurationMinutes: payload.serviceDurationMinutes || 25,
+        staffId: payload.staffId || null,
+        source: payload.source || payload.bookingSource || "OFFLINE",
+      }),
     });
     const json = await res.json();
     return normalizeResponse<any>(json, "Token created successfully");
@@ -272,25 +359,25 @@ export async function getSalonAppointments(salonId: string): Promise<ApiResponse
       headers: { "Content-Type": "application/json", Accept: "application/json" },
     });
     const json = await res.json();
-    const rawList = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+    const rawList: any[] = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
     const mapped: AppointmentData[] = rawList.map((item: any) => ({
-      id: item.id || `apt-${Date.now()}`,
+      id: item.id ? String(item.id) : `apt-${Date.now()}`,
       salonId: item.salonId || salonId,
       salonName: item.salonName || "",
       userId: item.userId || undefined,
-      customerName: item.customerName || "Guest Customer",
+      customerName: item.customerName || "Customer",
       customerPhone: item.customerPhone || "",
       customerEmail: item.customerEmail || "",
       serviceId: item.serviceId || undefined,
-      serviceName: item.serviceName || "Signature Styling",
+      serviceName: item.serviceName || "Haircut & Styling",
       servicePrice: Number(item.servicePrice || 0),
       serviceDurationMinutes: item.serviceDurationMinutes || 30,
       staffId: item.staffId || undefined,
-      staffName: item.staffName || item.stylistName || "Assigned Stylist",
+      staffName: item.staffName || item.stylistName || "Stylist",
       stylistId: item.stylistId || item.staffId || undefined,
-      stylistName: item.stylistName || item.staffName || "Assigned Stylist",
-      appointmentDate: item.appointmentDate ? String(item.appointmentDate).split("T")[0] : new Date().toISOString().split("T")[0],
-      appointmentTime: item.appointmentTime || "10:00 AM",
+      stylistName: item.stylistName || item.staffName || "Stylist",
+      appointmentDate: item.appointmentDate ? String(item.appointmentDate).split("T")[0] : "Today",
+      appointmentTime: item.appointmentTime || "12:00 PM",
       status: (item.status?.toUpperCase() as any) || "CONFIRMED",
       lateTimestamp: item.lateTimestamp || undefined,
       cancellationFee: item.cancellationFee !== undefined && item.cancellationFee !== null ? Number(item.cancellationFee) : undefined,
@@ -301,7 +388,7 @@ export async function getSalonAppointments(salonId: string): Promise<ApiResponse
       notes: item.notes || "",
       queueTokenId: item.queueTokenId || null,
       queueTokenNumber: item.queueTokenNumber || null,
-      createdAt: item.createdAt || new Date().toISOString(),
+      createdAt: item.createdAt ? new Date(item.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : new Date().toISOString(),
       updatedAt: item.updatedAt || new Date().toISOString(),
     }));
     return {
@@ -344,31 +431,57 @@ export async function checkInAppointmentApi(id: string): Promise<ApiResponse<any
 }
 
 // 7c. Mark Late Appointment: POST /api/appointments/{id}/late
-export async function markAppointmentLateApi(id: string): Promise<ApiResponse<AppointmentData>> {
+export async function markAppointmentLateApi(id: string): Promise<ApiResponse<any>> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/appointments/${id}/late`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
     });
     const json = await res.json();
-    return normalizeResponse<AppointmentData>(json, "Appointment marked as LATE");
+    return normalizeResponse<any>(json, "Appointment marked as LATE");
   } catch {
-    return { success: true, message: "Marked as late locally", data: null as any };
+    return { success: true, message: "Marked late locally", data: null };
   }
 }
 
 // 8. Create Appointment: POST /api/appointments
-export async function createAppointmentApi(payload: Partial<AppointmentData>): Promise<ApiResponse<AppointmentData>> {
+export async function createAppointmentApi(payload: Partial<AppointmentData> | any): Promise<ApiResponse<any>> {
   try {
+    let apptDate = payload.appointmentDate;
+    if (!apptDate || apptDate === "Today") {
+      apptDate = new Date().toISOString().split("T")[0];
+    } else if (apptDate === "Tomorrow") {
+      const tom = new Date();
+      tom.setDate(tom.getDate() + 1);
+      apptDate = tom.toISOString().split("T")[0];
+    }
+
     const res = await fetch(`${API_BASE_URL}/api/appointments`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        salonId: payload.salonId,
+        userId: payload.userId || null,
+        customerId: payload.customerId || payload.userId || null,
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        customerEmail: payload.customerEmail,
+        serviceId: payload.serviceId || null,
+        serviceName: payload.serviceName || "Haircut & Styling",
+        servicePrice: payload.servicePrice || 0,
+        serviceDurationMinutes: payload.serviceDurationMinutes || 30,
+        staffId: payload.staffId || null,
+        staffName: payload.staffName || payload.stylistName || null,
+        appointmentDate: apptDate,
+        appointmentTime: payload.appointmentTime || "12:00 PM",
+        bookingSource: payload.source || payload.bookingSource || "ONLINE",
+        notes: payload.notes,
+      }),
     });
     const json = await res.json();
-    return normalizeResponse<AppointmentData>(json, "Appointment created successfully");
+    return normalizeResponse<any>(json, "Appointment created successfully");
   } catch {
-    return { success: true, message: "Appointment created locally", data: payload as AppointmentData };
+    return { success: true, message: "Appointment created locally", data: payload };
   }
 }
 
@@ -482,5 +595,3 @@ export async function submitAppointmentRatingApi(
     };
   }
 }
-
-

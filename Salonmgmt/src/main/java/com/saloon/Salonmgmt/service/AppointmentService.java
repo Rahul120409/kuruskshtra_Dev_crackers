@@ -2,12 +2,14 @@ package com.saloon.Salonmgmt.service;
 
 import com.saloon.Salonmgmt.dto.*;
 import com.saloon.Salonmgmt.entity.Appointment;
+import com.saloon.Salonmgmt.entity.AppointmentReview;
 import com.saloon.Salonmgmt.entity.Salon;
 import com.saloon.Salonmgmt.entity.Staff;
 import com.saloon.Salonmgmt.entity.User;
 import com.saloon.Salonmgmt.entity.enums.AppointmentStatus;
 import com.saloon.Salonmgmt.entity.enums.BookingSource;
 import com.saloon.Salonmgmt.repository.AppointmentRepository;
+import com.saloon.Salonmgmt.repository.AppointmentReviewRepository;
 import com.saloon.Salonmgmt.repository.SalonRepository;
 import com.saloon.Salonmgmt.repository.StaffRepository;
 import com.saloon.Salonmgmt.repository.UserRepository;
@@ -19,12 +21,15 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
 public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
+    private final AppointmentReviewRepository appointmentReviewRepository;
     private final SalonRepository salonRepository;
     private final UserRepository userRepository;
     private final StaffRepository staffRepository;
@@ -79,9 +84,12 @@ public class AppointmentService {
             }
 
             // Conflict detection: prevent double-booking the same stylist at the same time
-            if (appointmentRepository.isStaffBookedAt(request.getStaffId(), request.getAppointmentDate(), request.getAppointmentTime().trim())) {
+            if (appointmentRepository.isStaffBookedAt(request.getStaffId(), request.getAppointmentDate(),
+                    request.getAppointmentTime().trim())) {
                 String nameDisplay = staffName != null ? staffName : "Selected stylist";
-                throw new IllegalArgumentException(nameDisplay + " is already booked for " + request.getAppointmentDate() + " at " + request.getAppointmentTime() + ". Please choose another time slot or stylist.");
+                throw new IllegalArgumentException(
+                        nameDisplay + " is already booked for " + request.getAppointmentDate() + " at "
+                                + request.getAppointmentTime() + ". Please choose another time slot or stylist.");
             }
         }
 
@@ -95,7 +103,8 @@ public class AppointmentService {
                 .serviceId(request.getServiceId())
                 .serviceName(request.getServiceName() != null ? request.getServiceName().trim() : "Salon Service")
                 .servicePrice(request.getServicePrice())
-                .serviceDurationMinutes(request.getServiceDurationMinutes() != null ? request.getServiceDurationMinutes() : 30)
+                .serviceDurationMinutes(
+                        request.getServiceDurationMinutes() != null ? request.getServiceDurationMinutes() : 30)
                 .staffId(request.getStaffId())
                 .staffName(staffName)
                 .appointmentDate(request.getAppointmentDate())
@@ -110,6 +119,35 @@ public class AppointmentService {
     }
 
     @Transactional(readOnly = true)
+    public List<AvailableSlotDto> getAvailableSlots(UUID salonId, UUID staffId, LocalDate date) {
+        if (!salonRepository.existsById(salonId)) {
+            throw new IllegalArgumentException("Salon not found with ID: " + salonId);
+        }
+        if (date == null) {
+            date = LocalDate.now();
+        }
+
+        List<String> defaultSlots = List.of(
+                "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+                "12:00 PM", "12:30 PM", "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM",
+                "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM", "06:00 PM", "06:30 PM",
+                "07:00 PM", "07:30 PM", "08:00 PM", "08:30 PM");
+
+        List<String> bookedTimes = staffId != null
+                ? appointmentRepository.findBookedTimesByStaffIdAndDate(staffId, date)
+                : List.of();
+
+        return defaultSlots.stream().map(time -> {
+            boolean isBooked = bookedTimes.contains(time);
+            return AvailableSlotDto.builder()
+                    .time(time)
+                    .available(!isBooked)
+                    .reason(isBooked ? "Stylist already booked at this time" : "Available")
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getAppointmentsBySalon(UUID salonId, LocalDate date, AppointmentStatus status) {
         if (!salonRepository.existsById(salonId)) {
             throw new IllegalArgumentException("Salon not found with ID: " + salonId);
@@ -117,9 +155,11 @@ public class AppointmentService {
 
         List<Appointment> appointments;
         if (date != null && status != null) {
-            appointments = appointmentRepository.findBySalonIdAndAppointmentDateAndStatusOrderByAppointmentTimeAsc(salonId, date, status);
+            appointments = appointmentRepository
+                    .findBySalonIdAndAppointmentDateAndStatusOrderByAppointmentTimeAsc(salonId, date, status);
         } else if (date != null) {
-            appointments = appointmentRepository.findBySalonIdAndAppointmentDateOrderByAppointmentTimeAsc(salonId, date);
+            appointments = appointmentRepository.findBySalonIdAndAppointmentDateOrderByAppointmentTimeAsc(salonId,
+                    date);
         } else if (status != null) {
             appointments = appointmentRepository.findBySalonIdAndStatusOrderByAppointmentDateDesc(salonId, status);
         } else {
@@ -205,33 +245,87 @@ public class AppointmentService {
                 .build();
     }
 
+    /**
+     * Mark an appointment as LATE and record timestamp.
+     */
+    @Transactional
+    public AppointmentResponse markAppointmentLate(UUID appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Appointment not found with ID: " + appointmentId));
+        appointment.setStatus(AppointmentStatus.LATE);
+        appointment.setLateTimestamp(LocalDateTime.now());
+        Appointment saved = appointmentRepository.save(appointment);
+        queueService.broadcastLiveQueueUpdate(saved.getSalonId());
+        return AppointmentResponse.fromEntity(saved);
+    }
+
+    /**
+     * Cancel an appointment and apply a 5% cancellation fee based on service price.
+     */
+    @Transactional
+    public AppointmentResponse cancelAppointment(UUID appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Appointment not found with ID: " + appointmentId));
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new IllegalArgumentException("Appointment is already cancelled");
+        }
+        // Calculate 5% fee
+        BigDecimal price = appointment.getServicePrice() != null ? BigDecimal.valueOf(appointment.getServicePrice())
+                : BigDecimal.ZERO;
+        BigDecimal fee = price.multiply(BigDecimal.valueOf(0.05)).setScale(2, BigDecimal.ROUND_HALF_UP);
+        appointment.setCancellationFee(fee);
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        // TODO: Deduct fee from user's wallet if needed
+        Appointment saved = appointmentRepository.save(appointment);
+        queueService.broadcastLiveQueueUpdate(saved.getSalonId());
+        return AppointmentResponse.fromEntity(saved);
+    }
+
+    /**
+     * Submit rating (1-5) and feedback for an appointment into the separate
+     * appointment_reviews table
+     */
+    @Transactional
+    public AppointmentResponse submitRating(UUID appointmentId, Integer rating, String feedback) {
+        return submitRating(appointmentId, rating, feedback, null);
+    }
+
+    @Transactional
+    public AppointmentResponse submitRating(UUID appointmentId, Integer rating, String feedback, UUID userId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Appointment not found with ID: " + appointmentId));
+
+        if (rating != null && (rating < 1 || rating > 5)) {
+            throw new IllegalArgumentException("Rating must be between 1 and 5 stars");
+        }
+
+        String effectiveMessage = feedback != null ? feedback.trim() : null;
+        UUID effectiveUserId = userId != null ? userId : appointment.getUserId();
+
+        // 1. Save or update record in separate 'appointment_reviews' table
+        AppointmentReview review = appointmentReviewRepository.findByAppointmentId(appointmentId)
+                .orElse(AppointmentReview.builder()
+                        .appointmentId(appointmentId)
+                        .salonId(appointment.getSalonId())
+                        .build());
+
+        review.setUserId(effectiveUserId);
+        review.setCustomerName(appointment.getCustomerName());
+        review.setStaffId(appointment.getStaffId());
+        review.setStaffName(appointment.getStaffName());
+        review.setRating(rating != null ? rating : 5);
+        review.setMessage(effectiveMessage);
+        appointmentReviewRepository.save(review);
+
+        // 2. Also keep convenience fields on appointment entity
+        appointment.setRating(rating);
+        appointment.setFeedback(effectiveMessage);
+        Appointment saved = appointmentRepository.save(appointment);
+        return AppointmentResponse.fromEntity(saved);
+    }
+
     @Transactional(readOnly = true)
-    public List<AvailableSlotDto> getAvailableSlots(UUID salonId, UUID staffId, LocalDate date) {
-        if (!salonRepository.existsById(salonId)) {
-            throw new IllegalArgumentException("Salon not found with ID: " + salonId);
-        }
-        if (date == null) {
-            date = LocalDate.now();
-        }
-
-        List<String> defaultSlots = List.of(
-                "09:00 AM", "09:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
-                "12:00 PM", "12:30 PM", "02:00 PM", "02:30 PM", "03:00 PM", "03:30 PM",
-                "04:00 PM", "04:30 PM", "05:00 PM", "05:30 PM", "06:00 PM", "06:30 PM",
-                "07:00 PM", "07:30 PM", "08:00 PM", "08:30 PM"
-        );
-
-        List<String> bookedTimes = staffId != null
-                ? appointmentRepository.findBookedTimesByStaffIdAndDate(staffId, date)
-                : List.of();
-
-        return defaultSlots.stream().map(time -> {
-            boolean isBooked = bookedTimes.contains(time);
-            return AvailableSlotDto.builder()
-                    .time(time)
-                    .available(!isBooked)
-                    .reason(isBooked ? "Stylist already booked at this time" : "Available")
-                    .build();
-        }).collect(Collectors.toList());
+    public List<AppointmentReview> getReviewsBySalon(UUID salonId) {
+        return appointmentReviewRepository.findBySalonIdOrderByCreatedAtDesc(salonId);
     }
 }

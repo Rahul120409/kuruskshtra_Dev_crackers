@@ -50,6 +50,8 @@ import {
   SlidersHorizontal,
   Timer,
   CheckCircle,
+  Star,
+  MessageSquareHeart,
 } from "lucide-react";
 
 import {
@@ -67,11 +69,14 @@ import {
   getSalonAppointments,
   updateAppointmentStatusApi,
   checkInAppointmentApi,
-  markAppointmentLateApi,
   createAppointmentApi,
   getAllStylistsApi,
   updateStylistStatusApi,
+  markTokenLateApi,
+  lateCheckInTokenApi,
+  markAppointmentLateApi,
 } from "../services/salonOperations";
+import { queueWebSocket } from "../../services/websocketService";
 
 import {
   getAllSalons,
@@ -265,14 +270,14 @@ export default function SalonPortal() {
   const [editSalonForm, setEditSalonForm] = useState<Partial<SalonData>>({});
   const [isSavingSalon, setIsSavingSalon] = useState(false);
 
-  // Live Queue State
+  // Live Queue State (Dynamic from Backend API)
   const [queueTokens, setQueueTokens] = useState<QueueTokenData[]>([]);
 
   // Live Queue Board State (Backend GET /api/queue/live/{salonId})
   const [liveQueueBoard, setLiveQueueBoard] = useState<LiveQueueBoardData | null>(null);
   const [isLoadingQueue, setIsLoadingQueue] = useState<boolean>(false);
 
-  // Appointments State
+  // Appointments State (Dynamic from Backend API)
   const [appointments, setAppointments] = useState<AppointmentData[]>([]);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState<boolean>(false);
 
@@ -768,6 +773,34 @@ export default function SalonPortal() {
     });
   }, [activeSalon]);
 
+  // Load backend live queue for the active salon
+  const fetchLiveSalonQueue = async (targetSalonId?: string) => {
+    const sId = targetSalonId || activeSalon.id || selectedSalonId;
+    if (!sId || sId.startsWith("sl-")) return;
+    try {
+      const res = await getLiveQueue(sId);
+      if (res.data && res.data.activeQueue) {
+        setQueueTokens(res.data.activeQueue);
+      }
+    } catch (e) {
+      console.warn("Could not refresh live queue in salon panel:", e);
+    }
+  };
+
+  // Load backend appointments for the active salon
+  const fetchSalonAppointments = async (targetSalonId?: string) => {
+    const sId = targetSalonId || activeSalon.id || selectedSalonId;
+    if (!sId || sId.startsWith("sl-")) return;
+    try {
+      const res = await getSalonAppointments(sId);
+      if (res.data && Array.isArray(res.data)) {
+        setAppointments(res.data);
+      }
+    } catch (e) {
+      console.warn("Could not load salon appointments:", e);
+    }
+  };
+
   // Load backend data if available
   useEffect(() => {
     getAllSalons()
@@ -788,10 +821,12 @@ export default function SalonPortal() {
           const current = userMatch || savedMatch || res.data.find((s) => s.id === selectedSalonId) || res.data[0];
           if (current) {
             setSelectedSalonId(current.id);
-            setActiveSalon(current);
+            setActiveSalon((prev) => ({ ...prev, ...current }));
             if (typeof window !== "undefined") {
               localStorage.setItem("salonflow_active_salon_id", current.id);
             }
+            fetchLiveSalonQueue(current.id);
+            fetchSalonAppointments(current.id);
           }
         }
       })
@@ -843,12 +878,62 @@ export default function SalonPortal() {
     loadLiveQueue();
   }, [activeSalon.id]);
 
+  // Real-time WebSocket connection for live Queue & Appointments (No page refresh needed)
+  useEffect(() => {
+    const sId = activeSalon.id || selectedSalonId;
+    if (!sId || sId.startsWith("sl-")) return;
+
+    fetchLiveSalonQueue(sId);
+    fetchSalonAppointments(sId);
+
+    const unsubscribe = queueWebSocket.subscribeToSalon(sId, (data) => {
+      if (data && Array.isArray(data.activeQueue)) {
+        setQueueTokens(data.activeQueue);
+      }
+      setActiveSalon((prev) => ({
+        ...prev,
+        totalWaiting: typeof data.totalWaiting === "number" ? data.totalWaiting : prev.totalWaiting,
+        currentServingTokenNumber: data.currentServingTokenNumber !== undefined ? data.currentServingTokenNumber : prev.currentServingTokenNumber,
+      }));
+      fetchSalonAppointments(sId);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeSalon.id, selectedSalonId]);
+
   // ========================= QUEUE ACTIONS =========================
   const handleCallNext = async (token: QueueTokenData) => {
+    // When a higher token is called (e.g. #7), check if any earlier waiting tokens (e.g. #6) were not arrived
+    const skippedTokens: QueueTokenData[] = [];
+    setQueueTokens((prev) =>
+      prev.map((t) => {
+        if (t.id === token.id) {
+          return { ...t, status: "CALLED", calledAt: "Just now" };
+        }
+        // If lower token number was still WAITING when higher token is called, mark as LATE / ON_HOLD
+        if (t.tokenNumber < token.tokenNumber && t.status === "WAITING") {
+          skippedTokens.push(t);
+          return { ...t, status: "LATE" as const };
+        }
+        return t;
+      })
+    );
+
+    if (skippedTokens.length > 0) {
+      const nums = skippedTokens.map((s) => `#${s.tokenNumber}`).join(", ");
+      showToast(`Token ${nums} skipped & marked LATE / ON HOLD (Client not in lobby).`, "info");
+      for (const st of skippedTokens) {
+        markTokenLateApi(st.id).catch(() => {});
+      }
+    }
+
     try {
       await callQueueTokenApi(token.id);
-      showToast(`Token #${token.tokenNumber} (${token.customerName}) has been CALLED to chair!`);
+      showToast(`Token #${token.tokenNumber} (${token.customerName}) has been CALLED to the station!`);
       await loadLiveQueue();
+      fetchLiveSalonQueue();
     } catch (err: any) {
       setQueueTokens((prev) =>
         prev.map((t) => (t.id === token.id ? { ...t, status: "CALLED", calledAt: "Just now" } : t))
@@ -857,11 +942,40 @@ export default function SalonPortal() {
     }
   };
 
+  const handleMarkTokenLate = async (token: QueueTokenData) => {
+    setQueueTokens((prev) =>
+      prev.map((t) => (t.id === token.id ? { ...t, status: "LATE" as const } : t))
+    );
+    showToast(`Token #${token.tokenNumber} (${token.customerName}) marked as LATE / ON HOLD.`, "info");
+    try {
+      await markTokenLateApi(token.id);
+      await loadLiveQueue();
+      fetchLiveSalonQueue();
+    } catch (e) {
+      console.warn("Could not mark token as late:", e);
+    }
+  };
+
+  const handleLateCheckIn = async (token: QueueTokenData) => {
+    setQueueTokens((prev) =>
+      prev.map((t) => (t.id === token.id ? { ...t, status: "WAITING" as const, position: 1 } : t))
+    );
+    showToast(`Late Check-in complete for Token #${token.tokenNumber} (${token.customerName})! Placed as Priority Next.`, "success");
+    try {
+      await lateCheckInTokenApi(token.id);
+      await loadLiveQueue();
+      fetchLiveSalonQueue();
+    } catch (e) {
+      console.warn("Could not late check-in token:", e);
+    }
+  };
+
   const handleStartService = async (token: QueueTokenData) => {
     try {
       await startQueueServiceApi(token.id, token.staffId);
       showToast(`Service started for Token #${token.tokenNumber}! Client in chair.`);
       await loadLiveQueue();
+      fetchLiveSalonQueue();
     } catch (err: any) {
       setQueueTokens((prev) =>
         prev.map((t) => (t.id === token.id ? { ...t, status: "IN_SERVICE", startedAt: "Just now" } : t))
@@ -879,6 +993,7 @@ export default function SalonPortal() {
       }));
       showToast(`Token #${token.tokenNumber} completed! Queue recalculated.`);
       await loadLiveQueue();
+      fetchLiveSalonQueue();
     } catch (err: any) {
       setQueueTokens((prev) => prev.filter((t) => t.id !== token.id));
       showToast(`Token #${token.tokenNumber} completed.`);
@@ -950,16 +1065,20 @@ export default function SalonPortal() {
       "Express Haircut & Wash": 500,
     };
 
+    const targetSalonId = activeSalon.id || selectedSalonId;
+    const matchedStylist = stylists.find((s) => s.name === walkinStylist);
+
     try {
-      const matchedStylist = stylists.find(s => s.name === walkinStylist);
       const res = await joinQueueApi({
-        salonId: activeSalon.id,
+        salonId: targetSalonId,
         customerName: walkinName.trim(),
         customerPhone: walkinPhone.trim() || undefined,
         source: "OFFLINE",
         serviceName: walkinService || "Express Haircut & Wash",
+        servicePrice: priceMap[walkinService] || 650,
         serviceDurationMinutes: 25,
         staffId: matchedStylist?.id || undefined,
+        staffName: walkinStylist || "Next Available Stylist",
       });
 
       const tokenData = res.data;
@@ -971,6 +1090,7 @@ export default function SalonPortal() {
       setWalkinName("");
       setWalkinPhone("");
       await loadLiveQueue();
+      fetchLiveSalonQueue();
     } catch (err: any) {
       console.error("Failed to issue walk-in token:", err);
       showToast(err.message || "Failed to issue walk-in token", "error");
@@ -994,10 +1114,11 @@ export default function SalonPortal() {
       "Express Haircut & Wash": 500,
     };
 
+    const targetSalonId = activeSalon.id || selectedSalonId;
     const matchedStylist = stylists.find((s) => s.name === newAptStylist) || salonStaffList.find((s) => s.name === newAptStylist);
 
     const newAptPayload: Partial<AppointmentData> = {
-      salonId: activeSalon.id,
+      salonId: targetSalonId,
       customerName: newAptName.trim(),
       customerPhone: newAptPhone.trim(),
       customerEmail: newAptEmail.trim() || undefined,
@@ -1025,6 +1146,7 @@ export default function SalonPortal() {
       setNewAptEmail("");
       setNewAptNotes("");
       await loadSalonAppointments();
+      fetchSalonAppointments();
     } catch (err: any) {
       console.warn("Could not create appointment via API:", err);
       setAppointments((prev) => [
@@ -1053,11 +1175,16 @@ export default function SalonPortal() {
 
   const handleCheckInAppointment = async (apt: AppointmentData) => {
     try {
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === apt.id ? { ...a, status: "CHECKED_IN" } : a))
+      );
       showToast(`Checking in ${apt.customerName}...`);
       await checkInAppointmentApi(apt.id);
       showToast(`Checked in ${apt.customerName}! Joined Live Queue.`, "success");
       await loadSalonAppointments();
+      fetchSalonAppointments();
       await loadLiveQueue();
+      fetchLiveSalonQueue();
     } catch (err: any) {
       console.warn("Check in API fallback:", err);
       setAppointments((prev) =>
@@ -1067,10 +1194,9 @@ export default function SalonPortal() {
     }
   };
 
-  const handleMarkLate = async (apt: AppointmentData) => {
+  const handleMarkAppointmentLate = async (apt: AppointmentData) => {
     try {
       const nowIso = new Date().toISOString();
-      // Optimistic local state update
       setAppointments((prev) =>
         prev.map((a) =>
           a.id === apt.id ? { ...a, status: "LATE", lateTimestamp: nowIso } : a
@@ -1085,11 +1211,14 @@ export default function SalonPortal() {
       }
       showToast(`Appointment for ${apt.customerName} marked as LATE`, "success");
       await loadSalonAppointments();
+      fetchSalonAppointments();
     } catch (err: any) {
       console.warn("Mark late API fallback:", err);
       showToast(`Marked ${apt.customerName} as late!`);
     }
   };
+
+  const handleMarkLate = handleMarkAppointmentLate;
 
   const handleOpenEditApt = (apt: AppointmentData) => {
     setEditingApt(apt);
@@ -1107,20 +1236,22 @@ export default function SalonPortal() {
       prev.map((a) =>
         a.id === editingApt.id
           ? {
-            ...a,
-            status: editAptStatus,
-            stylistName: editAptStylist,
-            staffName: editAptStylist,
-            appointmentTime: editAptTime,
-          }
+              ...a,
+              status: editAptStatus,
+              stylistName: editAptStylist,
+              staffName: editAptStylist,
+              appointmentTime: editAptTime,
+            }
           : a
       )
     );
+
     setShowEditAppointmentModal(false);
-    showToast(`Appointment for ${editingApt.customerName} updated!`);
+    showToast(`Appointment status for ${editingApt.customerName} updated to ${editAptStatus}.`);
     try {
       await updateAppointmentStatusApi(editingApt.id, editAptStatus);
       await loadSalonAppointments();
+      fetchSalonAppointments();
     } catch (err) {
       console.warn("Could not update status via API:", err);
     }
@@ -1856,29 +1987,40 @@ export default function SalonPortal() {
           </div>
 
           {/* Active Branch Selector */}
-          <div className={`hidden sm:flex items-center gap-2 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
-            <Store className="w-3.5 h-3.5 text-amber-500" />
-            {salonsList.length > 1 ? (
+          <div className={`flex items-center gap-2 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+            <Store className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            {salonsList && salonsList.length > 1 ? (
               <select
                 value={activeSalon.id}
                 onChange={(e) => {
-                  const newId = e.target.value;
-                  const chosen = salonsList.find((s) => s.id === newId);
-                  if (chosen) {
-                    setSelectedSalonId(chosen.id);
-                    setActiveSalon(chosen);
-                    localStorage.setItem("salonflow_active_salon_id", chosen.id);
-                    showToast(`Active salon: ${chosen.salonName}`);
+                  const targetId = e.target.value;
+                  const selected = salonsList.find((s) => s.id === targetId);
+                  if (selected) {
+                    setActiveSalon(selected);
+                    setSelectedSalonId(selected.id);
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("salonflow_active_salon_id", selected.id);
+                    }
+                    setAppointments([]);
+                    setQueueTokens([]);
+                    fetchLiveSalonQueue(selected.id);
+                    fetchSalonAppointments(selected.id);
+                    showToast(`Active salon: ${selected.salonName}`);
                   }
                 }}
-                className={`text-xs font-bold px-2 py-1 rounded-lg border outline-none cursor-pointer transition-all ${theme === "dark"
+                className={`text-xs font-bold px-2 py-1 rounded-lg border outline-none cursor-pointer transition-all ${
+                  theme === "dark"
                     ? "bg-[#141926] border-[#252f44] text-amber-300 hover:border-amber-400/50"
                     : "bg-slate-100 border-slate-300 text-slate-900 hover:border-amber-400"
-                  }`}
+                }`}
               >
-                {salonsList.map((salon) => (
-                  <option key={salon.id} value={salon.id} className={theme === "dark" ? "bg-[#141926] text-white" : "bg-white text-slate-900"}>
-                    {salon.salonName} ({salon.city || salon.ownerName || "Salon"})
+                {salonsList.map((sl) => (
+                  <option
+                    key={sl.id}
+                    value={sl.id}
+                    className={theme === "dark" ? "bg-[#141926] text-white" : "bg-white text-slate-900"}
+                  >
+                    {sl.salonName} ({sl.city || sl.ownerName || "Salon"})
                   </option>
                 ))}
               </select>
@@ -2432,6 +2574,13 @@ export default function SalonPortal() {
               {/* Header Section */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                      <Store className="w-3 h-3" />
+                      {activeSalon.salonName}
+                    </span>
+                    <span className="text-xs text-slate-400">• Branch-Specific Appointments</span>
+                  </div>
                   <div className="flex items-center gap-2.5">
                     <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2.5 ${theme === "dark" ? "text-white" : "text-slate-900"
                       }`}>
@@ -2608,6 +2757,57 @@ export default function SalonPortal() {
                   </div>
                 </div>
               </section>
+
+              {/* Salon Reviews & Rating Summary KPI Strip */}
+              {(() => {
+                const ratedApts = appointments.filter((a) => a.rating != null && a.rating > 0);
+                const avg = ratedApts.length > 0
+                  ? (ratedApts.reduce((sum, a) => sum + (a.rating || 0), 0) / ratedApts.length).toFixed(1)
+                  : "5.0";
+                const totalFeedbacks = appointments.filter((a) => !!a.feedback).length;
+
+                return (
+                  <div className={`p-4 rounded-2xl border transition-colors flex flex-wrap items-center justify-between gap-4 ${
+                    theme === "dark"
+                      ? "bg-gradient-to-r from-amber-500/10 via-[#0f1622] to-amber-500/5 border-amber-500/20 shadow-lg"
+                      : "bg-gradient-to-r from-amber-50 via-white to-amber-50/50 border-amber-200 shadow-sm"
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                        <Star className="w-5 h-5 fill-amber-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-base font-extrabold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                            {avg} / 5.0
+                          </span>
+                          <span className="text-xs text-amber-400 font-semibold flex items-center gap-0.5">
+                            {"★".repeat(Math.min(5, Math.max(1, Math.round(Number(avg)))))}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Overall Customer Rating ({ratedApts.length} rated bookings, {totalFeedbacks} text feedbacks)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs">
+                      <div className={`px-3 py-1.5 rounded-lg border ${theme === "dark" ? "bg-slate-900/60 border-slate-800 text-slate-300" : "bg-white border-slate-200 text-slate-700"}`}>
+                        <span className="text-slate-400">Fulfilled: </span>
+                        <strong className="text-emerald-400">{appointments.filter((a) => a.status === "COMPLETED").length}</strong>
+                      </div>
+                      <div className={`px-3 py-1.5 rounded-lg border ${theme === "dark" ? "bg-slate-900/60 border-slate-800 text-slate-300" : "bg-white border-slate-200 text-slate-700"}`}>
+                        <span className="text-slate-400">Cancelled: </span>
+                        <strong className="text-rose-400">{appointments.filter((a) => a.status === "CANCELLED").length}</strong>
+                      </div>
+                      <div className={`px-3 py-1.5 rounded-lg border ${theme === "dark" ? "bg-slate-900/60 border-slate-800 text-slate-300" : "bg-white border-slate-200 text-slate-700"}`}>
+                        <span className="text-slate-400">Customer Reviews: </span>
+                        <strong className="text-amber-400">{totalFeedbacks}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Appointments List */}
               <main className="flex flex-col gap-3">
@@ -2786,93 +2986,106 @@ export default function SalonPortal() {
                             </div>
                           </div>
 
-                          {/* 4. Customer note badge/quote */}
-                          {apt.notes ? (
-                            <div className={`hidden md:flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs italic max-w-[240px] border-l-2 shrink-0 ${theme === "dark"
-                              ? "bg-[#0a0e17]/70 border border-white/5 border-l-amber-500/40 text-slate-400"
-                              : "bg-amber-50/80 border border-amber-200 border-l-amber-500 text-slate-700"
-                              }`}>
-                              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                              <p className="truncate">"{apt.notes}"</p>
-                            </div>
-                          ) : (
-                            <div className="hidden md:block w-[120px] shrink-0"></div>
-                          )}
+                          {/* 4. Customer note badge/quote AND Rating Review */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {apt.notes ? (
+                              <div className={`hidden md:flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs italic max-w-[240px] border-l-2 shrink-0 ${theme === "dark"
+                                ? "bg-[#0a0e17]/70 border border-white/5 border-l-amber-500/40 text-slate-400"
+                                : "bg-amber-50/80 border border-amber-200 border-l-amber-500 text-slate-700"
+                                }`}>
+                                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <p className="truncate">"{apt.notes}"</p>
+                              </div>
+                            ) : null}
+
+                            {(apt.rating || apt.feedback) ? (
+                              <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs border max-w-[320px] shrink-0 ${theme === "dark"
+                                ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                                : "bg-amber-50 border-amber-300 text-amber-900"
+                                }`}>
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                                <div className="min-w-0">
+                                  <span className="font-bold">{apt.rating ? `${apt.rating}.0★` : 'Review'}:</span>{" "}
+                                  <span className="italic truncate">{apt.feedback || 'Customer Rated'}</span>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
 
-                        {/* Right side: Price + Actions & Queue CTA */}
-                        <div className={`flex items-center justify-between xl:justify-end gap-3 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 ${theme === "dark" ? "border-white/5" : "border-slate-100"
+                      {/* Right side: Price + Actions & Queue CTA */}
+                      <div className={`flex items-center justify-between xl:justify-end gap-3 shrink-0 pt-2 xl:pt-0 border-t xl:border-t-0 ${theme === "dark" ? "border-white/5" : "border-slate-100"
+                        }`}>
+                        {/* 5. Price Tag */}
+                        <span className={`font-bold text-sm sm:text-base tracking-tight px-3 py-1 rounded-lg border shadow-sm shrink-0 font-mono ${theme === "dark"
+                          ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
+                          : "text-amber-800 bg-amber-50 border-amber-300 font-extrabold"
                           }`}>
-                          {/* 5. Price Tag */}
-                          <span className={`font-bold text-sm sm:text-base tracking-tight px-3 py-1 rounded-lg border shadow-sm shrink-0 font-mono ${theme === "dark"
-                            ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
-                            : "text-amber-800 bg-amber-50 border-amber-300 font-extrabold"
-                            }`}>
-                            ₹{apt.servicePrice}
+                          ₹{apt.servicePrice}
+                        </span>
+
+                        {/* Status Action Badge */}
+                        {apt.status === "CHECKED_IN" && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                            <Check className="w-3.5 h-3.5" />
+                            In Live Queue
                           </span>
+                        )}
 
-                          {/* Status Action Badge */}
-                          {apt.status === "CHECKED_IN" && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                              <Check className="w-3.5 h-3.5" />
-                              In Live Queue
-                            </span>
-                          )}
+                        {apt.status === "CONFIRMED" && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleCheckInAppointment(apt)}
+                              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold px-3 py-1.5 rounded-xl shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              Check-In
+                            </button>
+                            <button
+                              onClick={() => handleMarkAppointmentLate(apt)}
+                              className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                              title="Mark this appointment as Late"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              Mark Late
+                            </button>
+                          </div>
+                        )}
 
-                          {apt.status === "CONFIRMED" && (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleCheckInAppointment(apt)}
-                                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold px-3 py-1.5 rounded-xl shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                                Check-In
-                              </button>
-                              <button
-                                onClick={() => handleMarkLate(apt)}
-                                className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
-                                title="Mark this appointment as Late"
-                              >
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                Mark Late
-                              </button>
-                            </div>
-                          )}
+                        {apt.status === "LATE" && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleCheckInAppointment(apt)}
+                              className="bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-black font-bold px-3 py-1.5 rounded-xl shadow-md shadow-amber-500/20 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                              title="Check in late appointment to queue"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              Late Check-In
+                            </button>
+                            {apt.cancellationFee !== undefined && apt.cancellationFee > 0 && (
+                              <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
+                                Fee: ₹{apt.cancellationFee}
+                              </span>
+                            )}
+                          </div>
+                        )}
 
-                          {apt.status === "LATE" && (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleCheckInAppointment(apt)}
-                                className="bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-black font-bold px-3 py-1.5 rounded-xl shadow-md shadow-amber-500/20 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
-                                title="Check in late appointment to queue"
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                                Late Check-In
-                              </button>
-                              {apt.cancellationFee !== undefined && apt.cancellationFee > 0 && (
-                                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
-                                  Fee: ₹{apt.cancellationFee}
-                                </span>
-                              )}
-                            </div>
-                          )}
+                        {apt.status === "COMPLETED" && (
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 ${theme === "dark"
+                            ? "bg-slate-800/60 text-slate-400 border border-slate-700/60"
+                            : "bg-slate-100 text-slate-600 border border-slate-200"
+                            }`}>
+                            <Check className="w-3.5 h-3.5" />
+                            Fulfilled
+                          </span>
+                        )}
 
-                          {apt.status === "COMPLETED" && (
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 ${theme === "dark"
-                              ? "bg-slate-800/60 text-slate-400 border border-slate-700/60"
-                              : "bg-slate-100 text-slate-600 border border-slate-200"
-                              }`}>
-                              <Check className="w-3.5 h-3.5" />
-                              Fulfilled
-                            </span>
-                          )}
-
-                          {apt.status === "CANCELLED" && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
-                              <XCircle className="w-3.5 h-3.5" />
-                              Cancelled
-                            </span>
-                          )}
+                        {apt.status === "CANCELLED" && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
+                            <XCircle className="w-3.5 h-3.5" />
+                            Cancelled
+                          </span>
+                        )}
 
                           {/* Edit / Delete Buttons */}
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -3136,6 +3349,7 @@ export default function SalonPortal() {
                   const isCalled = token.status === "CALLED";
                   const isInService = token.status === "IN_SERVICE";
                   const isWaiting = token.status === "WAITING";
+                  const isLate = token.status === "LATE" || token.status === "ON_HOLD" || (token.status as string) === "NO_SHOW";
 
                   // Card border and background styling
                   const cardBorderClass =
@@ -3144,12 +3358,16 @@ export default function SalonPortal() {
                         ? "border-2 border-emerald-500/40 shadow-[0_0_25px_-4px_rgba(16,185,129,0.25)] bg-[#0b0f19]/80"
                         : isCalled
                           ? "border border-amber-500/30 hover:border-amber-500/50 bg-[#0b0f19]/70"
-                          : "border border-white/10 hover:border-white/20 bg-[#0b0f19]/60"
+                          : isLate
+                            ? "border border-orange-500/40 hover:border-orange-500/60 bg-[#140e0a]/80"
+                            : "border border-white/10 hover:border-white/20 bg-[#0b0f19]/60"
                       : isInService
                         ? "border-2 border-emerald-400 bg-white shadow-md"
                         : isCalled
                           ? "border border-amber-300 hover:border-amber-400 bg-white shadow-sm"
-                          : "border border-slate-200 hover:border-slate-300 bg-white shadow-sm";
+                          : isLate
+                            ? "border border-orange-300 hover:border-orange-400 bg-orange-50/40 shadow-sm"
+                            : "border border-slate-200 hover:border-slate-300 bg-white shadow-sm";
 
                   // Token Identifier box styling
                   const tokenBoxClass =
@@ -3158,12 +3376,16 @@ export default function SalonPortal() {
                         ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-400"
                         : isCalled
                           ? "bg-[#172033]/90 border-amber-500/30 text-amber-400"
-                          : "bg-[#172033]/90 border-blue-500/30 text-blue-400"
+                          : isLate
+                            ? "bg-orange-950/40 border-orange-500/40 text-orange-400"
+                            : "bg-[#172033]/90 border-blue-500/30 text-blue-400"
                       : isInService
                         ? "bg-emerald-50 border-emerald-300 text-emerald-700"
                         : isCalled
                           ? "bg-amber-50 border-amber-300 text-amber-700"
-                          : "bg-blue-50 border-blue-300 text-blue-700";
+                          : isLate
+                            ? "bg-orange-100 border-orange-300 text-orange-800"
+                            : "bg-blue-50 border-blue-300 text-blue-700";
 
                   return (
                     <article
@@ -3200,6 +3422,13 @@ export default function SalonPortal() {
                             {isWaiting && (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide bg-blue-500/15 border border-blue-500/35 text-blue-600 dark:text-blue-400 uppercase">
                                 WAITING
+                              </span>
+                            )}
+
+                            {isLate && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide bg-orange-500/20 border border-orange-500/40 text-orange-400 uppercase">
+                                <Clock className="w-3 h-3 text-orange-400" />
+                                LATE / ON HOLD
                               </span>
                             )}
 
@@ -3257,15 +3486,42 @@ export default function SalonPortal() {
                       )}
 
                       {/* Action Buttons */}
-                      <div className="flex items-center gap-2.5 justify-end xl:w-1/5 flex-shrink-0">
+                      <div className="flex items-center gap-2 justify-end xl:w-1/4 flex-shrink-0">
                         {isWaiting && (
+                          <>
+                            <button
+                              onClick={() => handleCallNext(token)}
+                              className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-500/20 transition-all duration-200 cursor-pointer"
+                              type="button"
+                              title="Call customer to chair"
+                            >
+                              <Phone className="w-3.5 h-3.5 text-slate-950" />
+                              <span>Call Next</span>
+                            </button>
+                            <button
+                              onClick={() => handleMarkTokenLate(token)}
+                              className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                                theme === "dark"
+                                  ? "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30 text-orange-300"
+                                  : "bg-orange-50 hover:bg-orange-100 border-orange-300 text-orange-800"
+                              }`}
+                              type="button"
+                              title="Customer not in lobby? Mark late / put on hold so next client is called without deleting ticket"
+                            >
+                              <span>Skip (Late)</span>
+                            </button>
+                          </>
+                        )}
+
+                        {isLate && (
                           <button
-                            onClick={() => handleCallNext(token)}
-                            className="flex-1 xl:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-[0_0_25px_-4px_rgba(245,158,11,0.25)] transition-all duration-200 cursor-pointer"
+                            onClick={() => handleLateCheckIn(token)}
+                            className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/20 transition-all duration-200 cursor-pointer"
                             type="button"
+                            title="Customer has arrived! Check them in as next in line"
                           >
-                            <Phone className="w-4 h-4 text-slate-950" />
-                            <span>Call Next</span>
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Late Check-in</span>
                           </button>
                         )}
 

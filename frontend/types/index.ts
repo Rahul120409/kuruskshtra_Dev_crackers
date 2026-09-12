@@ -23,15 +23,19 @@ export interface Salon {
   area?: string;
   city?: string;
   phone: string;
+  phoneNumber?: string;
   email?: string;
   ownerName?: string;
   pincode?: string;
+  description?: string;
   salonDescription?: string;
   locationLink?: string;
   rating?: number;
   reviewCount?: number;
   currentWaitMinutes?: number;
   totalWaiting?: number;
+  currentServingTokenNumber?: number | null;
+  nextAvailableTokenNumber?: number;
   imageUrl?: string;
   openingTime: string;
   closingTime: string;
@@ -42,7 +46,7 @@ export interface Salon {
 
 export interface SalonStaff {
   id: string;
-  userId: string;
+  userId?: string;
   name: string;
   salonId: string;
   specialization: string;

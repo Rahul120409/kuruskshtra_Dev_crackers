@@ -140,8 +140,12 @@ export const DemoControlDrawer: React.FC<DemoControlDrawerProps> = ({ isOpen, on
                 2
               </div>
               <div>
-                <p className="text-sm font-semibold text-white group-hover:text-amber-300">View Token #108 in Live Queue</p>
-                <p className="text-xs text-zinc-400">Position 4 • 24 mins estimated wait</p>
+                <p className="text-sm font-semibold text-white group-hover:text-amber-300">
+                  {activeToken ? `View Your Token #${activeToken.tokenNumber} in Live Queue` : 'View Live Queue Status'}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {activeToken ? `Position ${activeToken.position} • ~${activeToken.estimatedWait} mins estimated wait` : 'Monitor live salon rotation'}
+                </p>
               </div>
             </div>
             <Clock className="w-4 h-4 text-amber-400 opacity-70 group-hover:opacity-100" />

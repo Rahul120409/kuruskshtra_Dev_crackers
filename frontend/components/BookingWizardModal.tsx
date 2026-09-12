@@ -27,6 +27,7 @@ import confetti from 'canvas-confetti';
 import { Salon, SalonService, SalonStaff } from '../types';
 import { useCustomer } from '../context/CustomerContext';
 import { customerService } from '../services/customerService';
+import { staffService } from '../services/staffService';
 
 interface BookingWizardModalProps {
   isOpen: boolean;
@@ -49,12 +50,12 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   const { user, joinLiveQueue, addAppointment } = useCustomer();
 
   const [step, setStep] = useState<BookingStep>(1);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>(preselectedServiceId || 'srv-02');
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(preselectedServiceId || '');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   
   // Step 2 state
   const [bookingMode, setBookingMode] = useState<BookingMode>('WALK_IN');
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('stf-01');
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('any');
   const [selectedDate, setSelectedDate] = useState<string>('Today');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('04:30 PM');
 
@@ -63,31 +64,70 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
-  // Available services and staff fetched from API
+  // Available services & staff loaded live
   const [services, setServices] = useState<SalonService[]>([]);
   const [staffMembers, setStaffMembers] = useState<SalonStaff[]>([]);
 
   React.useEffect(() => {
     if (isOpen) {
-      customerService.getServices().then((data) => {
-        if (Array.isArray(data)) {
-          setServices(data);
-          if (data.length > 0 && !data.some((s: SalonService) => s.id === selectedServiceId)) {
-            setSelectedServiceId(data[0].id);
+      customerService.getServices().then((list) => {
+        if (list && list.length > 0) {
+          setServices(list);
+          if (!selectedServiceId) {
+            setSelectedServiceId(list[0].id);
           }
         }
       }).catch(() => {});
 
-      customerService.getStaff().then((data) => {
-        if (Array.isArray(data)) {
-          setStaffMembers(data);
-          if (data.length > 0 && !data.some((st: SalonStaff) => st.id === selectedStaffId)) {
-            setSelectedStaffId(data[0].id);
+      const targetSalonId = salon?.id;
+      if (targetSalonId) {
+        staffService.getStaffBySalon(targetSalonId).then((stfs) => {
+          if (stfs && stfs.length > 0) {
+            setStaffMembers(stfs.map(st => ({
+              id: st.id,
+              userId: st.userId || '',
+              name: st.name,
+              salonId: st.salonId,
+              specialization: st.specialization || 'Hair Stylist & Barber',
+              status: st.status || 'AVAILABLE',
+              avatarUrl: st.profileImage || '',
+              rating: 5.0
+            })));
+          } else {
+            staffService.getAllStaff().then((allStfs) => {
+              if (allStfs && allStfs.length > 0) {
+                setStaffMembers(allStfs.map(st => ({
+                  id: st.id,
+                  userId: st.userId || '',
+                  name: st.name,
+                  salonId: st.salonId,
+                  specialization: st.specialization || 'Hair Stylist & Barber',
+                  status: st.status || 'AVAILABLE',
+                  avatarUrl: st.profileImage || '',
+                  rating: 5.0
+                })));
+              }
+            }).catch(() => {});
           }
-        }
-      }).catch(() => {});
+        }).catch(() => {});
+      } else {
+        staffService.getAllStaff().then((allStfs) => {
+          if (allStfs && allStfs.length > 0) {
+            setStaffMembers(allStfs.map(st => ({
+              id: st.id,
+              userId: st.userId || '',
+              name: st.name,
+              salonId: st.salonId,
+              specialization: st.specialization || 'Hair Stylist & Barber',
+              status: st.status || 'AVAILABLE',
+              avatarUrl: st.profileImage || '',
+              rating: 5.0
+            })));
+          }
+        }).catch(() => {});
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, salon]);
 
   const filteredServices = useMemo(() => {
     if (categoryFilter === 'All') return services;
@@ -95,12 +135,22 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   }, [services, categoryFilter]);
 
   const selectedService = useMemo(() => {
-    return services.find((s: SalonService) => s.id === selectedServiceId) || services[0];
-  }, [services, selectedServiceId]);
+    return services.find((s) => s.id === selectedServiceId) || services[0] || {
+      id: 'custom',
+      salonId: salon?.id || '',
+      name: 'Selected Service',
+      description: '',
+      price: 0,
+      durationMinutes: 30,
+      category: 'Haircuts' as const,
+      imageUrl: '',
+      isActive: true
+    };
+  }, [services, selectedServiceId, salon]);
 
   const selectedStaff = useMemo(() => {
     if (selectedStaffId === 'any') return null;
-    return staffMembers.find((st: SalonStaff) => st.id === selectedStaffId) || staffMembers[0];
+    return staffMembers.find((st) => st.id === selectedStaffId) || null;
   }, [staffMembers, selectedStaffId]);
 
   React.useEffect(() => {
@@ -154,11 +204,13 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
 
       // Also record as an appointment in appointments store
       await addAppointment({
-        customerId: user ? user.id : 'usr-customer-001',
+        customerId: user ? user.id : undefined,
+        customerName: user ? user.name : undefined,
+        customerPhone: user ? user.phone : undefined,
         salonId: salon.id,
         salonName: salon.name,
         salonAddress: salon.address,
-        salonArea: salon.area || salon.city || 'Central District',
+        salonArea: salon.area || salon.city || '',
         serviceId: selectedService.id,
         serviceName: selectedService.name,
         servicePrice: selectedService.price,
@@ -167,11 +219,11 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
         staffName: selectedStaff ? selectedStaff.name : 'First Available Stylist',
         staffAvatar: selectedStaff?.avatarUrl,
         appointmentDate: bookingMode === 'SCHEDULED' ? selectedDate : new Date().toISOString().split('T')[0],
-        appointmentTime: bookingMode === 'SCHEDULED' ? selectedTimeSlot : '04:30 PM',
+        appointmentTime: bookingMode === 'SCHEDULED' ? selectedTimeSlot : '10:00 AM',
         status: 'CONFIRMED',
         source: 'ONLINE',
         bookingType: bookingMode,
-        tokenNumber: token?.tokenNumber || 108,
+        tokenNumber: token?.tokenNumber,
         paymentMethod: paymentMethod === 'COUNTER' ? 'Pay at Salon Counter' : paymentMethod === 'UPI' ? 'UPI' : 'Credit/Debit Card',
         paymentStatus: paymentMethod === 'COUNTER' ? 'PENDING_AT_COUNTER' : 'PAID',
       });
@@ -582,11 +634,17 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
-                          <img
-                            src={staff.avatarUrl}
-                            alt={staff.name}
-                            className="w-10 h-10 rounded-full object-cover border border-slate-700"
-                          />
+                          {staff.avatarUrl ? (
+                            <img
+                              src={staff.avatarUrl}
+                              alt={staff.name}
+                              className="w-10 h-10 rounded-full object-cover border border-slate-700 flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                              {staff.name ? staff.name.slice(0, 2).toUpperCase() : 'ST'}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <h6 className="text-xs font-bold text-white truncate">{staff.name}</h6>
                             <p className="text-[10px] text-slate-400 truncate">{staff.specialization}</p>
@@ -646,31 +704,33 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                 {/* Big Token Number Callout */}
                 <div className="py-6 flex flex-col items-center justify-center text-center">
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Allocated Token Number
+                    Live Digital Pass
                   </span>
-                  <div className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-white to-purple-400 tracking-tight my-1">
-                    #108
+                  <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-white to-purple-400 tracking-tight my-1">
+                    Ready to Issue
                   </div>
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
-                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                    Estimated wait time: <strong className="text-white">~{salon.currentWaitMinutes || 24} minutes</strong>
-                  </p>
+                  {salon.currentWaitMinutes !== undefined && (
+                    <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
+                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                      Estimated wait time: <strong className="text-white">~{salon.currentWaitMinutes} minutes</strong>
+                    </p>
+                  )}
                 </div>
 
                 {/* Key Ticket Details Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-4 border-t border-b border-slate-800/80 bg-slate-950/40 rounded-xl px-4 my-2">
                   <div>
-                    <span className="text-[11px] text-slate-400 block">Queue Position</span>
-                    <span className="text-sm font-bold text-white">4th in Line</span>
+                    <span className="text-[11px] text-slate-400 block">Queue Flow</span>
+                    <span className="text-sm font-bold text-white">Next Available</span>
                   </div>
                   <div>
                     <span className="text-[11px] text-slate-400 block">Assigned Station</span>
-                    <span className="text-sm font-bold text-indigo-300">Station #3</span>
+                    <span className="text-sm font-bold text-indigo-300">Front Reception</span>
                   </div>
                   <div>
                     <span className="text-[11px] text-slate-400 block">Customer</span>
                     <span className="text-sm font-bold text-white truncate block">
-                      {user?.name || 'Rahul Sharma'}
+                      {user?.name || 'Guest'}
                     </span>
                   </div>
                   <div>
@@ -865,7 +925,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
               <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-4 shadow-lg shadow-emerald-500/20">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h3 className="text-2xl font-black text-white tracking-tight">Token #108 Confirmed!</h3>
+              <h3 className="text-2xl font-black text-white tracking-tight">Your Token Pass Confirmed!</h3>
               <p className="text-sm text-slate-300 mt-2 max-w-sm">
                 You are in line at <strong className="text-white">{salon.name}</strong>. Estimated wait time is ~{salon.currentWaitMinutes} mins.
               </p>
@@ -935,7 +995,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Confirm & Issue Token #108 (₹{selectedService.price})</span>
+                  <span>Confirm & Issue Next Available Token (₹{selectedService.price})</span>
                 </>
               )}
             </button>

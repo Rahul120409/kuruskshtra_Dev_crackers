@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './apiConfig';
+
 export type StaffStatus = 'AVAILABLE' | 'BUSY' | 'BREAK' | 'OFFLINE';
 
 export interface StaffRequest {
@@ -36,15 +38,11 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-// Defaults initialized as empty arrays
 export const DEFAULT_STAFF: StaffResponse[] = [];
 
 class StaffService {
   private getBaseUrl(): string {
-    if (typeof window !== 'undefined') {
-      return ''; // browser relative proxy
-    }
-    return (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
+    return getApiBaseUrl();
   }
 
   /**
@@ -74,25 +72,36 @@ class StaffService {
   /**
    * 2. Get Staff by Salon ID with optional status filter
    * GET /api/staff/salon/{salonId}?status=AVAILABLE
+   * If salonId is omitted or no staff is mapped specifically to this salon, queries all real staff.
    */
-  async getStaffBySalon(salonId: string, status?: StaffStatus): Promise<StaffResponse[]> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  async getStaffBySalon(salonId?: string, status?: StaffStatus): Promise<StaffResponse[]> {
+    const isUuid = !!salonId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
 
-    try {
-      const res = await fetch(`${this.getBaseUrl()}/api/staff/salon/${salonId}${query}`, {
-        cache: 'no-store',
-        headers: { Accept: 'application/json' },
-      });
+    if (isUuid) {
+      const query = status ? `?status=${encodeURIComponent(status)}` : '';
+      console.log(`💈 [staffService: getStaffBySalon] Querying /api/staff/salon/${salonId}${query}...`);
 
-      if (res.ok) {
-        const json = await res.json();
-        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
-        return items;
+      try {
+        const res = await fetch(`${this.getBaseUrl()}/api/staff/salon/${salonId}${query}`, {
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
+          if (items && items.length > 0) {
+            console.log(`✅ [staffService: getStaffBySalon] Loaded ${items.length} staff members for salon ${salonId}:`, items);
+            return items;
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ [staffService: getStaffBySalon] Could not fetch salon staff:', err);
       }
-    } catch (err) {
-      console.warn('⚠️ [staffService: getStaffBySalon] Could not fetch salon staff:', err);
     }
-    return [];
+
+    // Return all real staff from DB
+    return this.getAllStaff(isUuid ? salonId : undefined);
   }
 
   /**

@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './apiConfig';
+
 export interface StyleTypeRequest {
   name: string;
   code: string;
@@ -64,10 +66,7 @@ export const DEFAULT_SPECIFIC_STYLES: SpecificStyleResponse[] = [];
 
 class StyleService {
   private getBaseUrl(): string {
-    if (typeof window !== 'undefined') {
-      return ''; // browser relative proxy
-    }
-    return (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
+    return getApiBaseUrl();
   }
 
   // --- Style Types API ---
@@ -90,7 +89,7 @@ class StyleService {
         return items;
       }
     } catch (err) {
-      console.warn('⚠️ [styleService: getStyleTypes] Could not fetch style types:', err);
+      console.warn('⚠️ [styleService: getStyleTypes] Could not fetch live style types:', err);
     }
     return [];
   }
@@ -175,7 +174,7 @@ class StyleService {
         return items;
       }
     } catch (err) {
-      console.warn('⚠️ [styleService: getAllSpecificStyles] Could not fetch:', err);
+      console.warn('⚠️ [styleService: getAllSpecificStyles] Could not fetch from backend:', err);
     }
     return [];
   }

@@ -34,6 +34,7 @@ public class QueueService {
     private final SalonRepository salonRepository;
     private final StaffRepository staffRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final WhatsAppNotificationService whatsAppNotificationService;
 
     @Transactional
     public QueueTokenResponse joinQueue(JoinQueueRequest request) {
@@ -113,6 +114,17 @@ public class QueueService {
 
         broadcastLiveQueueUpdate(savedToken.getSalonId());
 
+        // WhatsApp notification (CallMeBot via Backend)
+        if (savedToken.getCustomerPhone() != null && !savedToken.getCustomerPhone().trim().isEmpty()) {
+            whatsAppNotificationService.sendBookingConfirmation(
+                    savedToken.getCustomerPhone(),
+                    savedToken.getCustomerName(),
+                    savedToken.getTokenNumber(),
+                    savedToken.getPosition() != null ? savedToken.getPosition() : 1,
+                    savedToken.getEstimatedWaitMinutes() != null ? savedToken.getEstimatedWaitMinutes() : 0
+            );
+        }
+
         return QueueTokenResponse.fromEntity(savedToken, ongoingTokenNumber, customersAhead);
     }
 
@@ -190,6 +202,16 @@ public class QueueService {
         recalculateQueue(token.getSalonId(), token.getQueueDate());
 
         broadcastLiveQueueUpdate(updated.getSalonId());
+
+        // WhatsApp Chair Ready Alert
+        if (updated.getCustomerPhone() != null && !updated.getCustomerPhone().trim().isEmpty()) {
+            whatsAppNotificationService.sendChairReadyAlert(
+                    updated.getCustomerPhone(),
+                    updated.getCustomerName(),
+                    updated.getTokenNumber(),
+                    updated.getStaffName()
+            );
+        }
 
         Integer ongoingNum = findCurrentServingTokenNumber(token.getSalonId(), token.getQueueDate());
         return QueueTokenResponse.fromEntity(updated, ongoingNum, 0);
@@ -279,13 +301,45 @@ public class QueueService {
         int currentPos = 1;
 
         for (QueueToken t : waitingList) {
-            t.setPosition(currentPos++);
+            int prevPos = t.getPosition() != null ? t.getPosition() : -1;
+            int newPos = currentPos++;
+            t.setPosition(newPos);
             int estWait = (int) Math.ceil((double) runningDurationAhead / activeStylists);
             t.setEstimatedWaitMinutes(estWait);
             runningDurationAhead += t.getServiceDurationMinutes();
+
+            // WhatsApp Proximity Alert: notify customer when they reach position 2
+            if (newPos == 2 && prevPos != 2 && t.getCustomerPhone() != null && !t.getCustomerPhone().trim().isEmpty()) {
+                whatsAppNotificationService.sendProximityAlert(
+                        t.getCustomerPhone(),
+                        t.getCustomerName(),
+                        t.getTokenNumber(),
+                        estWait
+                );
+            }
         }
 
         queueTokenRepository.saveAll(waitingList);
+    }
+
+    public void notifyTokenCustomer(UUID tokenId, String customMessage) {
+        QueueToken token = queueTokenRepository.findById(tokenId)
+                .orElseThrow(() -> new IllegalArgumentException("Token not found with ID: " + tokenId));
+
+        if (token.getCustomerPhone() == null || token.getCustomerPhone().trim().isEmpty()) {
+            throw new IllegalArgumentException("Customer does not have a registered phone number.");
+        }
+
+        if (customMessage != null && !customMessage.trim().isEmpty()) {
+            whatsAppNotificationService.sendCustomAlert(token.getCustomerPhone(), customMessage);
+        } else {
+            whatsAppNotificationService.sendChairReadyAlert(
+                    token.getCustomerPhone(),
+                    token.getCustomerName(),
+                    token.getTokenNumber(),
+                    token.getStaffName()
+            );
+        }
     }
 
     private Integer findCurrentServingTokenNumber(UUID salonId, LocalDate queueDate) {
@@ -306,10 +360,12 @@ public class QueueService {
         queueEventRepository.save(event);
     }
 
-    private void broadcastLiveQueueUpdate(UUID salonId) {
+    public void broadcastLiveQueueUpdate(UUID salonId) {
+        if (salonId == null) return;
         try {
             LiveQueueBoardResponse liveBoard = getLiveQueueBoard(salonId);
             messagingTemplate.convertAndSend("/topic/salon/" + salonId + "/queue", liveBoard);
+            messagingTemplate.convertAndSend("/topic/queue/live", liveBoard);
         } catch (Exception ignored) {
         }
     }

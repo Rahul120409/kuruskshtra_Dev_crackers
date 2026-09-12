@@ -1,4 +1,8 @@
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+export const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://192.168.137.218:8081"
+).replace(/\/$/, "");
 
 export interface RegisterPayload {
   name: string;

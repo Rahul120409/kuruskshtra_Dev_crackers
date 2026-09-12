@@ -1,4 +1,5 @@
 import { User } from '../types';
+import { getApiBaseUrl } from './apiConfig';
 
 const STORAGE_KEY_AUTH_USER = 'salonflow_auth_user';
 const STORAGE_KEY_AUTH_TOKEN = 'salonflow_auth_token';
@@ -12,10 +13,8 @@ export interface AuthResponse {
 }
 
 export class AuthService {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
+  private getBaseUrl(): string {
+    return getApiBaseUrl();
   }
 
   getCurrentUser(): User | null {
@@ -50,7 +49,7 @@ export class AuthService {
       : { mobileNumber: trimmedInput.replace(/\D/g, ''), password };
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/auth/login`, {
+      const res = await fetch(`${this.getBaseUrl()}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +175,7 @@ export class AuthService {
     };
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/auth/register`, {
+      const res = await fetch(`${this.getBaseUrl()}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

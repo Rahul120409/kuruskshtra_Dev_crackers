@@ -34,11 +34,6 @@ export const Navbar: React.FC = () => {
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [userLocation, setUserLocation] = useState<LocationData>(DEFAULT_USER_LOCATION);
 
-  // Do not render customer navbar on dedicated Admin Panel or Salon Portal
-  if (pathname?.startsWith('/admin') || pathname?.startsWith('/salon')) {
-    return null;
-  }
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('salonflow_user_location');
@@ -51,6 +46,11 @@ export const Navbar: React.FC = () => {
       }
     }
   }, []);
+
+  // Do not render customer navbar on dedicated Admin Panel or Salon Portal
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/salon')) {
+    return null;
+  }
 
   const handleSelectLocation = (loc: LocationData) => {
     setUserLocation(loc);

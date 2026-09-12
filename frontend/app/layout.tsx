@@ -3,11 +3,12 @@ import './globals.css';
 import { ThemeProvider } from '../context/ThemeContext';
 import { CustomerProvider } from '../context/CustomerContext';
 import { Navbar } from '../components/Navbar';
+import { QueueAlertBanner } from '../components/QueueAlertBanner';
 import { Footer } from '../components/Footer';
 
 export const metadata: Metadata = {
-  title: 'LuxeTrim — Haute Coiffure & Bespoke Grooming Lounge',
-  description: 'Live atelier occupancy, real-time wait estimation, and instant chair reservations across premier grooming sanctuaries.',
+  title: 'NovaQ — Smart Salon Queues & Haute Grooming Lounge',
+  description: 'Real-time live queue tokens, smart chair dispatch, AI hairstyle consultation, and instant bookings across premier salons with NovaQ.',
 };
 
 export default function RootLayout({
@@ -57,7 +58,8 @@ export default function RootLayout({
         <ThemeProvider>
           <CustomerProvider>
             <Navbar />
-            <main className="w-full pt-20 bg-surface flex-1">
+            <QueueAlertBanner />
+            <main className="w-full bg-surface flex-1">
               {children}
             </main>
             <Footer />

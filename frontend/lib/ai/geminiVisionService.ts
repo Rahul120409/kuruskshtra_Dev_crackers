@@ -58,7 +58,7 @@ export class GeminiVisionService {
         description: h.description
       }));
 
-      const systemPrompt = `You are the Master AI Stylist for "SalonFlow AI".
+      const systemPrompt = `You are the Master AI Stylist for "NovaQ AI".
 Analyze the user's face in the provided selfie:
 1. Detect whether the person is a 'boy' (male) or 'girl' (female). If unclear or preference is provided, respect preference: "${preferredGender || 'auto-detect'}".
 2. Identify their facial geometry (faceShape: "Oval", "Round", "Square", "Heart", "Diamond", or "Oblong").

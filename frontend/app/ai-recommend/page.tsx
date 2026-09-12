@@ -37,11 +37,20 @@ const SAMPLE_SELFIES = [
 
 export default function AIRecommendPage() {
   const router = useRouter();
-  const { setSelectedHairstyle } = useCustomer();
+  const { setSelectedHairstyle, isLoggedIn } = useCustomer();
   const [selectedImage, setSelectedImage] = useState<string | null>(SAMPLE_SELFIES[0].url);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisStep, setAnalysisStep] = useState<string>('');
   const [result, setResult] = useState<AIAnalysisResult | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('salonflow_auth_user');
+      if (!savedUser && !isLoggedIn) {
+        router.push('/login?redirect=/ai-recommend');
+      }
+    }
+  }, [isLoggedIn, router]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

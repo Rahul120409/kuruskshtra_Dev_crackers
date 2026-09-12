@@ -14,7 +14,7 @@ export const DEMO_USER: User = {
 
 export const DEMO_SALON: Salon = {
   id: 'salon-pune-01',
-  name: 'SalonFlow Studio & Lounge',
+  name: 'NovaQ Studio & Lounge',
   address: 'Lane 7, Koregaon Park, Pune, Maharashtra 411001',
   area: 'Koregaon Park',
   city: 'Pune',
@@ -33,7 +33,7 @@ export const DEMO_SALONS: Salon[] = [
   DEMO_SALON,
   {
     id: 'salon-pune-02',
-    name: 'SalonFlow Elite Barbering',
+    name: 'NovaQ Elite Barbering',
     address: 'High Street, Baner, Pune, Maharashtra 411045',
     area: 'Baner',
     city: 'Pune',
@@ -49,7 +49,7 @@ export const DEMO_SALONS: Salon[] = [
   },
   {
     id: 'salon-pune-03',
-    name: "SalonFlow Men's Club & Spa",
+    name: "NovaQ Men's Club & Spa",
     address: 'Near Phoenix Marketcity, Viman Nagar, Pune 411014',
     area: 'Viman Nagar',
     city: 'Pune',
@@ -65,7 +65,7 @@ export const DEMO_SALONS: Salon[] = [
   },
   {
     id: 'salon-pune-04',
-    name: 'SalonFlow Precision Grooming',
+    name: 'NovaQ Precision Grooming',
     address: 'East Avenue, Kalyani Nagar, Pune 411006',
     area: 'Kalyani Nagar',
     city: 'Pune',
@@ -260,7 +260,7 @@ export const INITIAL_NOTIFICATIONS: Notification[] = [
   {
     id: 'notif-01',
     userId: 'usr-customer-001',
-    title: 'Welcome to SalonFlow AI',
+    title: 'Welcome to NovaQ AI',
     message: 'Try our AI Hairstyle consultation to find the perfect cut tailored to your face shape.',
     type: 'BOOKING_CONFIRMED',
     isRead: false,
@@ -274,7 +274,7 @@ export const INITIAL_DEMO_APPOINTMENTS: Appointment[] = [
     id: 'apt-108-live',
     customerId: 'usr-customer-001',
     salonId: 'salon-pune-01',
-    salonName: 'SalonFlow Studio & Lounge',
+    salonName: 'NovaQ Studio & Lounge',
     salonAddress: 'Lane 7, Koregaon Park, Pune, Maharashtra 411001',
     salonArea: 'Koregaon Park',
     serviceId: 'srv-02',
@@ -298,7 +298,7 @@ export const INITIAL_DEMO_APPOINTMENTS: Appointment[] = [
     id: 'apt-109-scheduled',
     customerId: 'usr-customer-001',
     salonId: 'salon-pune-02',
-    salonName: 'SalonFlow Elite Barbering',
+    salonName: 'NovaQ Elite Barbering',
     salonAddress: 'High Street, Baner, Pune, Maharashtra 411045',
     salonArea: 'Baner',
     serviceId: 'srv-04',
@@ -321,7 +321,7 @@ export const INITIAL_DEMO_APPOINTMENTS: Appointment[] = [
     id: 'apt-105-completed',
     customerId: 'usr-customer-001',
     salonId: 'salon-pune-04',
-    salonName: 'SalonFlow Precision Grooming',
+    salonName: 'NovaQ Precision Grooming',
     salonAddress: 'East Avenue, Kalyani Nagar, Pune 411006',
     salonArea: 'Kalyani Nagar',
     serviceId: 'srv-01',

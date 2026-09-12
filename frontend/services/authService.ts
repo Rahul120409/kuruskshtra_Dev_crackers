@@ -215,6 +215,141 @@ export class AuthService {
     }
   }
 
+  /**
+   * Real-time User Profile Update
+   * Contract:
+   * PUT /api/users/{id}
+   * Body:
+   * {
+   *   "name": "...",
+   *   "email": "...",
+   *   "phone": "...",
+   *   "dob": "1998-05-15",
+   *   "gender": "MALE",
+   *   "profileImage": "https://..."
+   * }
+   */
+  async updateProfile(userId: string, data: Partial<User>): Promise<AuthResponse> {
+    const payload: any = {};
+    if (data.name) payload.name = data.name.trim();
+    if (data.email) payload.email = data.email.trim();
+    if (data.phone) {
+      const cleanPhone = data.phone.replace(/\D/g, '');
+      payload.phone = cleanPhone;
+      payload.mobileNumber = cleanPhone;
+    }
+    if (data.dob) payload.dob = data.dob;
+    if (data.gender) {
+      const g = data.gender.toUpperCase();
+      if (g.includes('FEMALE')) payload.gender = 'FEMALE';
+      else if (g.includes('MALE')) payload.gender = 'MALE';
+      else payload.gender = 'OTHER';
+    }
+    if (data.profileImage) payload.profileImage = data.profileImage.trim();
+
+    try {
+      const token = this.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // Check if user ID is a valid UUID
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+      let currentUser = this.getCurrentUser();
+      let updatedUser: User = {
+        id: userId,
+        name: data.name || currentUser?.name || 'Customer',
+        email: data.email || currentUser?.email || '',
+        phone: data.phone || currentUser?.phone || '',
+        role: currentUser?.role || 'CUSTOMER',
+        dob: data.dob || currentUser?.dob,
+        gender: data.gender || currentUser?.gender,
+        profileImage: data.profileImage || currentUser?.profileImage,
+        preferredArea: data.preferredArea || currentUser?.preferredArea,
+        hairNotes: data.hairNotes || currentUser?.hairNotes,
+        createdAt: currentUser?.createdAt,
+      };
+
+      if (isUuid) {
+        console.log(`💈 [authService: updateProfile] Calling PUT /api/users/${userId}:`, payload);
+        const res = await fetch(`${this.getBaseUrl()}/api/users/${userId}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        const resData = await res.json().catch(() => null);
+
+        if (res.ok && resData) {
+          const raw = resData.data || resData.user || resData;
+          updatedUser = {
+            id: raw.id || userId,
+            name: raw.name || data.name || updatedUser.name,
+            email: raw.email || data.email || updatedUser.email,
+            phone: raw.phone || raw.mobileNumber || data.phone || updatedUser.phone,
+            role: raw.role || updatedUser.role,
+            dob: raw.dob || data.dob || updatedUser.dob,
+            gender: raw.gender || data.gender || updatedUser.gender,
+            profileImage: raw.profileImage || data.profileImage || updatedUser.profileImage,
+            preferredArea: data.preferredArea || updatedUser.preferredArea,
+            hairNotes: data.hairNotes !== undefined ? data.hairNotes : updatedUser.hairNotes,
+            createdAt: raw.createdAt || updatedUser.createdAt,
+          };
+          console.log('✅ [authService: updateProfile] Profile successfully updated in database:', updatedUser);
+        } else {
+          const errorMsg = resData?.message || resData?.error || `Failed with status ${res.status}`;
+          console.warn(`⚠️ [authService: updateProfile] Backend notice: ${errorMsg}`);
+          return {
+            success: false,
+            error: errorMsg,
+          };
+        }
+      }
+
+      // Save locally to persist styling preferences and update memory
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(updatedUser));
+        localStorage.setItem('salonflow_user', JSON.stringify(updatedUser));
+      }
+
+      return {
+        success: true,
+        user: updatedUser,
+        message: 'Profile updated successfully',
+      };
+    } catch (err: any) {
+      console.error('Error updating user profile via API:', err);
+      // If server is unreachable, fall back to local update
+      const currentUser = this.getCurrentUser();
+      const fallbackUser: User = {
+        id: userId,
+        name: data.name || currentUser?.name || 'Customer',
+        email: data.email || currentUser?.email || '',
+        phone: data.phone || currentUser?.phone || '',
+        role: currentUser?.role || 'CUSTOMER',
+        dob: data.dob || currentUser?.dob,
+        gender: data.gender || currentUser?.gender,
+        profileImage: data.profileImage || currentUser?.profileImage,
+        preferredArea: data.preferredArea || currentUser?.preferredArea,
+        hairNotes: data.hairNotes !== undefined ? data.hairNotes : currentUser?.hairNotes,
+        createdAt: currentUser?.createdAt,
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(fallbackUser));
+        localStorage.setItem('salonflow_user', JSON.stringify(fallbackUser));
+      }
+      return {
+        success: true,
+        user: fallbackUser,
+        message: 'Profile saved locally (Offline mode)',
+      };
+    }
+  }
+
   logout(): void {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY_AUTH_USER);

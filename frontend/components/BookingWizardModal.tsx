@@ -590,7 +590,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-indigo-400 font-bold text-sm">
-                        ⚡
+                        <Zap className="w-5 h-5 text-indigo-400" />
                       </div>
                       <div>
                         <h6 className="text-xs font-bold text-white">First Available</h6>
@@ -671,8 +671,8 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-bold tracking-widest text-indigo-400 uppercase">
-                      SalonFlow Digital Pass
+                    <span className="text-xs font-bold tracking-widest text-amber-500 uppercase">
+                      NovaQ Digital Pass
                     </span>
                   </div>
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -24,10 +24,13 @@ import {
   QrCode,
   RefreshCw,
   Check,
-  ChevronRight
+  ChevronRight,
+  Palette,
+  Heart
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useCustomer } from '../../context/CustomerContext';
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { 
   styleService, 
   StyleTypeResponse, 
@@ -40,12 +43,23 @@ import {
 } from '../../services/staffService';
 import { salonService } from '../../services/salonService';
 import { customerService } from '../../services/customerService';
+import { queueWebSocket, LiveQueueBoardData } from '../../services/websocketService';
 import { QueueToken } from '../../types';
 
 function FullPageBookingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, selectedHairstyle, joinLiveQueue, addAppointment } = useCustomer();
+  const { user, selectedHairstyle, joinLiveQueue, addAppointment, isLoggedIn } = useCustomer();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('salonflow_auth_user');
+      if (!savedUser && !isLoggedIn) {
+        const fullUrl = `/booking?${searchParams.toString()}`;
+        router.push(`/login?redirect=${encodeURIComponent(fullUrl)}`);
+      }
+    }
+  }, [isLoggedIn, router, searchParams]);
 
   const [salonDetails, setSalonDetails] = useState<{ id: string; name: string; area: string; wait: number }>({
     id: searchParams.get('salonId') || '',
@@ -53,6 +67,21 @@ function FullPageBookingContent() {
     area: searchParams.get('area') || searchParams.get('city') || '',
     wait: Number(searchParams.get('wait')) || 0,
   });
+
+  useEffect(() => {
+    const sId = searchParams.get('salonId');
+    const sName = searchParams.get('salonName');
+    const sArea = searchParams.get('area') || searchParams.get('city');
+    const sWait = searchParams.get('wait');
+    if (sId) {
+      setSalonDetails({
+        id: sId,
+        name: sName || '',
+        area: sArea || '',
+        wait: Number(sWait) || 0,
+      });
+    }
+  }, [searchParams]);
 
   // Active step in the 5-step process
   // 1: Type & Category, 2: Specific Style, 3: Barber, 4: Token Screen, 5: Payment Summary
@@ -88,31 +117,35 @@ function FullPageBookingContent() {
   const [confirmedToken, setConfirmedToken] = useState<QueueToken | null>(null);
 
   // Live Queue Board state queried from backend /api/queue/live/{salonId}
-  const [liveQueueBoard, setLiveQueueBoard] = useState<{
-    nextAvailableTokenNumber?: number;
-    currentServingTokenNumber?: number | null;
-    totalWaiting?: number;
-  } | null>(null);
+  const [liveQueueBoard, setLiveQueueBoard] = useState<LiveQueueBoardData | null>(null);
+  const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const hasLoadedDataRef = useRef(false);
+  const lastLoadedSalonIdRef = useRef<string>('');
 
   useEffect(() => {
     if (user?.name && !guestName) setGuestName(user.name);
     if (user?.phone && !guestPhone) setGuestPhone(user.phone);
   }, [user]);
 
-  // Poll/fetch live queue board when entering Step 4
+  // Track live WebSocket STOMP connection status
   useEffect(() => {
-    if (currentStep === 4 && salonDetails.id) {
-      customerService.getLiveQueueBoard(salonDetails.id).then((board: any) => {
-        if (board) setLiveQueueBoard(board);
-      }).catch(() => {});
-    }
-  }, [currentStep, salonDetails.id]);
+    const unsubStatus = queueWebSocket.onStatusChange((connected) => {
+      setIsWsConnected(connected);
+    });
+    return () => {
+      unsubStatus();
+    };
+  }, []);
 
-  // Fetch real-time style types, specific styles, and staff from backend API
+  // Fetch real-time style types, specific styles, and staff from backend API (runs once on mount)
   const fetchRealTimeData = async () => {
+    if (hasLoadedDataRef.current) return;
+    hasLoadedDataRef.current = true;
+
     setIsLoadingStyles(true);
     setIsLoadingStaff(true);
-    console.log("💈 [BOOKING] Fetching real-time Style Types, Specific Styles, and Salon Staff from API...");
+    console.log("💈 [BOOKING] Initial load of Style Types, Specific Styles, and Salon Staff...");
     try {
       let currentSalonId = salonDetails.id;
       if (!currentSalonId || !salonDetails.name) {
@@ -131,15 +164,6 @@ function FullPageBookingContent() {
         } catch (salonErr) {
           console.warn("Salon fetch notice:", salonErr);
         }
-      }
-
-      if (currentSalonId) {
-        customerService.getLiveQueueBoard(currentSalonId).then((board: any) => {
-          if (board) {
-            console.log("🎫 [BOOKING] Loaded live queue board:", board);
-            setLiveQueueBoard(board);
-          }
-        }).catch(() => {});
       }
 
       const [typesData, stylesData, staffData] = await Promise.allSettled([
@@ -177,6 +201,63 @@ function FullPageBookingContent() {
   useEffect(() => {
     fetchRealTimeData();
   }, [salonDetails.id]);
+
+  // Real-time WebSocket listener for Live Queue Board (pure WebSocket events, zero polling)
+  useEffect(() => {
+    const sId = salonDetails.id;
+    if (!sId) return;
+
+    // Load initial queue board snapshot ONCE for this specific salon ID
+    if (lastLoadedSalonIdRef.current !== sId) {
+      lastLoadedSalonIdRef.current = sId;
+      customerService.getLiveQueueBoard(sId).then((board: any) => {
+        if (board) {
+          console.log("🎫 [BOOKING] Live queue snapshot loaded for salon:", sId, board);
+          setLiveQueueBoard(board);
+        }
+      }).catch((e) => {
+        console.warn("Notice: could not load initial queue board snapshot:", e);
+      });
+    }
+
+    // 1. WebSocket topic subscription for this salon (/topic/salon/{id}/queue)
+    const unsubSalon = queueWebSocket.subscribeToSalon(sId, (board) => {
+      if (board) {
+        console.log('⚡ [BOOKING WS] Live queue update received for salon:', board);
+        setLiveQueueBoard(board);
+      }
+    });
+
+    // 2. Global topic subscription fallback (/topic/queue/live)
+    const unsubGlobal = queueWebSocket.subscribeToGlobal((board) => {
+      if (board && (!board.salonId || board.salonId.toLowerCase() === sId.toLowerCase())) {
+        console.log('⚡ [BOOKING WS] Global queue update received for salon:', board);
+        setLiveQueueBoard(board);
+      }
+    });
+
+    return () => {
+      unsubSalon();
+      unsubGlobal();
+    };
+  }, [salonDetails.id]);
+
+  // Manual on-demand sync & WebSocket reconnection for user verification
+  const handleManualSyncQueue = async () => {
+    if (!salonDetails.id || isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const board = await customerService.getLiveQueueBoard(salonDetails.id);
+      if (board) {
+        setLiveQueueBoard(board);
+      }
+      queueWebSocket.reconnect();
+    } catch (e) {
+      console.warn('Manual sync notice:', e);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
+  };
 
   // Active Category/Type
   const activeStyleType = useMemo(() => {
@@ -225,12 +306,36 @@ function FullPageBookingContent() {
     return Math.max(0, previewTokenNumber - 1);
   }, [bookingMode, liveQueueBoard, previewTokenNumber]);
 
+  // Determine if there is actually a token currently occupying or called to a chair
+  const hasOngoingChair = useMemo(() => {
+    if (liveQueueBoard?.currentServingTokenNumber && liveQueueBoard.currentServingTokenNumber > 0) {
+      return true;
+    }
+    if (liveQueueBoard?.lastCalledTokenNumber && liveQueueBoard.lastCalledTokenNumber > 0) {
+      return true;
+    }
+    if (Array.isArray(liveQueueBoard?.activeQueue) && liveQueueBoard.activeQueue.some((t: any) => t.status === 'IN_SERVICE' || t.status === 'CALLED')) {
+      return true;
+    }
+    return false;
+  }, [liveQueueBoard]);
+
   const ongoingTokenNumber = useMemo(() => {
+    // 1. Direct serving token from backend
     if (liveQueueBoard?.currentServingTokenNumber && liveQueueBoard.currentServingTokenNumber > 0) {
       return liveQueueBoard.currentServingTokenNumber;
     }
-    return Math.max(1, previewTokenNumber - previewGuestsAhead);
-  }, [liveQueueBoard, previewTokenNumber, previewGuestsAhead]);
+    // 2. Last called token from backend
+    if (liveQueueBoard?.lastCalledTokenNumber && liveQueueBoard.lastCalledTokenNumber > 0) {
+      return liveQueueBoard.lastCalledTokenNumber;
+    }
+    // 3. From activeQueue array
+    if (Array.isArray(liveQueueBoard?.activeQueue)) {
+      const active = liveQueueBoard.activeQueue.find((t: any) => t.status === 'IN_SERVICE' || t.status === 'CALLED');
+      if (active?.tokenNumber) return active.tokenNumber;
+    }
+    return null;
+  }, [liveQueueBoard]);
 
   const previewEstimatedWait = useMemo(() => {
     if (bookingMode === 'SCHEDULED') return 0;
@@ -340,77 +445,84 @@ function FullPageBookingContent() {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-[#0d1017] text-zinc-100 pb-24">
+    <div className="w-full min-h-screen bg-slate-50 dark:bg-[#080a0f] text-slate-900 dark:text-white transition-colors duration-200 pb-24 relative overflow-hidden">
       
+      {/* Ambient background glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-amber-500/10 dark:bg-amber-500/15 rounded-full blur-[140px] pointer-events-none" />
+
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-[#121622]/90 backdrop-blur-xl border-b border-[#232a3b] px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-40 bg-white/85 dark:bg-[#0c0e16]/85 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-8 py-3 flex items-center justify-between transition-colors duration-200 shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/home"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#181e2b] hover:bg-[#222b3d] text-zinc-300 hover:text-white text-xs font-semibold transition-all border border-[#2b354b]"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all border border-slate-200 dark:border-slate-800 cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Return to Salons</span>
+            <span className="hidden xs:inline">Return to Salons</span>
+            <span className="xs:hidden">Back</span>
           </Link>
-          <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-400">
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
             <span>/</span>
-            <span className="text-zinc-200 font-medium truncate max-w-[200px]">{salonDetails.name || 'Salon'}</span>
+            <span className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[180px]">{salonDetails.name || 'Salon'}</span>
             <span>/</span>
-            <span className="text-amber-400 font-semibold">Booking Flow</span>
+            <span className="text-amber-600 dark:text-amber-400 font-semibold">Booking Concierge</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={fetchRealTimeData}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#181e2b] text-zinc-300 hover:text-white text-xs font-medium border border-[#2b354b] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold border border-slate-200 dark:border-slate-800 transition-colors cursor-pointer"
             title="Refresh style catalog and staff from backend"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${(isLoadingStyles || isLoadingStaff) ? 'animate-spin text-amber-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${(isLoadingStyles || isLoadingStaff) ? 'animate-spin text-amber-500' : ''}`} />
             <span className="hidden sm:inline">Sync Real Data</span>
           </button>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold border border-emerald-500/30">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>Real-time Sync</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold border border-emerald-500/30">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+            <span className="hidden xs:inline">Live Telemetry</span>
+          </div>
+          <div className="p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center">
+            <ThemeToggle />
           </div>
         </div>
       </header>
 
       {/* Salon Identification Hero */}
-      <section className="px-4 sm:px-8 lg:px-12 pt-6 pb-2">
-        <div className="rounded-3xl bg-gradient-to-r from-[#171d2b] via-[#141926] to-[#0f1420] border border-[#273248] p-6 sm:p-7 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <section className="px-4 sm:px-8 lg:px-12 pt-6 pb-2 max-w-5xl mx-auto">
+        <div className="rounded-3xl bg-white dark:bg-[#11141e] border border-slate-200 dark:border-slate-800/80 p-5 sm:p-7 shadow-lg dark:shadow-2xl relative overflow-hidden transition-colors duration-200">
+          <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
           
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-3 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[11px] font-bold uppercase tracking-wider border border-amber-500/30">
+                <span className="px-3 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider border border-amber-500/30">
                   Concierge Booking Portal
                 </span>
-                <span className="px-3 py-0.5 rounded-full bg-[#202738] text-zinc-300 text-[11px] font-medium border border-[#2b354b] flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-amber-400" />
+                <span className="px-3 py-0.5 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 text-[10px] sm:text-[11px] font-medium border border-slate-200 dark:border-slate-800 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-amber-500" />
                   {salonDetails.area || 'Verified Studio'}
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                 {salonDetails.name || 'Salon'}
               </h1>
-              <p className="text-xs text-zinc-400 max-w-xl">
+              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xl">
                 Select your style category, specific haircut, assigned barber, preview your digital token pass, and complete checkout.
               </p>
             </div>
 
-            <div className="flex items-center gap-4 bg-[#0d1017]/80 backdrop-blur-md p-3.5 rounded-2xl border border-[#232a3b]">
+            <div className="flex items-center gap-4 bg-slate-50 dark:bg-[#0c0e16]/80 backdrop-blur-md p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
               <div className="text-right">
-                <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Estimated Wait</span>
-                <span className="text-xl font-black text-amber-400">~{salonDetails.wait || 0} mins</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider block font-semibold">Estimated Wait</span>
+                <span className="text-xl font-black text-amber-500 dark:text-amber-400">~{salonDetails.wait || 0} mins</span>
               </div>
-              <div className="w-px h-8 bg-[#2b354b]"></div>
+              <div className="w-px h-8 bg-slate-200 dark:bg-slate-800"></div>
               <div>
-                <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Queue Status</span>
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider block font-semibold">Queue Status</span>
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   Active Now
                 </span>
               </div>
@@ -420,9 +532,9 @@ function FullPageBookingContent() {
       </section>
 
       {/* 5-STEP WIZARD PROGRESS BAR */}
-      <section className="px-4 sm:px-8 lg:px-12 py-4">
-        <div className="p-3 sm:p-4 rounded-2xl bg-[#121622] border border-[#232a3b] shadow-md">
-          <div className="grid grid-cols-5 gap-2 text-center">
+      <section className="px-4 sm:px-8 lg:px-12 py-3 max-w-5xl mx-auto">
+        <div className="p-2 sm:p-2.5 rounded-2xl bg-white dark:bg-[#11141e] border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2 text-center">
             {stepsList.map((st) => {
               const isCurrent = currentStep === st.num;
               const isCompleted = currentStep > st.num;
@@ -432,7 +544,6 @@ function FullPageBookingContent() {
                   key={st.num}
                   type="button"
                   onClick={() => {
-                    // Only allow navigating backward or to previously visited steps
                     if (st.num < currentStep) {
                       setCurrentStep(st.num as any);
                     }
@@ -440,20 +551,20 @@ function FullPageBookingContent() {
                   disabled={st.num > currentStep}
                   className={`py-2 px-1 sm:px-3 rounded-xl border text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 cursor-pointer ${
                     isCurrent
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white border-amber-500 shadow-md shadow-amber-500/20'
                       : isCompleted
-                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                      : 'bg-[#181e2b]/50 text-zinc-500 border-[#2b354b]/40 cursor-not-allowed'
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                      : 'bg-slate-100 dark:bg-slate-900/60 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-800 cursor-not-allowed'
                   }`}
                 >
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
                     isCurrent
-                      ? 'bg-slate-950 text-amber-400'
+                      ? 'bg-white text-amber-600'
                       : isCompleted
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-zinc-800 text-zinc-400'
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                   }`}>
-                    {isCompleted ? '✓' : st.num}
+                    {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : st.num}
                   </span>
                   <span className="truncate text-[10px] sm:text-xs font-semibold">{st.title}</span>
                 </button>
@@ -465,37 +576,39 @@ function FullPageBookingContent() {
 
       {/* SUCCESS PASS MODAL OVERLAY (POST-BOOKING) */}
       {isSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fadeIn">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#121622] border-2 border-emerald-500/50 p-6 sm:p-8 shadow-2xl text-center space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-3xl bg-white dark:bg-[#11141e] border-2 border-emerald-500/50 p-6 sm:p-8 shadow-2xl text-center space-y-6">
             
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
               <CheckCircle2 className="w-9 h-9" />
             </div>
 
             <div>
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
                 Booking Confirmed & Live Pass Issued
               </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-white mt-3">
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-3">
                 Token Pass #{confirmedToken?.tokenNumber || previewTokenNumber}
               </h2>
-              <p className="text-xs text-zinc-300 mt-1">
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
                 Your appointment and live queue pass have been officially recorded in the salon database!
               </p>
             </div>
 
             {/* Token Badge Card */}
-            <div className="p-5 rounded-2xl bg-slate-950/80 border border-amber-500/30 text-left space-y-3">
-              <div className="flex items-center justify-between border-b border-[#232a3b] pb-2.5">
+            <div className="p-5 rounded-2xl bg-slate-950 border border-amber-500/40 text-left space-y-3 text-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                 <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">Confirmed Booking Pass</span>
                 <span className="text-xs font-bold text-amber-400 font-mono">Token #{confirmedToken?.tokenNumber || previewTokenNumber}</span>
               </div>
               <div className="grid grid-cols-2 gap-2.5 text-xs">
-                <div className="p-2.5 rounded-xl bg-[#121622] border border-emerald-500/30">
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-emerald-500/30">
                   <span className="text-[10px] text-emerald-400 block uppercase font-bold">Ongoing Token (Serving)</span>
-                  <span className="font-extrabold text-white text-sm font-mono mt-0.5 block">#{ongoingTokenNumber}</span>
+                  <span className="font-extrabold text-white text-sm font-mono mt-0.5 block">
+                    {hasOngoingChair && ongoingTokenNumber ? `#${ongoingTokenNumber}` : 'Chairs Open'}
+                  </span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-[#121622] border border-amber-500/30">
+                <div className="p-2.5 rounded-xl bg-slate-900 border border-amber-500/30">
                   <span className="text-[10px] text-amber-400 block uppercase font-bold">Your Booked Token</span>
                   <span className="font-extrabold text-amber-400 text-sm font-mono mt-0.5 block">#{confirmedToken?.tokenNumber || previewTokenNumber}</span>
                 </div>
@@ -523,7 +636,7 @@ function FullPageBookingContent() {
               <button
                 type="button"
                 onClick={() => router.push('/queue')}
-                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 transition-transform hover:scale-[1.02]"
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 transition-transform hover:scale-[1.02] cursor-pointer"
               >
                 <span>View Live Queue Status</span>
                 <ArrowRight className="w-4 h-4" />
@@ -531,7 +644,7 @@ function FullPageBookingContent() {
               <button
                 type="button"
                 onClick={() => router.push('/appointments')}
-                className="flex-1 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs border border-zinc-700/60 flex items-center justify-center gap-1.5"
+                className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-semibold text-xs border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>View in Appointments Tab</span>
               </button>
@@ -542,24 +655,24 @@ function FullPageBookingContent() {
       )}
 
       {/* STEP CONTENT CONTAINER */}
-      <main className="px-4 sm:px-8 lg:px-12">
-        <div className="max-w-4xl mx-auto">
+      <main className="px-4 sm:px-8 lg:px-12 mt-2">
+        <div className="max-w-5xl mx-auto">
           
           {/* ========================================================
               STEP 1: CHOOSE STYLE TYPE & CATEGORY
              ======================================================== */}
           {currentStep === 1 && (
-            <div className="p-6 sm:p-8 rounded-3xl bg-[#121622] border border-[#232a3b] shadow-xl space-y-6 animate-fadeIn">
+            <div className="p-5 sm:p-8 rounded-3xl bg-white dark:bg-[#11141e] border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 animate-in fade-in duration-200 transition-colors duration-200">
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#232a3b]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                  <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">Step 1 of 5</span>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">Choose Style Type & Category</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">Select your primary grooming focus area</p>
+                  <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Step 1 of 5</span>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">Choose Style Type & Category</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select your primary grooming focus area</p>
                 </div>
 
                 {/* Gender Filter Pills */}
-                <div className="flex items-center gap-1 bg-[#181e2b] p-1 rounded-xl border border-[#2b354b] self-start sm:self-auto">
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 self-start sm:self-auto">
                   {(['ALL', 'MALE', 'FEMALE'] as const).map(g => (
                     <button
                       key={g}
@@ -567,8 +680,8 @@ function FullPageBookingContent() {
                       onClick={() => setGenderFilter(g)}
                       className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                         genderFilter === g
-                          ? 'bg-amber-500 text-slate-950 shadow-md font-bold'
-                          : 'text-zinc-400 hover:text-white'
+                          ? 'bg-amber-500 text-white shadow-md font-bold'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       {g === 'ALL' ? 'All Genders' : g}
@@ -581,20 +694,21 @@ function FullPageBookingContent() {
               {isLoadingStyles ? (
                 <div className="p-12 text-center">
                   <div className="w-10 h-10 rounded-full border-2 border-amber-500 border-t-transparent animate-spin mx-auto mb-3" />
-                  <p className="text-xs text-zinc-400">Loading live style categories from database...</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Loading live style categories from database...</p>
                 </div>
               ) : styleTypes.length === 0 ? (
-                <div className="p-8 text-center bg-[#181e2b] rounded-2xl border border-[#283247]">
-                  <p className="text-xs text-zinc-400">No style types returned from database. Please sync again.</p>
+                <div className="p-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">No style types returned from database. Please sync again.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {styleTypes.map(st => {
                     const isSelected = selectedStyleTypeId === st.id;
-                    const categoryIcon = 
-                      st.code?.toUpperCase().includes('BEARD') ? '🧔' :
-                      st.code?.toUpperCase().includes('SPA') ? '💆' :
-                      st.code?.toUpperCase().includes('COLOR') ? '🎨' : '✂️';
+                    const c = st.code?.toUpperCase() || '';
+                    const CategoryIcon = 
+                      c.includes('BEARD') || c.includes('SHAVE') ? Sparkles :
+                      c.includes('SPA') || c.includes('TREAT') || c.includes('FACIAL') ? Heart :
+                      c.includes('COLOR') || c.includes('DYE') ? Palette : Scissors;
 
                     return (
                       <div
@@ -602,26 +716,35 @@ function FullPageBookingContent() {
                         onClick={() => setSelectedStyleTypeId(st.id)}
                         className={`p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                           isSelected
-                            ? 'bg-amber-500/15 border-amber-500 ring-2 ring-amber-500 shadow-xl shadow-amber-500/10'
-                            : 'bg-[#181e2b]/80 border-[#283247] hover:border-[#3b4966] hover:bg-[#1a2130]'
+                            ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500 ring-2 ring-amber-500/60 shadow-xl shadow-amber-500/10'
+                            : 'bg-slate-50 dark:bg-[#151926] border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-slate-100 dark:hover:bg-[#181e2e]'
                         }`}
                       >
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <span className="text-2xl">{categoryIcon}</span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/40 text-amber-400 border border-amber-500/20">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-xs">
+                              <CategoryIcon className="w-5 h-5" />
+                            </div>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200/80 dark:bg-black/40 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-bold">
                               {st.code}
                             </span>
                           </div>
-                          <h4 className="text-base font-bold text-white">{st.name}</h4>
-                          <p className="text-xs text-zinc-400 line-clamp-2">
-                            {st.description || 'Premium styling crafted for modern gentleman and couture precision.'}
-                          </p>
+                          <div>
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white">{st.name}</h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">
+                              {st.description || 'Premium styling crafted for modern precision.'}
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="pt-4 mt-4 border-t border-[#263147] flex items-center justify-between text-xs">
-                          <span className="text-[11px] text-zinc-400">Tap to select</span>
-                          {isSelected && <span className="text-amber-400 font-bold flex items-center gap-1">Selected ✓</span>}
+                        <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500">Tap to select</span>
+                          {isSelected && (
+                            <span className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Selected</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -630,12 +753,12 @@ function FullPageBookingContent() {
               )}
 
               {/* Navigation */}
-              <div className="pt-4 flex items-center justify-end border-t border-[#232a3b]">
+              <div className="pt-4 flex items-center justify-end border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(2)}
                   disabled={!selectedStyleTypeId}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
                 >
                   <span>Next: Choose Specific Style</span>
                   <ArrowRight className="w-4 h-4" />
@@ -649,20 +772,20 @@ function FullPageBookingContent() {
               STEP 2: CHOOSE SPECIFIC HAIRCUT / STYLE
              ======================================================== */}
           {currentStep === 2 && (
-            <div className="p-6 sm:p-8 rounded-3xl bg-[#121622] border border-[#232a3b] shadow-xl space-y-6 animate-fadeIn">
+            <div className="p-5 sm:p-8 rounded-3xl bg-white dark:bg-[#11141e] border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 animate-in fade-in duration-200 transition-colors duration-200">
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#232a3b]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                  <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">Step 2 of 5</span>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">
+                  <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Step 2 of 5</span>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
                     Choose Specific Haircut / Style ({filteredSpecificStyles.length})
                   </h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">Category: <strong className="text-white">{activeStyleType?.name}</strong></p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Category: <strong className="text-slate-900 dark:text-white">{activeStyleType?.name}</strong></p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}
-                  className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 self-start sm:self-auto"
+                  className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-500 font-semibold flex items-center gap-1 self-start sm:self-auto cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Change Category</span>
@@ -670,9 +793,9 @@ function FullPageBookingContent() {
               </div>
 
               {filteredSpecificStyles.length === 0 ? (
-                <div className="p-12 text-center bg-[#181e2b] rounded-2xl border border-[#283247] space-y-2">
-                  <p className="text-sm font-semibold text-white">No Specific Styles In This Category Yet</p>
-                  <p className="text-xs text-zinc-400">Try changing the category or gender filter to view available cuts.</p>
+                <div className="p-12 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">No Specific Styles In This Category Yet</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Try changing the category or gender filter to view available cuts.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -685,8 +808,8 @@ function FullPageBookingContent() {
                         onClick={() => setSelectedSpecificStyleId(style.id)}
                         className={`p-5 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
                           isSelected
-                            ? 'bg-amber-500/15 border-amber-500 ring-2 ring-amber-500 shadow-xl shadow-amber-500/10'
-                            : 'bg-[#181e2b]/80 border-[#283247] hover:border-[#3b4966] hover:bg-[#1a2130]'
+                            ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500 ring-2 ring-amber-500/60 shadow-xl shadow-amber-500/10'
+                            : 'bg-slate-50 dark:bg-[#151926] border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:bg-slate-100 dark:hover:bg-[#181e2e]'
                         }`}
                       >
                         <div className="space-y-3">
@@ -694,12 +817,12 @@ function FullPageBookingContent() {
                             <img
                               src={style.imageUrl}
                               alt={style.name}
-                              className="w-full h-32 object-cover rounded-xl border border-[#2b354b]"
+                              className="w-full h-32 object-cover rounded-xl border border-slate-200 dark:border-slate-800"
                             />
                           )}
                           <div>
-                            <h4 className="text-base font-bold text-white leading-snug">{style.name}</h4>
-                            <p className="text-xs text-zinc-400 line-clamp-2 mt-1">
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white leading-snug">{style.name}</h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">
                               {style.description || 'Precision haircut crafted by master stylists.'}
                             </p>
                           </div>
@@ -707,12 +830,12 @@ function FullPageBookingContent() {
                           {(style.suitableFaceShapes || style.suitableHairTypes) && (
                             <div className="flex flex-wrap gap-1 pt-1">
                               {style.suitableFaceShapes && (
-                                <span className="px-2 py-0.5 rounded bg-[#222a3d] text-[10px] text-zinc-300 font-medium">
+                                <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-[#222a3d] text-[10px] text-slate-700 dark:text-zinc-300 font-medium">
                                   Face: {style.suitableFaceShapes}
                                 </span>
                               )}
                               {style.suitableHairTypes && (
-                                <span className="px-2 py-0.5 rounded bg-[#222a3d] text-[10px] text-zinc-300 font-medium">
+                                <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-[#222a3d] text-[10px] text-slate-700 dark:text-zinc-300 font-medium">
                                   Hair: {style.suitableHairTypes}
                                 </span>
                               )}
@@ -720,12 +843,12 @@ function FullPageBookingContent() {
                           )}
                         </div>
 
-                        <div className="pt-4 mt-4 border-t border-[#263147] flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1 text-zinc-400 font-medium">
-                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
+                            <Clock className="w-3.5 h-3.5 text-amber-500" />
                             {style.durationMinutes}m duration
                           </span>
-                          <span className="text-base font-extrabold text-white">
+                          <span className="text-base font-black text-amber-600 dark:text-amber-400">
                             ₹{style.price}
                           </span>
                         </div>
@@ -736,11 +859,11 @@ function FullPageBookingContent() {
               )}
 
               {/* Navigation */}
-              <div className="pt-4 flex items-center justify-between border-t border-[#232a3b]">
+              <div className="pt-4 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}
-                  className="px-5 py-2.5 rounded-xl bg-[#181e2b] hover:bg-[#222b3d] text-zinc-300 text-xs font-semibold border border-[#2b354b] flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Back</span>
@@ -749,7 +872,7 @@ function FullPageBookingContent() {
                   type="button"
                   onClick={() => setCurrentStep(3)}
                   disabled={!selectedSpecificStyleId && filteredSpecificStyles.length > 0}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] cursor-pointer"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] cursor-pointer"
                 >
                   <span>Next: Select Barber</span>
                   <ArrowRight className="w-4 h-4" />
@@ -763,43 +886,45 @@ function FullPageBookingContent() {
               STEP 3: SELECT BARBER / STYLIST
              ======================================================== */}
           {currentStep === 3 && (
-            <div className="p-6 sm:p-8 rounded-3xl bg-[#121622] border border-[#232a3b] shadow-xl space-y-6 animate-fadeIn">
+            <div className="p-5 sm:p-8 rounded-3xl bg-white dark:bg-[#11141e] border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 animate-in fade-in duration-200 transition-colors duration-200">
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#232a3b]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                  <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">Step 3 of 5</span>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">Choose Barber & Schedule</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">Assign your preferred stylist or select fastest chair</p>
+                  <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Step 3 of 5</span>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">Choose Barber & Schedule</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Assign your preferred stylist or select fastest chair</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setBookingMode('WALK_IN')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       bookingMode === 'WALK_IN'
-                        ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md'
-                        : 'bg-[#181e2b] text-zinc-400 border border-[#2b354b]'
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white font-extrabold shadow-md'
+                        : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
                     }`}
                   >
-                    ⚡ Instant Walk-In
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Instant Walk-In</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setBookingMode('SCHEDULED')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       bookingMode === 'SCHEDULED'
-                        ? 'bg-amber-500 text-slate-950 font-extrabold shadow-md'
-                        : 'bg-[#181e2b] text-zinc-400 border border-[#2b354b]'
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white font-extrabold shadow-md'
+                        : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
                     }`}
                   >
-                    📅 Schedule Later
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Schedule Later</span>
                   </button>
                 </div>
               </div>
 
               {/* Barbers Roster */}
               <div className="space-y-3">
-                <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                   Available Salon Barbers
                 </label>
 
@@ -809,17 +934,17 @@ function FullPageBookingContent() {
                     onClick={() => setSelectedStaffId('any')}
                     className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center gap-3.5 ${
                       selectedStaffId === 'any'
-                        ? 'bg-amber-500/15 border-amber-500 ring-2 ring-amber-500 shadow-lg'
-                        : 'bg-[#181e2b]/80 border-[#283247] hover:border-[#3b4966]'
+                        ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500 ring-2 ring-amber-500/60 shadow-lg'
+                        : 'bg-slate-50 dark:bg-[#151926] border-slate-200 dark:border-slate-800 hover:border-amber-500/40'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xl flex-shrink-0">
-                      ⚡
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xl shrink-0">
+                      <Zap className="w-6 h-6 text-amber-500" />
                     </div>
                     <div>
-                      <h5 className="text-sm font-bold text-white">First Available Barber</h5>
-                      <p className="text-[11px] text-emerald-400 font-semibold">Fastest Chair</p>
-                      <span className="text-[10px] text-zinc-400 mt-0.5 block">Next barber who finishes</span>
+                      <h5 className="text-sm font-bold text-slate-900 dark:text-white">First Available Barber</h5>
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">Fastest Chair</p>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">Next barber who finishes</span>
                     </div>
                   </div>
 
@@ -827,13 +952,13 @@ function FullPageBookingContent() {
                   {staffMembers.map(st => {
                     const isSelected = selectedStaffId === st.id;
                     const statusColor = 
-                      st.status === 'AVAILABLE' ? 'text-emerald-400' :
-                      st.status === 'BUSY' ? 'text-amber-400' :
-                      st.status === 'BREAK' ? 'text-orange-400' : 'text-zinc-500';
+                      st.status === 'AVAILABLE' ? 'text-emerald-600 dark:text-emerald-400' :
+                      st.status === 'BUSY' ? 'text-amber-600 dark:text-amber-400' :
+                      st.status === 'BREAK' ? 'text-orange-500' : 'text-slate-400';
                     const statusDot = 
-                      st.status === 'AVAILABLE' ? 'bg-emerald-400' :
-                      st.status === 'BUSY' ? 'bg-amber-400' :
-                      st.status === 'BREAK' ? 'bg-orange-400' : 'bg-zinc-500';
+                      st.status === 'AVAILABLE' ? 'bg-emerald-500' :
+                      st.status === 'BUSY' ? 'bg-amber-500' :
+                      st.status === 'BREAK' ? 'bg-orange-500' : 'bg-slate-400';
 
                     return (
                       <div
@@ -841,29 +966,29 @@ function FullPageBookingContent() {
                         onClick={() => setSelectedStaffId(st.id)}
                         className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center gap-3.5 ${
                           isSelected
-                            ? 'bg-amber-500/15 border-amber-500 ring-2 ring-amber-500 shadow-lg'
-                            : 'bg-[#181e2b]/80 border-[#283247] hover:border-[#3b4966]'
+                            ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500 ring-2 ring-amber-500/60 shadow-lg'
+                            : 'bg-slate-50 dark:bg-[#151926] border-slate-200 dark:border-slate-800 hover:border-amber-500/40'
                         }`}
                       >
                         {st.profileImage ? (
                           <img
                             src={st.profileImage}
                             alt={st.name}
-                            className="w-12 h-12 rounded-2xl object-cover border border-[#2b354b] flex-shrink-0"
+                            className="w-12 h-12 rounded-2xl object-cover border border-slate-200 dark:border-slate-800 shrink-0"
                           />
                         ) : (
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/30 text-amber-300 border border-amber-500/40 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/30 text-amber-600 dark:text-amber-300 border border-amber-500/40 flex items-center justify-center font-bold text-sm shrink-0">
                             {st.name ? st.name.slice(0, 2).toUpperCase() : 'ST'}
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
-                          <h5 className="text-sm font-bold text-white truncate">{st.name}</h5>
-                          <p className="text-xs text-zinc-400 truncate">{st.specialization || 'Hair Stylist'}</p>
+                          <h5 className="text-sm font-bold text-slate-900 dark:text-white truncate">{st.name}</h5>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{st.specialization || 'Hair Stylist'}</p>
                           <div className={`text-[10px] font-semibold flex items-center gap-1.5 mt-1 ${statusColor}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`}></span>
                             <span>{st.status || 'AVAILABLE'}</span>
                             {st.experienceYears && (
-                              <span className="text-zinc-400 font-normal">• {st.experienceYears}y exp</span>
+                              <span className="text-slate-400 font-normal">• {st.experienceYears}y exp</span>
                             )}
                           </div>
                         </div>
@@ -875,20 +1000,20 @@ function FullPageBookingContent() {
 
               {/* Slot picker if SCHEDULED */}
               {bookingMode === 'SCHEDULED' && (
-                <div className="space-y-4 pt-4 border-t border-[#263147] animate-fadeIn">
+                <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-200">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-semibold text-zinc-300 block mb-1.5">Pick Date</label>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">Pick Date</label>
                       <input
                         type="date"
                         value={selectedDate}
                         onChange={(e) => setSelectedDate(e.target.value)}
                         min={new Date().toISOString().split('T')[0]}
-                        className="w-full py-2.5 px-3.5 rounded-xl bg-[#181e2b] border border-[#2b354b] text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
+                        className="w-full py-2.5 px-3.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-zinc-300 block mb-1.5">Selected Time Slot</label>
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">Selected Time Slot</label>
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
                         {TIME_SLOTS.map(t => (
                           <button
@@ -897,8 +1022,8 @@ function FullPageBookingContent() {
                             onClick={() => setSelectedTime(t)}
                             className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
                               selectedTime === t
-                                ? 'bg-amber-500 text-slate-950 font-bold border-amber-400'
-                                : 'bg-[#181e2b] text-zinc-400 border-[#283247] hover:text-white'
+                                ? 'bg-amber-500 text-white font-bold border-amber-500 shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-white'
                             }`}
                           >
                             {t}
@@ -911,11 +1036,11 @@ function FullPageBookingContent() {
               )}
 
               {/* Navigation */}
-              <div className="pt-4 flex items-center justify-between border-t border-[#232a3b]">
+              <div className="pt-4 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(2)}
-                  className="px-5 py-2.5 rounded-xl bg-[#181e2b] hover:bg-[#222b3d] text-zinc-300 text-xs font-semibold border border-[#2b354b] flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Back</span>
@@ -923,7 +1048,7 @@ function FullPageBookingContent() {
                 <button
                   type="button"
                   onClick={() => setCurrentStep(4)}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] cursor-pointer"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] cursor-pointer"
                 >
                   <span>Next: Preview Live Token Pass</span>
                   <ArrowRight className="w-4 h-4" />
@@ -937,41 +1062,64 @@ function FullPageBookingContent() {
               STEP 4: LIVE TOKEN SCREEN & QUEUE PASS PREVIEW
              ======================================================== */}
           {currentStep === 4 && (
-            <div className="p-6 sm:p-8 rounded-3xl bg-[#121622] border border-[#232a3b] shadow-xl space-y-6 animate-fadeIn">
+            <div className="p-5 sm:p-8 rounded-3xl bg-white dark:bg-[#11141e] border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 animate-in fade-in duration-200 transition-colors duration-200">
               
-              <div className="pb-4 border-b border-[#232a3b]">
-                <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">Step 4 of 5</span>
-                <h2 className="text-xl sm:text-2xl font-bold text-white">Your Live Queue Token Screen</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">
+              <div className="pb-4 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Step 4 of 5</span>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">Your Live Queue Token Screen</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Review your digital queue pass and estimated chair time before checkout
                 </p>
               </div>
 
-              {/* Gold Visual Token Card */}
-              <div className="rounded-3xl bg-gradient-to-br from-[#1a2130] via-[#121622] to-slate-950 p-6 sm:p-8 border-2 border-amber-500/40 shadow-2xl relative overflow-hidden space-y-6">
-                <div className="absolute -top-16 -right-16 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+              {/* Theme Responsive Visual Token Card */}
+              <div className="rounded-3xl bg-white dark:bg-gradient-to-br dark:from-slate-900 dark:via-[#121622] dark:to-slate-950 p-6 sm:p-8 border-2 border-amber-500/40 shadow-2xl relative overflow-hidden space-y-6 text-slate-900 dark:text-white transition-colors duration-200">
+                <div className="absolute -top-16 -right-16 w-48 h-48 bg-amber-500/10 dark:bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
 
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-6 border-b border-amber-500/20">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-amber-500/20">
                   <div className="space-y-1 text-center sm:text-left">
-                    <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      LIVE DIGITAL PASS PREVIEW
-                    </span>
-                    <h3 className="text-2xl font-extrabold text-white mt-2">{activeSpecificStyle?.name}</h3>
-                    <p className="text-xs text-zinc-400">
-                      Salon: <strong className="text-white">{salonDetails.name || 'Salon'}</strong> • {salonDetails.area || 'Verified Studio'}
+                    <div className="flex items-center gap-2 justify-center sm:justify-start">
+                      <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                        LIVE DIGITAL PASS PREVIEW
+                      </span>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-mono ${
+                        isWsConnected 
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${isWsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-ping'}`} />
+                        <span>{isWsConnected ? 'WebSocket Live' : 'Connecting to Live Queue...'}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleManualSyncQueue}
+                        disabled={isSyncing}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-white text-[10px] font-mono transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                        title="Sync latest live queue state"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-amber-500' : 'text-slate-400 dark:text-zinc-400'}`} />
+                        <span>{isSyncing ? 'Syncing...' : 'Sync'}</span>
+                      </button>
+                    </div>
+                    <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2">{activeSpecificStyle?.name}</h3>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400">
+                      Salon: <strong className="text-slate-900 dark:text-white">{salonDetails.name || 'Salon'}</strong> • {salonDetails.area || 'Verified Studio'}
                     </p>
-                    <p className="text-xs text-zinc-400">
-                      Barber: <strong className="text-emerald-400">{activeStaff ? activeStaff.name : 'First Available Barber'}</strong>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400">
+                      Barber: <strong className="text-emerald-600 dark:text-emerald-400">{activeStaff ? activeStaff.name : 'First Available Barber'}</strong>
                     </p>
                   </div>
 
                   {/* Next Available Token Badge */}
-                  <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-slate-950 border-2 border-amber-500/50 min-w-[170px] shadow-lg shadow-amber-500/20 text-center">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-extrabold">NEXT AVAILABLE TOKEN</span>
-                    <span className="text-4xl font-extrabold text-white tracking-tight mt-1 font-mono">
+                  <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border-2 border-amber-500/50 min-w-[170px] shadow-lg shadow-amber-500/15 text-center relative group">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-amber-600 dark:text-amber-400 font-extrabold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      NEXT AVAILABLE TOKEN
+                    </span>
+                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1 font-mono">
                       #{previewTokenNumber}
                     </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 uppercase">
                       Will Be Issued To You
                     </span>
                   </div>
@@ -979,49 +1127,51 @@ function FullPageBookingContent() {
 
                 {/* Grid Metrics with explicit clear naming */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/40">
-                    <span className="text-[10px] text-emerald-400 uppercase tracking-wider font-bold block">Ongoing Token</span>
-                    <span className="text-2xl font-extrabold text-white font-mono mt-0.5 block">
-                      #{ongoingTokenNumber}
+                  <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-slate-950/80 border border-emerald-500/30 dark:border-emerald-500/40">
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400 uppercase tracking-wider font-bold block">Ongoing Token</span>
+                    <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono mt-0.5 block">
+                      {hasOngoingChair ? `#${ongoingTokenNumber}` : 'Chairs Open'}
                     </span>
-                    <span className="text-[11px] text-emerald-300">Currently in chair</span>
+                    <span className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                      {hasOngoingChair ? 'Currently in chair' : 'Ready for immediate seating'}
+                    </span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-amber-500/40">
-                    <span className="text-[10px] text-amber-400 uppercase tracking-wider font-bold block">Next Available Token</span>
-                    <span className="text-2xl font-extrabold text-amber-400 font-mono mt-0.5 block">
+                  <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-slate-950/80 border border-amber-500/30 dark:border-amber-500/40">
+                    <span className="text-[10px] text-amber-700 dark:text-amber-400 uppercase tracking-wider font-bold block">Next Available Token</span>
+                    <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 font-mono mt-0.5 block">
                       #{previewTokenNumber}
                     </span>
-                    <span className="text-[11px] text-amber-200">Your pass upon booking</span>
+                    <span className="text-[11px] text-amber-800 dark:text-amber-200">Your pass upon booking</span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-950/70 border border-[#232a3b]">
-                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Estimated Wait</span>
-                    <span className="text-2xl font-extrabold text-white font-mono mt-0.5 block">
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider block font-bold">Estimated Wait</span>
+                    <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono mt-0.5 block">
                       ~{previewEstimatedWait}
                     </span>
-                    <span className="text-[11px] text-zinc-400">{previewGuestsAhead} waiting ahead</span>
+                    <span className="text-[11px] text-slate-500 dark:text-zinc-400">{previewGuestsAhead} waiting ahead</span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-950/70 border border-[#232a3b]">
-                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider block">Station Assigned</span>
-                    <span className="text-lg font-bold text-white mt-1 block">Station #1</span>
-                    <span className="text-[11px] text-zinc-400">Front Chair</span>
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-500 dark:text-zinc-400 uppercase tracking-wider block font-bold">Station Assigned</span>
+                    <span className="text-lg font-bold text-slate-900 dark:text-white mt-1 block">Station #1</span>
+                    <span className="text-[11px] text-slate-500 dark:text-zinc-400">Front Chair</span>
                   </div>
                 </div>
 
                 {/* QR Check-In Instruction */}
                 <div className="pt-2 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-white text-slate-950 shadow">
-                      <QrCode className="w-10 h-10" />
+                    <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-white text-slate-900 dark:text-slate-950 shadow border border-slate-200 dark:border-slate-800">
+                      <QrCode className="w-9 h-9" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-white">Digital Check-In QR</p>
-                      <p className="text-[11px] text-zinc-400">Will be activated immediately upon checkout</p>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">Digital Check-In QR</p>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">Will be activated immediately upon checkout</p>
                     </div>
                   </div>
-                  <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                     <ShieldCheck className="w-4 h-4" />
                     <span>Verified Pass</span>
                   </span>
@@ -1030,11 +1180,11 @@ function FullPageBookingContent() {
               </div>
 
               {/* Navigation */}
-              <div className="pt-4 flex items-center justify-between border-t border-[#232a3b]">
+              <div className="pt-4 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(3)}
-                  className="px-5 py-2.5 rounded-xl bg-[#181e2b] hover:bg-[#222b3d] text-zinc-300 text-xs font-semibold border border-[#2b354b] flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Back</span>
@@ -1042,7 +1192,7 @@ function FullPageBookingContent() {
                 <button
                   type="button"
                   onClick={() => setCurrentStep(5)}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] cursor-pointer"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] cursor-pointer"
                 >
                   <span>Next: Payment Summary & Confirm</span>
                   <ArrowRight className="w-4 h-4" />
@@ -1056,14 +1206,14 @@ function FullPageBookingContent() {
               STEP 5: FINAL PAYMENT SUMMARY & PAY NOW
              ======================================================== */}
           {currentStep === 5 && (
-            <form onSubmit={handleConfirmBookingAndPay} className="space-y-6 animate-fadeIn">
+            <form onSubmit={handleConfirmBookingAndPay} className="space-y-6 animate-in fade-in duration-200">
               
-              <div className="p-6 sm:p-8 rounded-3xl bg-[#121622] border border-[#232a3b] shadow-xl space-y-6">
+              <div className="p-5 sm:p-8 rounded-3xl bg-white dark:bg-[#11141e] border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 transition-colors duration-200">
                 
-                <div className="pb-4 border-b border-[#232a3b]">
-                  <span className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">Step 5 of 5</span>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">Payment Summary & Checkout</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">
+                <div className="pb-4 border-b border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">Step 5 of 5</span>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">Payment Summary & Checkout</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Review your order and select your payment method
                   </p>
                 </div>
@@ -1074,36 +1224,37 @@ function FullPageBookingContent() {
                   <div className="space-y-5">
                     
                     {/* Customer Info */}
-                    <div className="p-4 rounded-2xl bg-[#181e2b] border border-[#283247] space-y-3">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider block">Customer Details</span>
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#151926] border border-slate-200 dark:border-slate-800 space-y-3">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">Customer Details</span>
                       {user ? (
-                        <div className="text-xs space-y-1">
-                          <p className="text-zinc-200">Logged in as: <strong>{user.name}</strong></p>
-                          <p className="text-zinc-400">Phone: {user.phone || 'Saved on file'}</p>
-                          <p className="text-zinc-400">Email: {user.email}</p>
+                        <div className="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+                          <p>Logged in as: <strong className="text-slate-900 dark:text-white">{user.name}</strong></p>
+                          <p className="text-slate-500 dark:text-slate-400">Phone: {user.phone || 'Saved on file'}</p>
+                          <p className="text-slate-500 dark:text-slate-400">Email: {user.email}</p>
                         </div>
                       ) : (
                         <div className="space-y-2.5">
                           <div>
-                            <label className="text-[11px] text-zinc-400 block mb-1">Your Full Name</label>
+                            <label className="text-[11px] text-slate-600 dark:text-slate-400 block mb-1">Your Full Name</label>
                             <input
                               type="text"
                               value={guestName}
                               onChange={(e) => setGuestName(e.target.value)}
                               placeholder="e.g. Rahul Sharma"
                               required
-                              className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-[#2b354b] text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                              className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
                             />
                           </div>
                           <div>
-                            <label className="text-[11px] text-zinc-400 block mb-1">Mobile Number (for SMS & WhatsApp Pass)</label>
+                            <label className="text-[11px] text-slate-600 dark:text-slate-400 block mb-1">Mobile Number (10 Digits)</label>
                             <input
                               type="tel"
                               value={guestPhone}
-                              onChange={(e) => setGuestPhone(e.target.value)}
+                              onChange={(e) => setGuestPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                               placeholder="e.g. 9876543210"
                               required
-                              className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-[#2b354b] text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                              maxLength={10}
+                              className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-base sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
                             />
                           </div>
                         </div>
@@ -1112,7 +1263,7 @@ function FullPageBookingContent() {
 
                     {/* Payment Method Selector */}
                     <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                         Choose Payment Method
                       </label>
 
@@ -1131,25 +1282,25 @@ function FullPageBookingContent() {
                               onClick={() => setPaymentMethod(m.id as any)}
                               className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
                                 isSelected
-                                  ? 'bg-amber-500/15 border-amber-500 ring-1 ring-amber-500 shadow-md'
-                                  : 'bg-[#181e2b]/80 border-[#283247] hover:border-[#3b4966]'
+                                  ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500 ring-1 ring-amber-500 shadow-md'
+                                  : 'bg-slate-50 dark:bg-[#151926] border-slate-200 dark:border-slate-800 hover:border-amber-500/40'
                               }`}
                             >
                               <div className="flex items-center gap-3">
                                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                                  isSelected ? 'bg-amber-500 text-slate-950' : 'bg-slate-950 text-zinc-400'
+                                  isSelected ? 'bg-amber-500 text-white' : 'bg-slate-200 dark:bg-slate-900 text-slate-500 dark:text-slate-400'
                                 }`}>
                                   <IconComp className="w-5 h-5" />
                                 </div>
                                 <div>
-                                  <h6 className="text-xs font-bold text-white">{m.label}</h6>
-                                  <p className="text-[11px] text-zinc-400">{m.desc}</p>
+                                  <h6 className="text-xs font-bold text-slate-900 dark:text-white">{m.label}</h6>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{m.desc}</p>
                                 </div>
                               </div>
                               <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                isSelected ? 'border-amber-400 bg-amber-400' : 'border-zinc-600'
+                                isSelected ? 'border-amber-500 bg-amber-500' : 'border-slate-400 dark:border-slate-600'
                               }`}>
-                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                               </div>
                             </div>
                           );
@@ -1160,9 +1311,9 @@ function FullPageBookingContent() {
                   </div>
 
                   {/* Right Column: Itemized Receipt Summary */}
-                  <div className="p-5 rounded-2xl bg-slate-950 border border-[#283247] flex flex-col justify-between space-y-4">
+                  <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 text-white flex flex-col justify-between space-y-4 shadow-xl">
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between border-b border-[#232a3b] pb-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                         <span className="text-xs font-bold text-white uppercase tracking-wider">Order Receipt</span>
                         <div className="text-right">
                           <span className="text-[10px] text-zinc-400 block uppercase font-medium">Next Available Token</span>
@@ -1177,7 +1328,9 @@ function FullPageBookingContent() {
                         </div>
                         <div className="flex items-center justify-between text-zinc-300">
                           <span>Ongoing Token (In Chair):</span>
-                          <strong className="text-emerald-400 font-mono">Token #{ongoingTokenNumber}</strong>
+                          <strong className="text-emerald-400 font-mono">
+                            {hasOngoingChair ? `Token #${ongoingTokenNumber}` : 'Chairs Open'}
+                          </strong>
                         </div>
                         <div className="flex items-center justify-between text-zinc-300">
                           <span>Your Next Available Token:</span>
@@ -1197,7 +1350,7 @@ function FullPageBookingContent() {
                         </div>
                       </div>
 
-                      <div className="border-t border-[#232a3b] pt-3 space-y-1.5 text-xs">
+                      <div className="border-t border-slate-800 pt-3 space-y-1.5 text-xs">
                         <div className="flex items-center justify-between text-zinc-400">
                           <span>Service Charge</span>
                           <span className="text-white font-mono">₹{activeSpecificStyle?.price || 0}.00</span>
@@ -1221,7 +1374,7 @@ function FullPageBookingContent() {
                     </div>
 
                     <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-200 leading-relaxed flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
                       <span>Zero cancellation fees before seating. Official verified appointment ticket.</span>
                     </div>
 
@@ -1230,11 +1383,11 @@ function FullPageBookingContent() {
                 </div>
 
                 {/* Form Footer Action */}
-                <div className="pt-4 flex items-center justify-between border-t border-[#232a3b]">
+                <div className="pt-4 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() => setCurrentStep(4)}
-                    className="px-5 py-2.5 rounded-xl bg-[#181e2b] hover:bg-[#222b3d] text-zinc-300 text-xs font-semibold border border-[#2b354b] flex items-center gap-1.5 cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 cursor-pointer"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>Back to Token Screen</span>
@@ -1243,7 +1396,7 @@ function FullPageBookingContent() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-xl shadow-amber-500/25 transition-transform hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
+                    className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white font-black text-sm flex items-center gap-2 shadow-xl shadow-amber-500/25 transition-transform hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>{isSubmitting ? 'Confirming Booking...' : 'Book & Pay Now'}</span>
@@ -1265,7 +1418,7 @@ function FullPageBookingContent() {
 export default function FullPageBooking() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0d1017] flex items-center justify-center text-zinc-400 text-xs">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#080a0f] flex items-center justify-center text-slate-500 dark:text-slate-400 text-xs">
         Loading booking concierge...
       </div>
     }>

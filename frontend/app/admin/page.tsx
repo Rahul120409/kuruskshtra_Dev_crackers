@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import BrandLogo from "@/components/BrandLogo";
 import {
   LayoutDashboard,
   MapPin,
@@ -1801,12 +1802,10 @@ export default function AdminPortal() {
       <header className="h-14 bg-[#0d1017] border-b border-[#1f2533] px-4 flex items-center justify-between z-30 shrink-0">
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-2 pr-3 border-r border-[#232a3b]">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-600 p-0.5 flex items-center justify-center">
-              <div className="w-full h-full bg-[#0d1017] rounded-[6px] flex items-center justify-center">
-                <Scissors className="w-3.5 h-3.5 text-amber-400" />
-              </div>
-            </div>
-            <span className="font-bold text-white tracking-tight">SalonFlow AI</span>
+            <BrandLogo size="sm" variant="compact" asLink href="/admin" />
+            <span className="bg-amber-500/10 text-amber-400 text-[10px] font-mono px-1.5 py-0.5 rounded border border-amber-500/20 font-bold">
+              PORTAL
+            </span>
           </div>
 
           <div className="flex items-center gap-2 text-zinc-400 font-medium">

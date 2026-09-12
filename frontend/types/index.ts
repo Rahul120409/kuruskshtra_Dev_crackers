@@ -155,7 +155,9 @@ export type NotificationType =
   | 'POSITION_UPDATE' 
   | 'TURN_APPROACHING' 
   | 'TURN_CALLED' 
-  | 'COMPLETED';
+  | 'COMPLETED'
+  | 'APPOINTMENT_REMINDER'
+  | 'SYSTEM_PROMO';
 
 export interface Notification {
   id: string;

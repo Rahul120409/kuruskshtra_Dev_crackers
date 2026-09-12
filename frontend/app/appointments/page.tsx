@@ -602,12 +602,12 @@ export default function AppointmentsPage() {
                   })}
                 </div>
 
-                <span className="text-xs font-bold text-amber-300">
-                  {(ratingHover || ratingScore) === 5 && '🌟 Exceptional - 5.0 Stars!'}
-                  {(ratingHover || ratingScore) === 4 && '✨ Very Good - 4.0 Stars'}
-                  {(ratingHover || ratingScore) === 3 && '👍 Good Service - 3.0 Stars'}
-                  {(ratingHover || ratingScore) === 2 && '😐 Could Be Better - 2.0 Stars'}
-                  {(ratingHover || ratingScore) === 1 && '👎 Poor Experience - 1.0 Star'}
+                <span className="text-xs font-bold text-amber-400">
+                  {(ratingHover || ratingScore) === 5 && 'Exceptional • 5.0 Stars'}
+                  {(ratingHover || ratingScore) === 4 && 'Very Good • 4.0 Stars'}
+                  {(ratingHover || ratingScore) === 3 && 'Good Service • 3.0 Stars'}
+                  {(ratingHover || ratingScore) === 2 && 'Fair • 2.0 Stars'}
+                  {(ratingHover || ratingScore) === 1 && 'Needs Improvement • 1.0 Star'}
                 </span>
               </div>
 

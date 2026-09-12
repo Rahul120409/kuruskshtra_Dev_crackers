@@ -51,6 +51,14 @@ public class UserService {
             user.setName(request.getName().trim());
         }
 
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty() && !request.getEmail().trim().equalsIgnoreCase(user.getEmail())) {
+            Optional<User> existingEmail = userRepository.findByEmail(request.getEmail().trim().toLowerCase());
+            if (existingEmail.isPresent() && !existingEmail.get().getId().equals(user.getId())) {
+                throw new IllegalArgumentException("Email address already in use: " + request.getEmail());
+            }
+            user.setEmail(request.getEmail().trim().toLowerCase());
+        }
+
         String effectivePhone = request.getEffectivePhone();
         if (effectivePhone != null && !effectivePhone.equals(user.getPhone())) {
             Optional<User> existing = userRepository.findByPhone(effectivePhone);

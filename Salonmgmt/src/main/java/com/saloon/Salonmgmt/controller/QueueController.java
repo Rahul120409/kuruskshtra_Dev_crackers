@@ -5,6 +5,7 @@ import com.saloon.Salonmgmt.dto.JoinQueueRequest;
 import com.saloon.Salonmgmt.dto.LiveQueueBoardResponse;
 import com.saloon.Salonmgmt.dto.QueueTokenResponse;
 import com.saloon.Salonmgmt.service.QueueService;
+import com.saloon.Salonmgmt.service.WhatsAppNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class QueueController {
 
     private final QueueService queueService;
+    private final WhatsAppNotificationService whatsAppNotificationService;
 
     @PostMapping("/join")
     public ResponseEntity<ApiResponse<QueueTokenResponse>> joinQueue(@RequestBody JoinQueueRequest request) {
@@ -116,5 +118,30 @@ public class QueueController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to cancel token: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/{tokenId}/notify")
+    public ResponseEntity<ApiResponse<String>> notifyCustomer(
+            @PathVariable UUID tokenId,
+            @RequestParam(required = false) String message) {
+        try {
+            queueService.notifyTokenCustomer(tokenId, message);
+            return ResponseEntity.ok(ApiResponse.ok("WhatsApp notification sent to customer", "Delivered"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to send WhatsApp alert: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/test-whatsapp")
+    public ResponseEntity<ApiResponse<String>> testWhatsAppDirect(
+            @RequestParam String phone,
+            @RequestParam(required = false) String apiKey,
+            @RequestParam(required = false, defaultValue = "✂️ Test alert from LuxeTrim Salon backend: Your chair is ready!") String message) {
+        String result = whatsAppNotificationService.sendTestWhatsApp(phone, apiKey, message);
+        return ResponseEntity.ok(ApiResponse.ok("CallMeBot test request executed", result));
     }
 }

@@ -2,15 +2,15 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Play, 
-  RotateCcw, 
-  FastForward, 
-  Sparkles, 
-  CheckCircle2, 
-  Clock, 
-  Users, 
-  X, 
+import {
+  Play,
+  RotateCcw,
+  FastForward,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  Users,
+  X,
   MessageSquareHeart,
   Server
 } from 'lucide-react';
@@ -56,9 +56,9 @@ export const DemoControlDrawer: React.FC<DemoControlDrawerProps> = ({ isOpen, on
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-        onClick={onClose} 
+        onClick={onClose}
       />
 
       {/* Panel */}
@@ -73,7 +73,7 @@ export const DemoControlDrawer: React.FC<DemoControlDrawerProps> = ({ isOpen, on
               <p className="text-xs text-zinc-400">Section 20 LLD Demo Flow Runner</p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
           >
@@ -140,8 +140,12 @@ export const DemoControlDrawer: React.FC<DemoControlDrawerProps> = ({ isOpen, on
                 2
               </div>
               <div>
-                <p className="text-sm font-semibold text-white group-hover:text-amber-300">View Token #108 in Live Queue</p>
-                <p className="text-xs text-zinc-400">Position 4 • 24 mins estimated wait</p>
+                <p className="text-sm font-semibold text-white group-hover:text-amber-300">
+                  {activeToken ? `View Your Token #${activeToken.tokenNumber} in Live Queue` : 'View Live Queue Status'}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {activeToken ? `Position ${activeToken.position} • ~${activeToken.estimatedWait} mins estimated wait` : 'Monitor live salon rotation'}
+                </p>
               </div>
             </div>
             <Clock className="w-4 h-4 text-amber-400 opacity-70 group-hover:opacity-100" />
@@ -199,7 +203,9 @@ export const DemoControlDrawer: React.FC<DemoControlDrawerProps> = ({ isOpen, on
             <Server className="w-3.5 h-3.5 text-zinc-500" />
             Target Backend:
           </span>
-          <span className="font-mono text-zinc-300">192.168.137.199:8080</span>
+          <span className="font-mono text-zinc-300">
+            {(process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8081').replace(/^https?:\/\//, '')}
+          </span>
         </div>
       </div>
     </div>

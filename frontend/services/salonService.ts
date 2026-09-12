@@ -1,4 +1,5 @@
 import { Salon } from '../types';
+import { getApiBaseUrl } from './apiConfig';
 
 export interface CreateSalonRequest {
   salonName: string;
@@ -33,7 +34,7 @@ export interface BackendSalonResponse {
   createdAt: string;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8081';
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
 function formatTimeString(timeStr?: string): string {
   if (!timeStr) return '09:00 AM';
@@ -79,6 +80,7 @@ function extractAreaFromAddress(address: string): string {
 }
 
 function mapBackendSalonToFrontend(item: BackendSalonResponse): Salon {
+  const anyItem = item as any;
   return {
     id: item.id,
     name: item.salonName,
@@ -86,19 +88,19 @@ function mapBackendSalonToFrontend(item: BackendSalonResponse): Salon {
     phone: item.phoneNumber,
     email: item.email,
     address: item.salonAddress,
-    city: item.city || 'Pune',
+    city: item.city || '',
     pincode: item.pincode,
     area: extractAreaFromAddress(item.salonAddress),
-    imageUrl: item.salonLogo || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500',
-    salonDescription: item.salonDescription,
+    imageUrl: item.salonLogo || '',
+    salonDescription: item.salonDescription || '',
     locationLink: item.locationLink || undefined,
     openingTime: formatTimeString(item.openingTime),
     closingTime: formatTimeString(item.closingTime),
     status: item.status === 'ACTIVE' || item.status === 'OPEN' ? 'OPEN' : 'CLOSED',
-    rating: 4.9,
-    reviewCount: 148,
-    currentWaitMinutes: 18,
-    totalWaiting: 3,
+    rating: typeof anyItem.rating === 'number' ? anyItem.rating : (anyItem.rating ? Number(anyItem.rating) : undefined),
+    reviewCount: typeof anyItem.reviewCount === 'number' ? anyItem.reviewCount : (anyItem.reviewCount ? Number(anyItem.reviewCount) : undefined),
+    currentWaitMinutes: typeof anyItem.currentWaitMinutes === 'number' ? anyItem.currentWaitMinutes : (anyItem.waitMinutes ? Number(anyItem.waitMinutes) : 0),
+    totalWaiting: typeof anyItem.totalWaiting === 'number' ? anyItem.totalWaiting : (anyItem.queueCount ? Number(anyItem.queueCount) : 0),
     createdAt: item.createdAt,
   };
 }
@@ -136,21 +138,23 @@ function storeSalonsLocally(salons: Salon[]) {
 }
 
 async function fetchApi(endpoint: string, options?: RequestInit): Promise<Response> {
-  // In the browser, try relative path first to utilize the Next.js server proxy (zero CORS, zero PNA)
+  const base = getApiBaseUrl();
   const candidateUrls: string[] = [];
   if (typeof window !== 'undefined') {
     candidateUrls.push(''); // Relative URL e.g. /api/salons
   }
-
+  if (base) {
+    candidateUrls.push(base);
+  }
+  if (BASE_URL) {
+    candidateUrls.push(BASE_URL);
+  }
   candidateUrls.push(
-    BASE_URL,
-    'http://192.168.137.199:8081',
     'http://localhost:8081',
-    'http://127.0.0.1:8081',
-    'http://192.168.137.162:8081'
+    'http://127.0.0.1:8081'
   );
 
-  const uniqueCandidates = Array.from(new Set(candidateUrls));
+  const uniqueCandidates = Array.from(new Set(candidateUrls.filter((u) => u !== undefined && u !== null)));
   let lastError: any = null;
 
   for (const host of uniqueCandidates) {
@@ -194,7 +198,7 @@ class SalonService {
         if (rawList) {
           const liveSalons = rawList.map(mapBackendSalonToFrontend);
           console.log(`✅ [salonService: getSalons] Successfully fetched ${liveSalons.length} salons from DB:`, liveSalons);
-          
+
           // Merge with any locally registered salons by user
           const localSalons = getStoredSalons();
           const liveIds = new Set(liveSalons.map((s: Salon) => s.id));
@@ -245,7 +249,7 @@ class SalonService {
       if ((res.ok || res.status === 201) && rawItem) {
         const mapped = mapBackendSalonToFrontend(rawItem);
         console.log("✅ [salonService: createSalon] SALON DATA SAVED SUCCESSFULLY IN DB:", mapped);
-        
+
         // Save to locally registered salons
         if (typeof window !== 'undefined') {
           try {

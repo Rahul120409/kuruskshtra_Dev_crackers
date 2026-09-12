@@ -32,8 +32,8 @@ export default function FeedbackPage() {
   const [overallRating, setOverallRating] = useState<number>(5);
   const [waitRating, setWaitRating] = useState<number>(5);
   const [serviceRating, setServiceRating] = useState<number>(5);
-  const [selectedTags, setSelectedTags] = useState<string[]>(['Accurate Wait Time', 'Spot-on AI Match']);
-  const [comment, setComment] = useState<string>('Loved the textured crop! The AI recommended style matched my face shape perfectly and the wait was right on time.');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [comment, setComment] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
 
@@ -51,8 +51,8 @@ export default function FeedbackPage() {
 
     try {
       await customerService.submitFeedback({
-        customerId: user?.id || 'usr-customer-001',
-        tokenId: activeToken?.tokenId || 'tok-108',
+        customerId: user?.id || '',
+        tokenId: activeToken?.tokenId || '',
         rating: overallRating,
         waitingRating: waitRating,
         serviceRating: serviceRating,

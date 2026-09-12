@@ -22,7 +22,9 @@ export const Footer: React.FC = () => {
           <span>•</span>
           <span>Customer Experience</span>
           <span>•</span>
-          <span className="font-mono text-[11px] text-amber-500/90">API: 192.168.137.199:8081</span>
+          <span className="font-mono text-[11px] text-amber-500/90">
+            API: {(process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081').replace(/^https?:\/\//, '')}
+          </span>
         </div>
       </div>
     </footer>

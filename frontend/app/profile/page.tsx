@@ -23,7 +23,6 @@ import {
   BookmarkCheck
 } from 'lucide-react';
 import { useCustomer } from '../../context/CustomerContext';
-import { DEMO_HAIRSTYLES } from '../../services/mockData';
 
 const AVATAR_PRESETS = [
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
@@ -56,11 +55,11 @@ export default function ProfilePage() {
     name: user?.name || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    dob: user?.dob || '1998-05-14',
-    gender: user?.gender || 'Male',
-    preferredArea: user?.preferredArea || 'Koregaon Park',
-    hairNotes: user?.hairNotes || 'Medium fade on sides, textured scissor crop on top',
-    profileImage: user?.profileImage || AVATAR_PRESETS[0],
+    dob: user?.dob || '',
+    gender: user?.gender || '',
+    preferredArea: user?.preferredArea || '',
+    hairNotes: user?.hairNotes || '',
+    profileImage: user?.profileImage || '',
   });
 
   const handleStartEdit = () => {
@@ -69,11 +68,11 @@ export default function ProfilePage() {
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
-        dob: user.dob || '1998-05-14',
-        gender: user.gender || 'Male',
-        preferredArea: user.preferredArea || 'Koregaon Park',
-        hairNotes: user.hairNotes || 'Medium fade on sides, textured crop on top',
-        profileImage: user.profileImage || AVATAR_PRESETS[0],
+        dob: user.dob || '',
+        gender: user.gender || '',
+        preferredArea: user.preferredArea || '',
+        hairNotes: user.hairNotes || '',
+        profileImage: user.profileImage || '',
       });
     }
     setIsEditing(true);
@@ -105,26 +104,7 @@ export default function ProfilePage() {
     }
   };
 
-  const pastVisits = [
-    {
-      id: 'visit-01',
-      date: '24 Aug 2026',
-      service: 'Precision Signature Haircut',
-      stylist: 'Vikram Joshi',
-      price: 499,
-      status: 'COMPLETED',
-      hairstyle: 'Textured Crop (HS01)',
-    },
-    {
-      id: 'visit-02',
-      date: '12 Jul 2026',
-      service: 'Royal Beard Sculpt & Hot Towel',
-      stylist: 'Karan Malhotra',
-      price: 349,
-      status: 'COMPLETED',
-      hairstyle: 'Beard Sculpt & Fade',
-    },
-  ];
+  const completedVisits = appointments.filter((a) => a.status === 'COMPLETED');
 
   if (!user) {
     return (
@@ -215,7 +195,7 @@ export default function ProfilePage() {
                     </span>
                   )}
                   <span className="px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-bold">
-                    ★ 2 Pune Visits
+                    ★ {completedVisits.length} Visits Completed
                   </span>
                 </div>
 
@@ -466,37 +446,19 @@ export default function ProfilePage() {
             <span>Saved AI Hairstyle Matches</span>
           </h2>
           <Link href="/ai-recommend" className="text-xs text-indigo-400 hover:underline">
-            Retake Scan
+            Scan &amp; Discover
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {DEMO_HAIRSTYLES.slice(0, 2).map((style) => (
-            <div
-              key={style.id}
-              className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-3">
-                <img
-                  src={style.imageUrl}
-                  alt={style.name}
-                  className="w-14 h-14 rounded-xl object-cover border border-slate-800"
-                />
-                <div>
-                  <span className="text-[10px] font-mono text-indigo-400 font-bold">[{style.id}] 95% Match</span>
-                  <h3 className="text-sm font-bold text-white">{style.name}</h3>
-                  <p className="text-[11px] text-slate-400 line-clamp-1">{style.description}</p>
-                </div>
-              </div>
-              <Link
-                href={`/appointments`}
-                className="p-2 rounded-lg bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-300 text-xs font-semibold transition-colors"
-                title="Book this style"
-              >
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          ))}
+        <div className="p-6 rounded-2xl bg-slate-900/50 border border-slate-800 text-center">
+          <p className="text-xs text-slate-400">No saved AI hairstyles yet.</p>
+          <Link
+            href="/ai-recommend"
+            className="inline-flex items-center gap-1.5 mt-2 text-xs text-indigo-400 font-semibold hover:underline"
+          >
+            <span>Launch AI Face Consultation</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
       </div>
 
@@ -504,39 +466,45 @@ export default function ProfilePage() {
       <div className="space-y-4">
         <h2 className="text-base font-bold text-white flex items-center gap-2">
           <History className="w-4 h-4 text-indigo-400" />
-          <span>Past Visits & Receipts</span>
+          <span>Past Visits &amp; Receipts</span>
         </h2>
 
-        <div className="space-y-3">
-          {pastVisits.map((visit) => (
-            <div
-              key={visit.id}
-              className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-white">{visit.service}</span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
-                    {visit.status}
-                  </span>
+        {completedVisits.length === 0 ? (
+          <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 text-center">
+            <p className="text-xs text-slate-400">No completed salon visits yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {completedVisits.map((visit) => (
+              <div
+                key={visit.id}
+                className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white">{visit.serviceName}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                      {visit.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Salon: <span className="text-slate-200">{visit.salonName}</span> • Stylist: {visit.staffName || 'Stylist'} • {visit.appointmentDate}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Stylist: <span className="text-slate-200">{visit.stylist}</span> • Style: {visit.hairstyle} • {visit.date}
-                </p>
-              </div>
 
-              <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4">
-                <span className="text-sm font-mono font-bold text-indigo-300">₹{visit.price}</span>
-                <Link
-                  href="/feedback"
-                  className="text-xs font-semibold text-slate-400 hover:text-indigo-400 transition-colors"
-                >
-                  View Review
-                </Link>
+                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4">
+                  <span className="text-sm font-mono font-bold text-indigo-300">₹{visit.servicePrice}</span>
+                  <Link
+                    href="/feedback"
+                    className="text-xs font-semibold text-slate-400 hover:text-indigo-400 transition-colors"
+                  >
+                    Leave Review
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Dedicated Full-Width Logout Action Card */}

@@ -1,5 +1,6 @@
 import { AIAnalysisResult } from '../types';
 import { DEMO_HAIRSTYLES } from './mockData';
+import { getApiBaseUrl } from './apiConfig';
 
 export interface IAIService {
   analyzeSelfie(imageFileOrBase64: string): Promise<AIAnalysisResult>;
@@ -53,17 +54,16 @@ export class MockAIService implements IAIService {
 }
 
 export class ApiAIService implements IAIService {
-  private baseUrl: string;
   private fallback: MockAIService;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8080';
     this.fallback = new MockAIService();
   }
 
   async analyzeSelfie(imageFileOrBase64: string): Promise<AIAnalysisResult> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/ai/analyze-hairstyle`, {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/ai/analyze-hairstyle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageFileOrBase64 }),
@@ -83,7 +83,8 @@ export class ApiAIService implements IAIService {
 
   async getHairstylePreview(selfie: string, hairstyleId: string): Promise<string> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/ai/preview-hairstyle`, {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/ai/preview-hairstyle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ selfie, hairstyleId }),

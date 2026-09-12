@@ -21,6 +21,8 @@ export interface SalonData {
   activeStylists?: number;
   todayRevenue?: number;
   stateCode?: string;
+  totalWaiting?: number;
+  currentServingTokenNumber?: number | null;
 }
 
 export interface CreateSalonPayload {

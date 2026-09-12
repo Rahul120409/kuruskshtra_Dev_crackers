@@ -8,12 +8,14 @@ import { salonService } from '../../services/salonService';
 import { WalkinQrModal } from '../../components/WalkinQrModal';
 import { BookingWizardModal } from '../../components/BookingWizardModal';
 import { LocationModal } from '../../components/LocationModal';
-import { 
-  LocationData, 
-  DEFAULT_USER_LOCATION, 
+import { CustomerChatbotWidget } from '../../components/CustomerChatbotWidget';
+import {
+  LocationData,
+  DEFAULT_USER_LOCATION,
   getSalonDistanceKm,
-  buildGoogleMapsDirectionsUrl 
+  buildGoogleMapsDirectionsUrl
 } from '../../services/locationService';
+import { queueWebSocket } from '../../services/websocketService';
 
 interface LuxurySalonItem {
   id: string;
@@ -35,80 +37,53 @@ interface LuxurySalonItem {
   isOpenNow?: boolean;
   category: string;
   rawSalon?: Salon;
+  ongoingToken: number;
+  nextAvailableToken: number;
 }
-
-const LUXURY_FALLBACK_IMAGES = [
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBNWAe7WitvyHwb3fnmRawgFneMKE6J15PBh_n3_dJMhsOacjoNBPBM3Y-r0Ovu_SjxqMm6a01qlztlYcPb9-xp7utEYDdgn2J6Po0tUVudQ_PMay0cLssHyThY8U8hLjj_or-ASD_ZQHWxHWfPRZTFPr4Eo9DgKnzxee0FqOetpTsGysM4vY-f1sKCc2p376_HAjs6czo5eWe3tsdUvsapla92TJccL2CbpXizWEYRsu4z2DNLHSJM',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuAqqCYVmHHhcGrFP1UuRdZumELGC-Ob7kEa6h9F5qW1Q5SZDidrGafz1LWH1Ua6JZDK0ndbSjpohOvYgojf1lXlSGQ4tDdZV4emXqWZ-hZPnBanP_W1g4uWjf0wNQUk04h2sux6jP7TTBw4R32jaBG75LxNdh-Pw6hWvNn69j109d1-EZfW1RHY04bv7o12qwwhcMecQoUHVofWK6XRtAyTRzokxK81sPPh5sbGbX26dz12560St-JM',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBVzmaCWxYxDWfLPfAwr18KMOq-lchhOlpGI15OV4zUL6rngrRbhuPPT_eMUQNw01FqblwjSD2SogGMPfoEXSfEHhwUA8cVrNCpfNLBCq8ttfE9Rt53H1cpl9b9jdNjeG3DFBZsD9GnHKQOxgHB_6lF6CpByDY3iUatwfuAeT1jX_iIZyK79C_EXaFJEoAvf5x2ELXc7PDtXFzZRldw9ir7_E_A6ZPzNrzlJwYEo6sCrePLm0sZcngj',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuA1_brOf9XlibX4Wu0rtHIW5iO9m1yXS3DDwwlhxvn9Ok7do_SgTb3nzLDwNG1wWpQY6pcQyHnn_5hNE0dub0I_lUwPRlLyXEIxxkqYgxhn7-uoTjhO9TkeBsoYe9gHKzFfDUGx-8lx9F2mQr68yDzm2W9dayGftuoKVLmcl8Ep1Gq0HfwfLZE0MEUxpjm7lCMBr8787kzvzSp_VTPxaSGjC8ZWkPcGI-Y7_JnZ4oPQcSSvPmc5ZSZ3',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuA2t-E3bohqJBQMMGyumA7MpkQuTbpH5oqK2ja4UeRqYVi3Xzc_B5DgglWi73NJqCUspiyzde9xw7bXhFqsh5RAZumgg3pfv1RKBMcOEeuMwbr3GmBljp56Rw6JK1EWppB6DVn9J8vVP_PHs76IJKdk7V065P4vR22pYaeUEVEQqF-YK1bk3JZT3LPq8I0QjKWEGtb_3Hft-mKviPYajoL3DZ8e-G5UyryTPD-PIQyi6FcbX2pn4NPL',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBowP_HIahOQuqkdnwT2xcRyMdWfue_fCB4VVwG6jPNkM4FogtNiGbnVBXQc-ehroNbDgKZg4LsWkcCoVc4AIIYIKuC-EMZZinNNLo0R6nAFsTVdxiiiRMmmJutDP2FY9TYHH1CT7dLq4d8b6jAhTYV8ICyVkKrJhm4XUBg5Rza7HDNmulwsWEpNfcCmkVMOGfsE9sAJYt0PVT1uk0fj9Tp_967XVXDtPIxyjADPxw-UerJrDNUz-Ln'
-];
-
-const LUXURY_FALLBACK_AVATARS = [
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDftjSASPNtU5EDhUt24W6LOdR6dSERzOsy4zIL_ESGE1eWGncbMRcdUEppulKT80ozAh5leOMLKofEWVwgpKqomCxnOrd1w_gcS5VJErLC2Mj8WrN5tLSeyvypJsmyvGEF9wKk7HsZ_8RlBrxuuDKQn995e0i6pk8I5FaEfCzFzQyPECdix4vubSaZbsvEXS1ZpiBqHk2QVvi8ULInZNvFS7n9r7ijXQtrq_2xSSe7LWKwydh82v4K',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuApO_P02ULerNWATLWVrvgWPN7zcDGqRd04mfxhpIyJ-xWVXgVwJqz6vHu_Nkh04bPJ9ykmfVjH_XKE6SlcFJv0wM65gjp8ZUbY07cwIeXTyogW4TdLy_CYa18YJGAXBAr01BcxE6ktKVEOi4W-axMEWRgvkDycdYNk1oevrgnuwqaPmBcz42Vpo-Tq52tbNsloT_I8DSizhjxSSGOPx2RyeOOM4bxN2bo24BSaAPMBgC8muQGtwh1l',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuB3JWUqVOIsl4ehm6WvBIKYSQ2akt48-9zVHqDt272DRGQjHwmNPU5qlvPeFf5u0ox_xN7_sm3PfQg6EFu51J2C_DaPFKyZQmf6Q5f3e1LkHzQfJyFMNmcNdxJmjOo5sre2ljknNV6CdcjzII9AkbHh_2ZZO4vDdp1JxSJDAiVsYyrnYBr_M_N0wK_V6WWFT--MWuAaLJ3758vBl_r-JEb6v_PmRDsXFZNkCaw2U_M_vhpsJmXgjcmy',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuBD-GmYUnswMGVbOipbc4YR-_UcGgU55bDpsm8INet44tBzhURdXrDSKQhfrfrJ39FGTdluLMzvrLLWz8QvTjm5PlgyBc-9EcHqqF83KEOtoDPp4njzSg6k8brzRFvm9ZjzBkOMGE0cuc6-XnoR7jmtXGGiFZRGUS0tbVMeqdWX4RPAqiUhLjz1Apd9cAK4PN2WJOSiflpXIZtN4FN50wNlWGe1JEA-Vs8tVwNjw6Ayvd4P9yOhBl2W',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDI4Z9HBzXdJFO8tgI12lfQiAcf6EYClCqs_IkgCMWN0582K8F3K833DTwPMNyh0HHy3rXMekfxc03n6NhWP80QE1Npx8MBHI6qj-Vf8SNYtGOPfOsC5CP1GkRm_2O_QcOzfHzQyHgOxlFAaXU_xKzqjnC7ghV7bmpjIdWA51hGUYLv8bnV-Bh0QigmHQtFLR_zJkkW2uXet324Md7sHzP9egA9kKBCLfxml98fW9CxS3seDDYi7kRJ',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuA0wKL5igpIdHbl7_2BUoHaKjYleWRHUcAY7oxMF0lWgV3XYlXRdz_WeyEE387ihLsO0srpQCe71yiNM8pb8aU8pMV8STYpqVUBQnBFBf8k2YyYj1j6gjiTukRKa2ySKdCQ-m5Bb8h6-T5cDVz6ucy0Cbdkr13F8MvbNU-_W4Olb_BT7Qx9E2NbGlNxo_rNj19XNncKHtZEaaMSiT286iR0koes4_9A7qXLXCndVIpCRZr19h87Tb_c'
-];
 
 function mapBackendSalonToLuxury(s: Salon, index: number, userLoc: LocationData): LuxurySalonItem {
   const distKm = getSalonDistanceKm(userLoc, s);
   const distMi = distKm * 0.621371;
-  const waitMins = s.currentWaitMinutes ?? (10 + (index % 4) * 5);
-  const totalWaiting = s.totalWaiting ?? (1 + (index % 3));
+  const waitMins = s.currentWaitMinutes ?? 0;
+  const totalWaiting = s.totalWaiting ?? 0;
   const isOpen = s.status === 'OPEN';
   const isAvailableNow = isOpen && waitMins <= 8;
+  const ongoingToken = Math.max(1, totalWaiting > 0 ? totalWaiting : 1);
+  const nextAvailableToken = totalWaiting + 1;
 
-  const sampleTags = [
-    ['Premium Fade', 'Hot Towel', 'Complimentary Espresso'],
-    ['Styling & Cut', 'Keratin Glow', 'Champagne Bar'],
-    ['Master Barber', 'Beard Trim', 'Whiskey Lounge'],
-    ['Traditional Razor', 'Facial Steamer', 'Cigar Patio'],
-    ['Executive Fade', 'Beard Oil Ritual', 'Private Booth'],
-    ['Precision Taper', 'Charcoal Mask', 'Cold Brew']
-  ];
-
-  const fallbackPrices = ['$65 Cut & Finish', '$85 Cut & Wash', '$75 Signature Cut', '$70 Traditional Cut', '$90 Suite Ritual', '$60 Clean Taper'];
-  const fallbackCategories = ['Haircut', 'Keratin & Scalp Therapy', 'Hot Lather Shave', 'Haircut', 'VIP Grooming Lounge', 'Beard & Mustache Sculpt'];
-
-  let tags = sampleTags[index % sampleTags.length];
+  let tags: string[] = [];
   if (s.salonDescription && s.salonDescription.trim()) {
-    const descWords = s.salonDescription.split(',').map(w => w.trim()).filter(Boolean);
-    if (descWords.length > 0) {
-      tags = descWords.slice(0, 3);
-    }
+    tags = s.salonDescription.split(',').map(w => w.trim()).filter(Boolean).slice(0, 3);
   }
 
-  const locationDisplay = s.area 
-    ? `${s.area} • ${s.city || 'Pune'}` 
-    : (s.address || s.city || 'Central District');
+  const locationDisplay = s.area
+    ? `${s.area}${s.city ? ` • ${s.city}` : ''}`
+    : (s.address || s.city || '');
 
   return {
     id: s.id,
     name: s.name,
     location: locationDisplay,
-    rating: s.rating ?? 4.9,
-    reviews: `${s.reviewCount ?? (150 + index * 35)}+ reviews`,
-    price: fallbackPrices[index % fallbackPrices.length],
+    rating: s.rating ?? 0,
+    reviews: s.reviewCount ? `${s.reviewCount} reviews` : '',
+    price: '',
     tags,
-    stylistName: s.ownerName ? `${s.ownerName} (Master)` : `Master Stylist #${index + 1}`,
-    stylistStatus: isAvailableNow ? 'Ready right now' : `Ready in ${waitMins} mins`,
-    stylistAvatar: LUXURY_FALLBACK_AVATARS[index % LUXURY_FALLBACK_AVATARS.length],
-    interiorImage: (s.imageUrl && s.imageUrl.startsWith('http')) 
-      ? s.imageUrl 
-      : LUXURY_FALLBACK_IMAGES[index % LUXURY_FALLBACK_IMAGES.length],
-    waitBadgeText: isAvailableNow ? `Open Now • ${totalWaiting} in line` : `${waitMins}m Wait • ${totalWaiting} in line`,
+    stylistName: s.ownerName || '',
+    stylistStatus: isAvailableNow ? 'Ready now' : (waitMins > 0 ? `~${waitMins} mins wait` : (isOpen ? 'Available' : 'Closed')),
+    stylistAvatar: '',
+    interiorImage: (s.imageUrl && s.imageUrl.startsWith('http')) ? s.imageUrl : '',
+    waitBadgeText: isAvailableNow
+      ? `Open Now • Next Token #${nextAvailableToken}`
+      : (waitMins > 0 ? `~${waitMins}m Wait • Next #${nextAvailableToken}` : (isOpen ? 'Open' : 'Closed')),
     waitMinutes: waitMins,
-    distanceMi: `${distMi.toFixed(1)} mi away`,
+    distanceMi: distMi > 0 ? `${distMi.toFixed(1)} mi away` : '',
     distanceNum: distMi,
-    vipTag: isAvailableNow ? 'Chair Open Now' : (index % 2 === 0 ? 'VIP Access' : 'Trending Now'),
-    isOpenNow: isAvailableNow,
-    category: fallbackCategories[index % fallbackCategories.length],
-    rawSalon: s
+    vipTag: isOpen ? (isAvailableNow ? 'Chair Open' : 'Open') : 'Closed',
+    isOpenNow: isOpen,
+    category: s.area || s.city || 'Salon',
+    rawSalon: s,
+    ongoingToken,
+    nextAvailableToken
   };
 }
 
@@ -133,6 +108,8 @@ export default function CustomerHomePage() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [selectedSalonForBooking, setSelectedSalonForBooking] = useState<Salon | null>(null);
   const [streamModalOpen, setStreamModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedSalonForDetails, setSelectedSalonForDetails] = useState<Salon | null>(null);
 
   // Fetch real-time salons from API
   const fetchLiveSalons = async (showSyncIndicator = false) => {
@@ -166,30 +143,26 @@ export default function CustomerHomePage() {
       }
     }
 
-    // Check if user navigated with ?joinQueue=true or ?booking=true -> Open Full Page Booking
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('joinQueue') === 'true' || params.get('booking') === 'true') {
-        console.log("🎟️ [HOME] Navigating to Full Page Booking Portal from URL parameter");
-        router.push('/booking');
-      }
-    }
-
-    // Auto-poll every 8 seconds so newly registered salons appear immediately
-    const interval = setInterval(() => {
-      salonService.getSalons().then((list) => {
-        if (list && list.length > 0) {
-          setLiveSalons(list);
-        }
-      }).catch(() => {});
-    }, 8000);
-
-    const onFocus = () => fetchLiveSalons();
-    window.addEventListener('focus', onFocus);
+    // Subscribe to live WebSocket broadcasts so queue counts and tokens update dynamically without reloading
+    const unsubWs = queueWebSocket.subscribeToGlobal((board) => {
+      if (!board || !board.salonId) return;
+      setLiveSalons((prev) =>
+        prev.map((s) => {
+          if (s.id === board.salonId) {
+            return {
+              ...s,
+              totalWaiting: typeof board.totalWaiting === 'number' ? board.totalWaiting : s.totalWaiting,
+              currentWaitMinutes: typeof board.totalWaiting === 'number' ? board.totalWaiting * 15 : s.currentWaitMinutes,
+              currentServingTokenNumber: board.currentServingTokenNumber !== undefined ? board.currentServingTokenNumber : s.currentServingTokenNumber,
+            };
+          }
+          return s;
+        })
+      );
+    });
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
+      unsubWs();
     };
   }, []);
 
@@ -209,12 +182,18 @@ export default function CustomerHomePage() {
 
   const filteredSalons = useMemo(() => {
     return luxurySalonsList.filter((salon) => {
-      // Search
+      // Multi-field Search (Name, City, State/Address, Area, Pincode, Stylist, Owner)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const match = 
+        const raw = salon.rawSalon;
+        const match =
           salon.name.toLowerCase().includes(q) ||
           salon.location.toLowerCase().includes(q) ||
+          (raw?.city && raw.city.toLowerCase().includes(q)) ||
+          (raw?.address && raw.address.toLowerCase().includes(q)) ||
+          (raw?.area && raw.area.toLowerCase().includes(q)) ||
+          (raw?.pincode && raw.pincode.toLowerCase().includes(q)) ||
+          (raw?.ownerName && raw.ownerName.toLowerCase().includes(q)) ||
           salon.stylistName.toLowerCase().includes(q) ||
           salon.tags.some(t => t.toLowerCase().includes(q));
         if (!match) return false;
@@ -249,93 +228,81 @@ export default function CustomerHomePage() {
     });
   }, [luxurySalonsList, searchQuery, selectedRadius, under15m, selectedCategory, sortTab]);
 
-  const handleOpenBooking = (item?: LuxurySalonItem | Salon | null) => {
-    console.log("🎟️ [HOME: FULL PAGE BOOKING] Navigating to Full Page Haute Atelier Booking Portal for:", item);
+  const handleOpenDetails = (item?: LuxurySalonItem | Salon | null) => {
+    if (!item) return;
     let s: Salon;
+    if ('rawSalon' in item && item.rawSalon) {
+      s = item.rawSalon;
+    } else if ('id' in item && 'name' in item) {
+      s = item as Salon;
+    } else {
+      return;
+    }
+    setSelectedSalonForDetails(s);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleOpenBooking = (item?: LuxurySalonItem | Salon | null) => {
+    let s: Salon | null = null;
     if (item && 'rawSalon' in item && item.rawSalon) {
       s = item.rawSalon;
-    } else if (item && 'id' in item && 'name' in item && 'closingTime' in item) {
+    } else if (item && 'id' in item && 'name' in item) {
       s = item as Salon;
-    } else if (item && 'name' in item) {
-      s = {
-        id: (item as any).id || 'sl-default',
-        name: item.name,
-        address: (item as any).location || (item as any).address || 'Central District',
-        city: userLocation.city || 'Pune',
-        phone: '+91 98765 43210',
-        rating: (item as any).rating || 4.9,
-        reviewCount: 320,
-        openingTime: '09:00 AM',
-        closingTime: '09:00 PM',
-        status: 'OPEN',
-        currentWaitMinutes: (item as any).waitMinutes || 18,
-      };
     } else if (liveSalons.length > 0) {
       s = liveSalons[0];
-    } else {
-      s = {
-        id: 'c4b2a8d5-1122-48f1-a1e6-348e89cf1862',
-        name: 'The Golden Blade Studio',
-        address: 'Wilshire Corridor, Koregaon Park',
-        city: userLocation.city || 'Pune',
-        phone: '+91 98765 43210',
-        rating: 4.9,
-        reviewCount: 320,
-        openingTime: '09:00 AM',
-        closingTime: '09:00 PM',
-        status: 'OPEN',
-        currentWaitMinutes: 18,
-      };
+    }
+
+    if (!s) {
+      router.push('/booking');
+      return;
     }
 
     const salonId = s.id || '';
     const salonName = s.name || '';
-    const area = (s as any).area || s.city || s.address || '';
-    const wait = s.currentWaitMinutes || 18;
+    const area = s.area || s.address || s.city || '';
+    const city = s.city || '';
+    const wait = s.currentWaitMinutes || 0;
     const query = new URLSearchParams({
       salonId,
       salonName,
       area,
+      city,
       wait: String(wait)
     }).toString();
 
-    // Navigate to Full Page Haute Atelier Appointment Booking Portal
     router.push(`/booking?${query}`);
   };
 
   const handleOpenDirections = (targetSalon?: Salon) => {
-    const s: Salon = targetSalon || (liveSalons.length > 0 ? liveSalons[0] : {
-      id: 'golden-blade',
-      name: 'The Golden Blade Studio',
-      address: 'Wilshire Corridor, Beverly Hills',
-      city: 'Beverly Hills',
-      phone: '+1 310-555-0199',
-      openingTime: '09:00 AM',
-      closingTime: '09:00 PM',
-      status: 'OPEN',
-      locationLink: 'https://maps.google.com/?q=The+Golden+Blade+Studio+Wilshire+Beverly+Hills'
-    });
+    const s: Salon | null = targetSalon || (liveSalons.length > 0 ? liveSalons[0] : null);
+    if (!s) return;
     const url = buildGoogleMapsDirectionsUrl(s, userLocation);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const hasLiveActiveToken = activeToken && ['WAITING', 'CALLED', 'IN_SERVICE'].includes(activeToken.status);
-  const activeSalonName = activeToken?.salonName || (liveSalons[0]?.name ?? 'The Golden Blade Studio');
-  const activeStylistName = activeToken?.staffName || 'Master Jean-Luc';
-  const activeTicketNumber = activeToken?.tokenNumber ? `B-${activeToken.tokenNumber}` : 'B-14';
-  const activeEstimatedWait = activeToken?.estimatedWait ?? 18;
-  const activeGuestsAhead = activeToken?.position ? Math.max(1, activeToken.position - 1) : 3;
+  const activeSalonName = activeToken?.salonName || (liveSalons[0]?.name ?? '');
+  const activeStylistName = activeToken?.staffName || '';
+  const userBookedTokenNumber = activeToken?.tokenNumber ?? null;
+  const activeGuestsAhead = activeToken?.position ? Math.max(0, activeToken.position - 1) : (liveSalons[0]?.totalWaiting ?? 0);
+  const ongoingTokenNumber = userBookedTokenNumber
+    ? Math.max(1, userBookedTokenNumber - activeGuestsAhead)
+    : Math.max(1, liveSalons[0]?.totalWaiting ?? 1);
+  const nextAvailableTokenNumber = userBookedTokenNumber
+    ? userBookedTokenNumber + 1
+    : (liveSalons[0]?.totalWaiting ?? 0) + 1;
+  const activeEstimatedWait = activeToken?.estimatedWait ?? (liveSalons[0]?.currentWaitMinutes ?? (activeGuestsAhead * 15));
 
   return (
     <div className="flex flex-col w-full">
-      
+
       {/* SECTION 1: DISTRICT LEAD & ACTIVE QUEUE PASS */}
       <section className="relative w-full px-margin-desktop py-space-xl overflow-hidden">
         <div className="absolute -top-24 -left-20 w-96 h-96 rounded-full bg-primary/5 blur-3xl pointer-events-none"></div>
         <div className="absolute top-1/2 right-1/4 w-80 h-80 rounded-full bg-secondary/5 blur-3xl pointer-events-none"></div>
-        
+
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-gutter-desktop items-start">
-          
+
           {/* Left Column (7 cols) */}
           <div className="lg:col-span-7 flex flex-col gap-space-lg">
             <div className="flex flex-col gap-space-xs">
@@ -354,7 +321,7 @@ export default function CustomerHomePage() {
                 <h1 className="font-headline-lg text-headline-lg text-on-surface font-semibold tracking-tight">
                   Beverly Hills, <span className="text-primary font-serif italic font-normal">Downtown West</span>
                 </h1>
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsLocationModalOpen(true)}
                   className="flex items-center gap-1 px-space-sm py-1 rounded-md bg-surface-container hover:bg-surface-container-high text-primary font-label-sm text-label-sm transition-all duration-200 cursor-pointer"
@@ -373,11 +340,11 @@ export default function CustomerHomePage() {
             <div className="p-space-md rounded-xl bg-surface-container-low shadow-xl flex flex-col gap-space-md border border-outline-variant/30">
               <div className="relative flex items-center">
                 <span className="material-symbols-outlined absolute left-space-md text-primary text-xl">search</span>
-                <input 
+                <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-space-md py-3 rounded-lg bg-surface-container text-on-surface placeholder:text-outline font-body-md text-body-md focus:outline-none focus:bg-surface-container-high transition-colors" 
-                  placeholder="Search master barbers, tailored suites, razor rituals, or private parlors..." 
+                  className="w-full pl-11 pr-space-md py-3 rounded-lg bg-surface-container text-on-surface placeholder:text-outline font-body-md text-body-md focus:outline-none focus:bg-surface-container-high transition-colors"
+                  placeholder="Search master barbers, tailored suites, razor rituals, or private parlors..."
                   type="text"
                 />
                 <span className="absolute right-3 px-2 py-1 rounded bg-surface-container-highest font-label-sm text-label-sm text-outline">
@@ -389,7 +356,7 @@ export default function CustomerHomePage() {
                 <div className="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider font-semibold">
                   <span>Quick Parameter Filters</span>
                   {(searchQuery || selectedRadius !== 'all' || under15m || selectedRitual !== 'Haircut') && (
-                    <button 
+                    <button
                       type="button"
                       onClick={() => {
                         setSearchQuery('');
@@ -411,11 +378,10 @@ export default function CustomerHomePage() {
                       key={rit}
                       type="button"
                       onClick={() => setSelectedRitual(rit)}
-                      className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm transition-all cursor-pointer ${
-                        selectedRitual === rit 
-                          ? 'bg-primary text-on-primary font-semibold shadow-sm active:scale-95' 
+                      className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm transition-all cursor-pointer ${selectedRitual === rit
+                          ? 'bg-primary text-on-primary font-semibold shadow-sm active:scale-95'
                           : 'bg-surface-container hover:bg-surface-container-high text-on-surface'
-                      }`}
+                        }`}
                     >
                       {rit}
                     </button>
@@ -423,38 +389,35 @@ export default function CustomerHomePage() {
 
                   <span className="text-surface-container-highest font-light mx-1">|</span>
                   <span className="font-label-sm text-label-sm text-outline self-center mr-1">Radius:</span>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setSelectedRadius(selectedRadius === '1mi' ? 'all' : '1mi')}
-                    className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm transition-colors cursor-pointer ${
-                      selectedRadius === '1mi' 
-                        ? 'bg-primary text-on-primary font-semibold' 
+                    className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm transition-colors cursor-pointer ${selectedRadius === '1mi'
+                        ? 'bg-primary text-on-primary font-semibold'
                         : 'bg-surface-container hover:bg-surface-container-high text-primary'
-                    }`}
+                      }`}
                   >
                     &lt; 1 mi
                   </button>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setSelectedRadius(selectedRadius === '3mi' ? 'all' : '3mi')}
-                    className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm transition-colors cursor-pointer ${
-                      selectedRadius === '3mi' 
-                        ? 'bg-primary text-on-primary font-semibold' 
+                    className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm transition-colors cursor-pointer ${selectedRadius === '3mi'
+                        ? 'bg-primary text-on-primary font-semibold'
                         : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant'
-                    }`}
+                      }`}
                   >
                     &lt; 3 mi
                   </button>
 
                   <span className="text-surface-container-highest font-light mx-1">|</span>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setUnder15m(!under15m)}
-                    className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm flex items-center gap-1 font-semibold transition-all cursor-pointer ${
-                      under15m 
-                        ? 'bg-secondary text-on-secondary-fixed shadow-sm' 
+                    className={`px-space-sm py-1 rounded-full font-label-sm text-label-sm flex items-center gap-1 font-semibold transition-all cursor-pointer ${under15m
+                        ? 'bg-secondary text-on-secondary-fixed shadow-sm'
                         : 'bg-secondary/15 text-secondary'
-                    }`}
+                      }`}
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
                     Under 15m Wait
@@ -492,7 +455,7 @@ export default function CustomerHomePage() {
           <div className="lg:col-span-5 w-full">
             <div className="relative rounded-2xl p-6 bg-gradient-to-br from-surface-container to-surface-container-low shadow-2xl overflow-hidden border border-outline-variant/30">
               <div className="absolute -right-12 -bottom-12 w-48 h-48 rounded-full bg-primary/10 blur-2xl pointer-events-none"></div>
-              
+
               <div className="flex items-center justify-between pb-space-sm">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-secondary animate-ping"></span>
@@ -513,17 +476,25 @@ export default function CustomerHomePage() {
                     {liveSalons[0]?.area ? `${liveSalons[0].area}, ${liveSalons[0].city || 'Pune'} • Chair #03` : 'Wilshire Corridor • Chair #03'}
                   </p>
                 </div>
-                <div className="flex flex-col items-end">
-                  <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">Ticket #</span>
-                  <span className="font-numeric-ticket text-numeric-ticket leading-none text-primary font-bold tracking-tighter">{activeTicketNumber}</span>
+                <div className="flex flex-col items-end text-right">
+                  <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider font-semibold">
+                    {hasLiveActiveToken ? 'Your Booked Token' : 'Next Available Token'}
+                  </span>
+                  <span className="font-numeric-ticket text-numeric-ticket leading-none text-primary font-bold tracking-tighter">
+                    {hasLiveActiveToken ? `#${userBookedTokenNumber}` : `#${nextAvailableTokenNumber}`}
+                  </span>
+                  <span className="text-[11px] font-semibold text-secondary mt-1 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+                    Ongoing Token: #{ongoingTokenNumber}
+                  </span>
                 </div>
               </div>
 
               <div className="my-space-md p-space-sm rounded-xl bg-surface-container-high/80 flex items-center justify-between">
                 <div className="flex items-center gap-space-sm">
-                  <img 
-                    alt={activeStylistName} 
-                    className="w-12 h-12 rounded-full object-cover ring-1 ring-primary/40" 
+                  <img
+                    alt={activeStylistName}
+                    className="w-12 h-12 rounded-full object-cover ring-1 ring-primary/40"
                     src="https://lh3.googleusercontent.com/aida-public/AB6AXuB8sbMI547xs2EeETUONLQx5ZWomrYu0cUUqJCvA6PrUH5qGc5zRVSoxs5HtitCitbdmMlVqYKT0jLa3wbF1EQvr67H8T9yTw8PmgL7jV4PeCHhWcERGcUQ_6jzo-txy7xQIXCxlQy8uM5u_eSEk1bne7U8Mhvd4_xoKSApTHwzEjSGPOzGkxH0glBLxrHSI3zQtWrdvKGFvJIsxTQROP348GsvH8Ft8E19fQ-_2aLBq9UdIUXZVC9_"
                   />
                   <div>
@@ -541,9 +512,11 @@ export default function CustomerHomePage() {
                 <div className="flex items-center justify-between font-label-sm text-label-sm">
                   <span className="text-on-surface-variant flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-sm text-secondary">group</span>
-                    {activeGuestsAhead} guests ahead in rotation
+                    {hasLiveActiveToken
+                      ? `${activeGuestsAhead} guests ahead • Ongoing Token in Chair: #${ongoingTokenNumber}`
+                      : `Currently Serving: Token #${ongoingTokenNumber} • Next in Line: Token #${nextAvailableTokenNumber}`}
                   </span>
-                  <span className="text-primary font-semibold">{hasLiveActiveToken ? 'Live Synced' : '72% Completed'}</span>
+                  <span className="text-primary font-semibold">{hasLiveActiveToken ? 'Live Synced' : 'Ready to Join'}</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-surface-container-highest overflow-hidden">
                   <div className="h-full rounded-full bg-gradient-to-r from-secondary-container via-secondary to-primary w-3/4 shadow-[0_0_12px_rgba(78,222,163,0.7)] transition-all duration-500"></div>
@@ -551,7 +524,7 @@ export default function CustomerHomePage() {
               </div>
 
               <div className="grid grid-cols-2 gap-space-sm pt-space-xs">
-                <button 
+                <button
                   type="button"
                   onClick={() => handleOpenDirections()}
                   className="flex items-center justify-center gap-1.5 py-space-sm px-space-sm rounded-lg bg-surface-container-highest hover:bg-surface-bright text-on-surface font-label-lg text-label-lg transition-colors cursor-pointer"
@@ -559,7 +532,7 @@ export default function CustomerHomePage() {
                   <span className="material-symbols-outlined text-base text-primary">navigation</span>
                   <span>Directions (0.3 mi)</span>
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setStreamModalOpen(true)}
                   className="flex items-center justify-center gap-1.5 py-space-sm px-space-sm rounded-lg bg-gradient-to-r from-primary-container to-primary text-on-primary font-label-lg text-label-lg font-semibold shadow-lg hover:opacity-95 transition-transform active:scale-95 cursor-pointer"
@@ -595,11 +568,10 @@ export default function CustomerHomePage() {
                 key={cat.label}
                 type="button"
                 onClick={() => setSelectedCategory(cat.label)}
-                className={`px-space-md py-2 rounded-full font-label-lg text-label-lg whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
-                  isActive 
-                    ? 'bg-primary text-on-primary shadow-md font-semibold' 
+                className={`px-space-md py-2 rounded-full font-label-lg text-label-lg whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${isActive
+                    ? 'bg-primary text-on-primary shadow-md font-semibold'
                     : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface'
-                }`}
+                  }`}
               >
                 {cat.icon && (
                   <span className={`material-symbols-outlined text-base ${isActive ? 'text-on-primary' : 'text-primary'}`}>
@@ -626,47 +598,43 @@ export default function CustomerHomePage() {
           </div>
 
           <div className="flex items-center gap-1 p-1 rounded-lg bg-surface-container-low self-start md:self-auto border border-outline-variant/30">
-            <button 
+            <button
               type="button"
               onClick={() => setSortTab('shortest')}
-              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors cursor-pointer ${
-                sortTab === 'shortest' 
-                  ? 'bg-surface-container-high text-primary font-semibold shadow-sm' 
+              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors cursor-pointer ${sortTab === 'shortest'
+                  ? 'bg-surface-container-high text-primary font-semibold shadow-sm'
                   : 'hover:bg-surface-container text-on-surface-variant hover:text-on-surface'
-              }`}
+                }`}
             >
               Shortest Wait Time
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => setSortTab('top')}
-              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors cursor-pointer ${
-                sortTab === 'top' 
-                  ? 'bg-surface-container-high text-primary font-semibold shadow-sm' 
+              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors cursor-pointer ${sortTab === 'top'
+                  ? 'bg-surface-container-high text-primary font-semibold shadow-sm'
                   : 'hover:bg-surface-container text-on-surface-variant hover:text-on-surface'
-              }`}
+                }`}
             >
               Top Rated
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => setSortTab('nearest')}
-              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors cursor-pointer ${
-                sortTab === 'nearest' 
-                  ? 'bg-surface-container-high text-primary font-semibold shadow-sm' 
+              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors cursor-pointer ${sortTab === 'nearest'
+                  ? 'bg-surface-container-high text-primary font-semibold shadow-sm'
                   : 'hover:bg-surface-container text-on-surface-variant hover:text-on-surface'
-              }`}
+                }`}
             >
               Nearest to Me
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => setSortTab('openNow')}
-              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors flex items-center gap-1 cursor-pointer ${
-                sortTab === 'openNow' 
-                  ? 'bg-secondary text-on-secondary-fixed font-bold shadow-sm' 
+              className={`px-space-md py-1.5 rounded-md font-label-sm text-label-sm transition-colors flex items-center gap-1 cursor-pointer ${sortTab === 'openNow'
+                  ? 'bg-secondary text-on-secondary-fixed font-bold shadow-sm'
                   : 'hover:bg-surface-container text-secondary'
-              }`}
+                }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
               Chair Open Now
@@ -729,107 +697,131 @@ export default function CustomerHomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter-desktop">
-          {filteredSalons.map((salon) => (
-            <div 
-              key={salon.id}
-              className="flex flex-col rounded-2xl bg-surface-container overflow-hidden shadow-xl hover:-translate-y-1 transition-transform duration-300 group border border-outline-variant/30"
-            >
-              <div className="relative h-56 w-full overflow-hidden">
-                <img 
-                  alt={salon.name} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                  src={salon.interiorImage}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-surface-container via-surface-container/30 to-transparent"></div>
-                
-                <div className="absolute top-space-md left-space-md flex items-center gap-space-xs flex-wrap">
-                  <span className="px-2.5 py-1 rounded-md bg-surface-container-lowest/90 backdrop-blur-md text-primary font-label-sm text-label-sm font-semibold uppercase tracking-wider shadow-xs">
-                    {salon.vipTag}
-                  </span>
-                  <span className={`px-2.5 py-1 rounded-md backdrop-blur-md font-label-sm text-label-sm font-semibold flex items-center gap-1 ${
-                    salon.isOpenNow 
-                      ? 'bg-secondary text-on-secondary-fixed shadow-[0_0_12px_rgba(78,222,163,0.5)] font-bold' 
-                      : 'bg-secondary/90 text-on-secondary-fixed'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full bg-on-secondary-fixed ${salon.isOpenNow ? 'animate-ping' : ''}`}></span>
-                    {salon.waitBadgeText}
-                  </span>
-                </div>
+            {filteredSalons.map((salon) => (
+              <div
+                key={salon.id}
+                className="flex flex-col rounded-2xl bg-surface-container overflow-hidden shadow-xl hover:-translate-y-1 transition-transform duration-300 group border border-outline-variant/30"
+              >
+                <div className="relative h-56 w-full overflow-hidden">
+                  <img
+                    alt={salon.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    src={salon.interiorImage}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-surface-container via-surface-container/30 to-transparent"></div>
 
-                <div className="absolute bottom-3 right-space-md px-2 py-1 rounded bg-surface-container-lowest/80 backdrop-blur-sm text-on-surface font-label-sm text-label-sm flex items-center gap-1">
-                  <span className="material-symbols-outlined text-primary text-sm">near_me</span>
-                  {salon.distanceMi}
-                </div>
-              </div>
-
-              <div className="p-space-lg flex flex-col gap-space-md flex-1 justify-between">
-                <div className="flex flex-col gap-space-xs">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-headline-md text-headline-md text-on-surface font-semibold group-hover:text-primary transition-colors">
-                      {salon.name}
-                    </h3>
+                  <div className="absolute top-space-md left-space-md flex items-center gap-space-xs flex-wrap">
+                    <span className="px-2.5 py-1 rounded-md bg-surface-container-lowest/90 backdrop-blur-md text-primary font-label-sm text-label-sm font-semibold uppercase tracking-wider shadow-xs">
+                      {salon.vipTag}
+                    </span>
+                    <span className={`px-2.5 py-1 rounded-md backdrop-blur-md font-label-sm text-label-sm font-semibold flex items-center gap-1 ${salon.isOpenNow
+                        ? 'bg-secondary text-on-secondary-fixed shadow-[0_0_12px_rgba(78,222,163,0.5)] font-bold'
+                        : 'bg-secondary/90 text-on-secondary-fixed'
+                      }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full bg-on-secondary-fixed ${salon.isOpenNow ? 'animate-ping' : ''}`}></span>
+                      {salon.waitBadgeText}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-space-sm">
-                    <div className="flex items-center gap-1 text-primary">
-                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                      <span className="font-label-md text-label-md font-bold">{salon.rating.toFixed(1)}</span>
+
+                  <div className="absolute bottom-3 right-space-md px-2 py-1 rounded bg-surface-container-lowest/80 backdrop-blur-sm text-on-surface font-label-sm text-label-sm flex items-center gap-1">
+                    <span className="material-symbols-outlined text-primary text-sm">near_me</span>
+                    {salon.distanceMi}
+                  </div>
+                </div>
+
+                <div className="p-space-lg flex flex-col gap-space-md flex-1 justify-between">
+                  <div className="flex flex-col gap-space-xs">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-headline-md text-headline-md text-on-surface font-semibold group-hover:text-primary transition-colors">
+                        {salon.name}
+                      </h3>
                     </div>
-                    <span className="text-outline font-body-sm text-body-sm">({salon.reviews})</span>
-                    <span className="text-outline">•</span>
-                    <span className="font-body-sm text-body-sm text-on-surface-variant font-medium">{salon.price}</span>
-                  </div>
-                  <div className="flex items-center gap-space-xs pt-1 flex-wrap">
-                    {salon.tags.map((tag, idx) => (
-                      <span key={idx} className="px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-surface-container-low flex items-center justify-between border border-outline-variant/20">
-                  <div className="flex items-center gap-2.5">
-                    <img 
-                      alt={salon.stylistName} 
-                      className="w-9 h-9 rounded-full object-cover ring-1 ring-primary/40" 
-                      src={salon.stylistAvatar}
-                    />
-                    <div className="flex flex-col">
-                      <span className="font-body-sm text-body-sm font-semibold text-on-surface">{salon.stylistName}</span>
-                      <span className={`font-label-sm text-label-sm ${salon.isOpenNow ? 'text-secondary font-semibold' : 'text-secondary'}`}>
-                        {salon.stylistStatus}
-                      </span>
+                    <div className="flex items-center gap-space-sm">
+                      <div className="flex items-center gap-1 text-primary">
+                        <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                        <span className="font-label-md text-label-md font-bold">{salon.rating.toFixed(1)}</span>
+                      </div>
+                      <span className="text-outline font-body-sm text-body-sm">({salon.reviews})</span>
+                      <span className="text-outline">•</span>
+                      <span className="font-body-sm text-body-sm text-on-surface-variant font-medium">{salon.price}</span>
+                    </div>
+                    <div className="flex items-center gap-space-xs pt-1 flex-wrap">
+                      {salon.tags.map((tag, idx) => (
+                        <span key={idx} className="px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  <span className="material-symbols-outlined text-outline text-lg">
-                    {salon.isOpenNow ? 'offline_bolt' : 'event_available'}
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-2 gap-space-sm pt-space-xs">
-                  <button 
-                    type="button"
-                    onClick={() => handleOpenBooking(salon)}
-                    className="py-2.5 px-space-sm rounded-lg bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-md text-label-md transition-colors text-center cursor-pointer"
-                  >
-                    Book Stylist
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => handleOpenBooking(salon)}
-                    className={`py-2.5 px-space-sm rounded-lg font-label-md text-label-md font-semibold transition-transform active:scale-95 text-center shadow-md cursor-pointer ${
-                      salon.isOpenNow 
-                        ? 'bg-secondary text-on-secondary-fixed font-bold hover:brightness-110 shadow-lg' 
-                        : 'bg-primary hover:bg-primary-fixed text-on-primary'
-                    }`}
-                  >
-                    {salon.isOpenNow ? 'Claim First Chair' : 'Instant Join Queue'}
-                  </button>
+                  <div className="p-3 rounded-xl bg-surface-container-low flex items-center justify-between border border-outline-variant/20">
+                    <div className="flex items-center gap-2.5">
+                      {salon.stylistAvatar ? (
+                        <img
+                          alt={salon.stylistName}
+                          className="w-9 h-9 rounded-full object-cover ring-1 ring-primary/40"
+                          src={salon.stylistAvatar}
+                        />
+                      ) : null}
+
+
+
+
+                      <div className="flex flex-col">
+                        <span className="font-body-sm text-body-sm font-semibold text-on-surface">{salon.stylistName}</span>
+                        <span className={`font-label-sm text-label-sm ${salon.isOpenNow ? 'text-secondary font-semibold' : 'text-secondary'}`}>
+                          {salon.stylistStatus}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-outline text-lg">
+                      {salon.isOpenNow ? 'offline_bolt' : 'event_available'}
+                    </span>
+                  </div>
+
+                  {/* Clear Token Flow: Ongoing vs Next Available */}
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-surface-container/70 border border-outline-variant/30 text-center">
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-secondary flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+                        Ongoing Token
+                      </span>
+                      <span className="text-xs font-black text-on-surface mt-0.5">
+                        #{salon.ongoingToken} <span className="text-[10px] font-normal text-on-surface-variant">(In Chair)</span>
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center border-l border-outline-variant/30">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                        Next Available
+                      </span>
+                      <span className="text-xs font-black text-primary mt-0.5">
+                        #{salon.nextAvailableToken} <span className="text-[10px] font-normal text-on-surface-variant">(Your Pass)</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-space-sm pt-space-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDetails(salon)}
+                      className="py-2.5 px-space-sm rounded-lg bg-surface-container-high hover:bg-surface-bright text-on-surface font-label-md text-label-md transition-colors text-center cursor-pointer border border-outline-variant/30 flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">visibility</span>
+                      <span>View Details</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenBooking(salon)}
+                      className="py-2.5 px-space-sm rounded-lg bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-label-md text-label-md font-bold transition-transform active:scale-95 text-center shadow-lg shadow-amber-500/20 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">calendar_today</span>
+                      <span>Book Now</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
       </section>
 
@@ -838,7 +830,7 @@ export default function CustomerHomePage() {
         <div className="relative w-full rounded-2xl p-space-lg md:p-space-xl bg-gradient-to-r from-surface-container-lowest via-surface-container to-surface-container-low shadow-2xl overflow-hidden flex flex-col md:flex-row items-center justify-between gap-space-lg border border-primary/20">
           <div className="absolute -top-16 -left-16 w-64 h-64 rounded-full bg-primary/10 blur-3xl pointer-events-none"></div>
           <div className="absolute right-0 bottom-0 w-80 h-80 rounded-full bg-tertiary/5 blur-3xl pointer-events-none"></div>
-          
+
           <div className="flex items-center gap-space-lg z-10">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-primary-container to-primary flex items-center justify-center text-on-primary shadow-lg shrink-0">
               <span className="material-symbols-outlined text-3xl">diamond</span>
@@ -858,7 +850,7 @@ export default function CustomerHomePage() {
           </div>
 
           <div className="flex items-center gap-space-md z-10 w-full md:w-auto justify-end">
-            <button 
+            <button
               type="button"
               onClick={() => alert('LuxeTrim Club Black invitation request sent to VIP concierge desk.')}
               className="w-full md:w-auto px-space-xl py-space-sm rounded-xl bg-gradient-to-r from-primary-container via-primary to-primary-fixed text-on-primary font-label-lg text-label-lg font-semibold tracking-wide shadow-lg hover:shadow-primary/20 hover:scale-[1.02] transition-all duration-200 text-center whitespace-nowrap cursor-pointer"
@@ -890,6 +882,166 @@ export default function CustomerHomePage() {
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
       />
+
+      {/* SALON VIEW DETAILS MODAL */}
+      {isDetailsModalOpen && selectedSalonForDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#121622] border border-[#2b354b] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
+            {/* Header / Hero image */}
+            <div className="relative h-48 w-full bg-gradient-to-br from-amber-500/20 via-slate-900 to-black overflow-hidden flex items-center justify-center">
+              {selectedSalonForDetails.imageUrl ? (
+                <img
+                  src={selectedSalonForDetails.imageUrl}
+                  alt={selectedSalonForDetails.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="text-center space-y-2">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+                    <span className="material-symbols-outlined text-3xl">storefront</span>
+                  </div>
+                  <h4 className="text-lg font-bold text-white">{selectedSalonForDetails.name}</h4>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#121622] via-[#121622]/40 to-transparent"></div>
+
+              <button
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-all cursor-pointer border border-white/10"
+              >
+                ✕
+              </button>
+
+              <div className="absolute bottom-4 left-6 right-6">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                  Salon Profile
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
+                  {selectedSalonForDetails.name}
+                </h3>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 space-y-5 overflow-y-auto">
+
+              {/* Timing & Wait Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 rounded-2xl bg-slate-950/60 border border-[#232a3b]">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Hours</span>
+                  <p className="text-xs font-semibold text-white mt-1 truncate">
+                    {selectedSalonForDetails.openingTime || '09:00 AM'} - {selectedSalonForDetails.closingTime || '09:00 PM'}
+                  </p>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-950/60 border border-[#232a3b]">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Ongoing Token
+                  </span>
+                  <p className="text-xs font-extrabold text-white mt-1">
+                    #{Math.max(1, selectedSalonForDetails.totalWaiting || 1)}
+                  </p>
+                  <span className="text-[9px] text-zinc-400 block">Serving in chair</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-950/60 border border-[#232a3b]">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Next Available</span>
+                  <p className="text-xs font-extrabold text-amber-400 mt-1">
+                    #{(selectedSalonForDetails.totalWaiting || 0) + 1}
+                  </p>
+                  <span className="text-[9px] text-zinc-400 block">Assigned upon booking</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-950/60 border border-[#232a3b]">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Estimated Wait</span>
+                  <p className="text-xs font-bold text-white mt-1">
+                    ~{selectedSalonForDetails.currentWaitMinutes || 0} mins
+                  </p>
+                  <span className="text-[9px] text-zinc-400 block">{selectedSalonForDetails.totalWaiting || 0} waiting ahead</span>
+                </div>
+              </div>
+
+              {/* Location & Address */}
+              <div className="p-4 rounded-2xl bg-slate-950/40 border border-[#232a3b] space-y-2">
+                <div className="flex items-start gap-2.5">
+                  <span className="material-symbols-outlined text-amber-400 text-lg flex-shrink-0 mt-0.5">location_on</span>
+                  <div>
+                    <span className="text-xs font-bold text-white block">Location & Address</span>
+                    <p className="text-xs text-zinc-300 mt-0.5 leading-relaxed">
+                      {selectedSalonForDetails.address || 'Verified Salon Location'}
+                      {selectedSalonForDetails.city ? `, ${selectedSalonForDetails.city}` : ''}
+                      {selectedSalonForDetails.pincode ? ` - ${selectedSalonForDetails.pincode}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {selectedSalonForDetails.locationLink && (
+                  <a
+                    href={selectedSalonForDetails.locationLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1 pt-1"
+                  >
+                    <span>Open in Google Maps</span>
+                    <span className="material-symbols-outlined text-xs">open_in_new</span>
+                  </a>
+                )}
+              </div>
+
+              {/* Contact Information */}
+              {((selectedSalonForDetails.phone || selectedSalonForDetails.phoneNumber) || selectedSalonForDetails.email) && (
+                <div className="p-3.5 rounded-2xl bg-slate-950/40 border border-[#232a3b] space-y-1.5 text-xs">
+                  {(selectedSalonForDetails.phone || selectedSalonForDetails.phoneNumber) && (
+                    <div className="flex items-center gap-2 text-zinc-300">
+                      <span className="material-symbols-outlined text-sm text-zinc-400">call</span>
+                      <span>Phone: <strong className="text-white">{selectedSalonForDetails.phone || selectedSalonForDetails.phoneNumber}</strong></span>
+                    </div>
+                  )}
+                  {selectedSalonForDetails.email && (
+                    <div className="flex items-center gap-2 text-zinc-300">
+                      <span className="material-symbols-outlined text-sm text-zinc-400">mail</span>
+                      <span>Email: <strong className="text-white">{selectedSalonForDetails.email}</strong></span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Description */}
+              {(selectedSalonForDetails.salonDescription || selectedSalonForDetails.description) && (
+                <div className="space-y-1">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">About Studio</span>
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    {selectedSalonForDetails.salonDescription || selectedSalonForDetails.description}
+                  </p>
+                </div>
+              )}
+
+            </div>
+
+            {/* Footer Action Buttons */}
+            <div className="p-5 border-t border-[#232a3b] bg-slate-950/80 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold border border-zinc-700/60 transition-all cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDetailsModalOpen(false);
+                  handleOpenBooking(selectedSalonForDetails);
+                }}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-amber-500/20 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <span>Proceed to Book Now</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Live Chair Stream Modal */}
       {streamModalOpen && (
@@ -933,6 +1085,15 @@ export default function CustomerHomePage() {
           </div>
         </div>
       )}
+
+      {/* Real-time Customer Concierge Chatbot (Floating Bottom-Right on Home Screen) */}
+      <CustomerChatbotWidget
+        userLocation={userLocation}
+        onOpenBookingModal={(salon) => {
+          if (salon) setSelectedSalonForBooking(salon);
+          setIsBookingModalOpen(true);
+        }}
+      />
 
     </div>
   );

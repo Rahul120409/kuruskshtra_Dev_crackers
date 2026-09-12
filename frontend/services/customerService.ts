@@ -1,22 +1,15 @@
-import { 
-  SalonService, 
-  Hairstyle, 
-  SalonStaff, 
-  QueueToken, 
-  Appointment, 
-  Notification, 
+import {
+  SalonService,
+  Hairstyle,
+  SalonStaff,
+  QueueToken,
+  Appointment,
+  Notification,
   Feedback,
-  QueueStatus 
+  QueueStatus
 } from '../types';
-import { 
-  DEMO_SERVICES, 
-  DEMO_HAIRSTYLES, 
-  DEMO_STAFF, 
-  INITIAL_DEMO_TOKEN, 
-  INITIAL_NOTIFICATIONS,
-  INITIAL_DEMO_APPOINTMENTS
-} from './mockData';
 import { salonService } from './salonService';
+import { getApiBaseUrl } from './apiConfig';
 
 export interface ICustomerService {
   getServices(category?: string): Promise<SalonService[]>;
@@ -24,8 +17,12 @@ export interface ICustomerService {
   getStaff(): Promise<SalonStaff[]>;
   joinQueue(data: {
     salonId: string;
-    serviceId: string;
-    customerId: string;
+    serviceId?: string;
+    serviceName?: string;
+    serviceDurationMinutes?: number;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
     staffId?: string;
     selectedHairstyleId?: string;
   }): Promise<QueueToken>;
@@ -34,38 +31,92 @@ export interface ICustomerService {
   getNotifications(customerId: string): Promise<Notification[]>;
   markNotificationAsRead(id: string): Promise<void>;
   submitFeedback(feedback: Feedback): Promise<boolean>;
+  rateAppointment(appointmentId: string, rating: number, feedback?: string, userId?: string): Promise<boolean>;
   getAppointments(customerId?: string): Promise<Appointment[]>;
   addAppointment(data: Partial<Appointment>): Promise<Appointment>;
   cancelAppointment(appointmentId: string): Promise<boolean>;
   createAppointment(data: {
     salonId: string;
-    serviceId: string;
-    customerId: string;
+    serviceId?: string;
+    serviceName?: string;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
     staffId?: string;
     appointmentDate: string;
     appointmentTime: string;
   }): Promise<Appointment>;
-  // Demo simulation helper
   advanceDemoQueue(tokenId: string): Promise<{ token: QueueToken; notification?: Notification }>;
-  resetDemoQueue(): Promise<QueueToken>;
+  resetDemoQueue(): Promise<QueueToken | null>;
+  getLiveQueueBoard(salonId: string): Promise<{
+    salonId: string;
+    currentServingTokenNumber?: number | null;
+    lastCalledTokenNumber?: number | null;
+    nextAvailableTokenNumber?: number;
+    totalWaiting: number;
+    activeStylistsCount: number;
+    activeQueue: any[];
+  } | null>;
 }
+
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8081').replace(/\/$/, '');
 
 const STORAGE_KEY_TOKEN = 'salonflow_active_token';
 const STORAGE_KEY_NOTIFS = 'salonflow_notifications';
 const STORAGE_KEY_APPOINTMENTS = 'salonflow_appointments';
 
-export class MockCustomerService implements ICustomerService {
-  private getLocalToken(): QueueToken | null {
-    if (typeof window === 'undefined') return INITIAL_DEMO_TOKEN;
-    const raw = localStorage.getItem(STORAGE_KEY_TOKEN);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY_TOKEN, JSON.stringify(INITIAL_DEMO_TOKEN));
-      return INITIAL_DEMO_TOKEN;
+function cleanLegacyDemoStorage() {
+  if (typeof window === 'undefined') return;
+  try {
+    const rawToken = localStorage.getItem(STORAGE_KEY_TOKEN);
+    if (rawToken && (rawToken.includes('tok-108-demo') || rawToken.includes('108-demo'))) {
+      localStorage.removeItem(STORAGE_KEY_TOKEN);
     }
+
+    const rawAppts = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
+    if (rawAppts) {
+      const parsed = JSON.parse(rawAppts);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter(
+          (a: any) =>
+            a.id !== 'apt-108-live' &&
+            a.id !== 'apt-109-scheduled' &&
+            a.id !== 'apt-105-completed' &&
+            a.customerId !== 'usr-customer-001'
+        );
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(STORAGE_KEY_APPOINTMENTS, JSON.stringify(cleaned));
+        }
+      }
+    }
+
+    const rawNotifs = localStorage.getItem(STORAGE_KEY_NOTIFS);
+    if (rawNotifs && rawNotifs.includes('notif-01')) {
+      localStorage.removeItem(STORAGE_KEY_NOTIFS);
+    }
+  } catch (e) {
+    console.warn('Could not clean legacy demo data:', e);
+  }
+}
+
+export class MockCustomerService implements ICustomerService {
+  constructor() {
+    cleanLegacyDemoStorage();
+  }
+
+  private getLocalToken(): QueueToken | null {
+    if (typeof window === 'undefined') return null;
     try {
-      return JSON.parse(raw);
+      const raw = localStorage.getItem(STORAGE_KEY_TOKEN);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.tokenId === 'tok-108-demo' || parsed?.tokenNumber === 108) {
+        localStorage.removeItem(STORAGE_KEY_TOKEN);
+        return null;
+      }
+      return parsed;
     } catch {
-      return INITIAL_DEMO_TOKEN;
+      return null;
     }
   }
 
@@ -79,16 +130,12 @@ export class MockCustomerService implements ICustomerService {
   }
 
   private getLocalNotifs(): Notification[] {
-    if (typeof window === 'undefined') return INITIAL_NOTIFICATIONS;
-    const raw = localStorage.getItem(STORAGE_KEY_NOTIFS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY_NOTIFS, JSON.stringify(INITIAL_NOTIFICATIONS));
-      return INITIAL_NOTIFICATIONS;
-    }
+    if (typeof window === 'undefined') return [];
     try {
-      return JSON.parse(raw);
+      const raw = localStorage.getItem(STORAGE_KEY_NOTIFS);
+      return raw ? JSON.parse(raw) : [];
     } catch {
-      return INITIAL_NOTIFICATIONS;
+      return [];
     }
   }
 
@@ -98,16 +145,21 @@ export class MockCustomerService implements ICustomerService {
   }
 
   private getLocalAppointments(): Appointment[] {
-    if (typeof window === 'undefined') return INITIAL_DEMO_APPOINTMENTS;
-    const raw = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY_APPOINTMENTS, JSON.stringify(INITIAL_DEMO_APPOINTMENTS));
-      return INITIAL_DEMO_APPOINTMENTS;
-    }
+    if (typeof window === 'undefined') return [];
     try {
-      return JSON.parse(raw);
+      const raw = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
+      if (!raw) return [];
+      const list = JSON.parse(raw);
+      return Array.isArray(list)
+        ? list.filter(
+            (a: any) =>
+              a.id !== 'apt-108-live' &&
+              a.id !== 'apt-109-scheduled' &&
+              a.id !== 'apt-105-completed'
+          )
+        : [];
     } catch {
-      return INITIAL_DEMO_APPOINTMENTS;
+      return [];
     }
   }
 
@@ -117,38 +169,36 @@ export class MockCustomerService implements ICustomerService {
   }
 
   async getAppointments(customerId?: string): Promise<Appointment[]> {
-    await new Promise((r) => setTimeout(r, 150));
     const list = this.getLocalAppointments();
     if (!customerId) return list;
-    return list.filter((a) => a.customerId === customerId || a.customerId === 'usr-customer-001');
+    return list.filter((a) => a.customerId === customerId);
   }
 
   async addAppointment(data: Partial<Appointment>): Promise<Appointment> {
-    await new Promise((r) => setTimeout(r, 150));
     const list = this.getLocalAppointments();
     const newApt: Appointment = {
-      id: 'apt-' + Date.now(),
-      customerId: data.customerId || 'usr-customer-001',
-      salonId: data.salonId || 'salon-pune-01',
-      salonName: data.salonName || 'SalonFlow Studio & Lounge',
-      salonAddress: data.salonAddress || 'Lane 7, Koregaon Park, Pune, Maharashtra 411001',
-      salonArea: data.salonArea || 'Koregaon Park',
-      serviceId: data.serviceId || 'srv-02',
-      serviceName: data.serviceName || 'Skin Fade & Textured Crop',
-      servicePrice: data.servicePrice || 599,
-      serviceDuration: data.serviceDuration || 35,
-      staffId: data.staffId || 'stf-01',
-      staffName: data.staffName || 'Vikram Joshi (Master Stylist)',
-      staffAvatar: data.staffAvatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      id: data.id || 'apt-' + Date.now(),
+      customerId: data.customerId || '',
+      salonId: data.salonId || '',
+      salonName: data.salonName || 'Salon',
+      salonAddress: data.salonAddress || '',
+      salonArea: data.salonArea || '',
+      serviceId: data.serviceId || '',
+      serviceName: data.serviceName || 'Custom Service',
+      servicePrice: data.servicePrice || 0,
+      serviceDuration: data.serviceDuration || 30,
+      staffId: data.staffId,
+      staffName: data.staffName,
+      staffAvatar: data.staffAvatar,
       appointmentDate: data.appointmentDate || new Date().toISOString().split('T')[0],
-      appointmentTime: data.appointmentTime || '04:30 PM',
-      status: 'CONFIRMED',
-      source: 'ONLINE',
+      appointmentTime: data.appointmentTime || '10:00 AM',
+      status: data.status || 'CONFIRMED',
+      source: data.source || 'ONLINE',
       bookingType: data.bookingType || 'WALK_IN',
-      tokenNumber: data.tokenNumber || 108,
+      tokenNumber: data.tokenNumber,
       paymentMethod: data.paymentMethod || 'Pay at Salon Counter',
       paymentStatus: data.paymentStatus || 'PENDING_AT_COUNTER',
-      createdAt: new Date().toISOString(),
+      createdAt: data.createdAt || new Date().toISOString(),
     };
 
     const updated = [newApt, ...list];
@@ -157,7 +207,6 @@ export class MockCustomerService implements ICustomerService {
   }
 
   async cancelAppointment(appointmentId: string): Promise<boolean> {
-    await new Promise((r) => setTimeout(r, 150));
     const list = this.getLocalAppointments();
     const updated = list.map((a) => (a.id === appointmentId ? { ...a, status: 'CANCELLED' as const } : a));
     this.saveLocalAppointments(updated);
@@ -165,103 +214,131 @@ export class MockCustomerService implements ICustomerService {
   }
 
   async getServices(category?: string): Promise<SalonService[]> {
-    await new Promise((r) => setTimeout(r, 200));
-    if (!category || category === 'All') return DEMO_SERVICES;
-    return DEMO_SERVICES.filter((s) => s.category === category);
+    return [];
   }
 
   async getHairstyles(): Promise<Hairstyle[]> {
-    await new Promise((r) => setTimeout(r, 200));
-    return DEMO_HAIRSTYLES;
+    return [];
   }
 
   async getStaff(): Promise<SalonStaff[]> {
-    await new Promise((r) => setTimeout(r, 200));
-    return DEMO_STAFF;
+    return [];
   }
 
   async joinQueue(data: {
     salonId: string;
-    serviceId: string;
-    customerId: string;
+    serviceId?: string;
+    serviceName?: string;
+    serviceDurationMinutes?: number;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
     staffId?: string;
     selectedHairstyleId?: string;
   }): Promise<QueueToken> {
     const realSalons = await salonService.getSalons();
-    const salon = realSalons.find((sl) => sl.id === data.salonId) || realSalons[0] || {
-      id: data.salonId,
-      name: 'Salon',
-      address: 'Pune',
-      phone: '',
-      city: 'Pune',
-      pincode: '',
-      area: 'Pune',
-      imageUrl: '',
-      salonDescription: '',
-      openingTime: '09:00 AM',
-      closingTime: '09:00 PM',
-      status: 'OPEN',
-      rating: 4.9,
-      reviewCount: 1,
-      currentWaitMinutes: 15,
-      totalWaiting: 1,
-      createdAt: ''
-    };
-    const service = DEMO_SERVICES.find((s) => s.id === data.serviceId) || DEMO_SERVICES[1];
-    const staff = DEMO_STAFF.find((st) => st.id === data.staffId) || DEMO_STAFF[0];
-    const hairstyle = DEMO_HAIRSTYLES.find((h) => h.id === data.selectedHairstyleId);
+    const salon = realSalons.find((sl) => sl.id === data.salonId);
 
-    const nextTokenNumber = 108; // Winning demo canonical number
-    const newToken: QueueToken = {
+    // Call Backend API to join real live queue
+    try {
+      const payload: any = {
+        salonId: toUuidOrNull(data.salonId),
+        customerName: (data.customerName || 'Customer').trim(),
+        customerPhone: data.customerPhone || '9876543210',
+        serviceName: data.serviceName || 'Haircut & Styling',
+        serviceDurationMinutes: data.serviceDurationMinutes || 25,
+        source: 'ONLINE',
+      };
+      if (data.serviceId) payload.serviceId = toUuidOrNull(data.serviceId);
+      if (data.staffId) payload.staffId = toUuidOrNull(data.staffId);
+      if (data.customerId) payload.userId = toUuidOrNull(data.customerId);
+
+      const res = await fetch(`${API_BASE_URL}/api/queue/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (json && json.data) {
+        const d = json.data;
+        const confirmed: QueueToken = {
+          tokenId: d.id ? String(d.id) : ('tok-' + Date.now()),
+          tokenNumber: d.tokenNumber,
+          position: d.position || 1,
+          estimatedWait: d.estimatedWaitMinutes ?? 15,
+          status: d.status || 'WAITING',
+          salonId: d.salonId || data.salonId,
+          salonName: salon?.name || 'Salon',
+          customerId: d.userId || data.customerId || '',
+          serviceId: d.serviceId || data.serviceId || '',
+          serviceName: d.serviceName || data.serviceName || 'Haircut & Styling',
+          servicePrice: 0,
+          staffId: d.staffId,
+          staffName: d.staffName,
+          queueDate: d.queueDate || new Date().toISOString().split('T')[0],
+          createdAt: d.joinedAt || new Date().toISOString(),
+          stationNumber: 1,
+          selectedHairstyleId: data.selectedHairstyleId,
+        };
+        this.saveLocalToken(confirmed);
+        return confirmed;
+      }
+    } catch (err) {
+      console.warn('Backend /api/queue/join failed, falling back to local token:', err);
+    }
+
+    const fallbackToken: QueueToken = {
       tokenId: 'tok-' + Date.now(),
-      tokenNumber: nextTokenNumber,
-      position: Math.max(1, (salon.totalWaiting || 3) + 1),
-      estimatedWait: salon.currentWaitMinutes || 24, // Matches LLD section 8 contract
+      tokenNumber: (salon?.totalWaiting || 0) + 1,
+      position: Math.max(1, (salon?.totalWaiting || 0) + 1),
+      estimatedWait: salon?.currentWaitMinutes || 15,
       status: 'WAITING',
-      salonId: salon.id,
-      salonName: salon.name,
-      customerId: data.customerId,
-      serviceId: service.id,
-      serviceName: service.name,
-      servicePrice: service.price,
-      staffId: staff.id,
-      staffName: staff.name,
+      salonId: data.salonId,
+      salonName: salon?.name || 'Salon',
+      customerId: data.customerId || '',
+      serviceId: data.serviceId || '',
+      serviceName: data.serviceName || 'Haircut & Styling',
+      servicePrice: 0,
+      staffId: data.staffId,
       queueDate: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
-      stationNumber: 3,
-      selectedHairstyleId: hairstyle?.id,
-      selectedHairstyleName: hairstyle?.name,
+      stationNumber: 1,
+      selectedHairstyleId: data.selectedHairstyleId,
     };
 
-    this.saveLocalToken(newToken);
+    this.saveLocalToken(fallbackToken);
+    return fallbackToken;
+  }
 
-    // Trigger initial confirmation notification
-    const notifs = this.getLocalNotifs();
-    const newNotif: Notification = {
-      id: 'notif-' + Date.now(),
-      userId: data.customerId,
-      title: `Token #${newToken.tokenNumber} Confirmed!`,
-      message: `You are in line at position #${newToken.position}. Estimated wait: ${newToken.estimatedWait} minutes.`,
-      type: 'BOOKING_CONFIRMED',
-      isRead: false,
-      createdAt: new Date().toISOString(),
-      actionUrl: '/queue',
-    };
-    this.saveLocalNotifs([newNotif, ...notifs]);
-
-    return newToken;
+  async getLiveQueueBoard(salonId: string): Promise<{
+    salonId: string;
+    currentServingTokenNumber?: number | null;
+    lastCalledTokenNumber?: number | null;
+    nextAvailableTokenNumber?: number;
+    totalWaiting: number;
+    activeStylistsCount: number;
+    activeQueue: any[];
+  } | null> {
+    try {
+      const cleanId = toUuidOrNull(salonId) || salonId;
+      const res = await fetch(`${API_BASE_URL}/api/queue/live/${cleanId}`);
+      const json = await res.json();
+      if (json && json.data) {
+        return json.data;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch live queue board from backend:', e);
+    }
+    return null;
   }
 
   async getToken(tokenId: string): Promise<QueueToken | null> {
-    await new Promise((r) => setTimeout(r, 100));
-    const current = this.getLocalToken();
-    if (!current) return null;
-    return current;
+    return this.getLocalToken();
   }
 
   async cancelToken(tokenId: string): Promise<boolean> {
     const current = this.getLocalToken();
-    if (current && current.tokenId === tokenId) {
+    if (current && (current.tokenId === tokenId || current.tokenNumber?.toString() === tokenId)) {
       current.status = 'CANCELLED';
       this.saveLocalToken(current);
     }
@@ -278,263 +355,494 @@ export class MockCustomerService implements ICustomerService {
   }
 
   async submitFeedback(feedback: Feedback): Promise<boolean> {
-    await new Promise((r) => setTimeout(r, 400));
-    console.log('Customer feedback received:', feedback);
+    return true;
+  }
+
+  async rateAppointment(appointmentId: string, rating: number, feedback?: string): Promise<boolean> {
+    const apts = this.getLocalAppointments();
+    const updated = apts.map((a) => (a.id === appointmentId ? { ...a, rating, feedback } : a));
+    this.saveLocalAppointments(updated);
     return true;
   }
 
   async createAppointment(data: {
     salonId: string;
-    serviceId: string;
-    customerId: string;
+    serviceId?: string;
+    serviceName?: string;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
     staffId?: string;
     appointmentDate: string;
     appointmentTime: string;
   }): Promise<Appointment> {
-    await new Promise((r) => setTimeout(r, 400));
-    const service = DEMO_SERVICES.find((s) => s.id === data.serviceId);
-    const staff = DEMO_STAFF.find((st) => st.id === data.staffId);
-
-    const appt: Appointment = {
-      id: 'appt-' + Date.now(),
-      customerId: data.customerId,
-      salonId: data.salonId,
-      serviceId: data.serviceId,
-      serviceName: service?.name || 'Custom Grooming',
-      staffId: data.staffId,
-      staffName: staff?.name || 'Assigned Stylist',
-      appointmentDate: data.appointmentDate,
-      appointmentTime: data.appointmentTime,
-      status: 'CONFIRMED',
-      source: 'ONLINE',
-      createdAt: new Date().toISOString(),
-    };
-
-    const notifs = this.getLocalNotifs();
-    const newNotif: Notification = {
-      id: 'notif-' + Date.now(),
-      userId: data.customerId,
-      title: 'Appointment Confirmed',
-      message: `Your booking for ${appt.serviceName} on ${appt.appointmentDate} at ${appt.appointmentTime} is confirmed.`,
-      type: 'BOOKING_CONFIRMED',
-      isRead: false,
-      createdAt: new Date().toISOString(),
-      actionUrl: '/queue',
-    };
-    this.saveLocalNotifs([newNotif, ...notifs]);
-
-    return appt;
+    return this.addAppointment(data);
   }
 
-  // Winning demo step controller
   async advanceDemoQueue(tokenId: string): Promise<{ token: QueueToken; notification?: Notification }> {
-    const current = this.getLocalToken() || INITIAL_DEMO_TOKEN;
-    let newNotif: Notification | undefined = undefined;
+    const current = this.getLocalToken();
+    if (!current) {
+      throw new Error('No active queue token found');
+    }
 
     if (current.status === 'WAITING') {
-      if (current.position > 2) {
-        // Step 1: Advance from 4 to 2 ("2 customers away")
-        current.position = 2;
-        current.estimatedWait = 12;
-        newNotif = {
-          id: 'notif-' + Date.now(),
-          userId: current.customerId,
-          title: '2 Customers Away!',
-          message: 'The stylist will be ready for you shortly. Please stay nearby Station 3.',
-          type: 'TURN_APPROACHING',
-          isRead: false,
-          createdAt: new Date().toISOString(),
-          actionUrl: '/queue',
-        };
-      } else if (current.position === 2) {
-        // Step 2: Customer called
+      if (current.position > 1) {
+        current.position = 1;
+        current.estimatedWait = Math.max(0, current.estimatedWait - 10);
+      } else {
         current.position = 0;
         current.estimatedWait = 0;
         current.status = 'CALLED';
-        newNotif = {
-          id: 'notif-' + Date.now(),
-          userId: current.customerId,
-          title: "It's Your Turn! (Token #" + current.tokenNumber + ")",
-          message: 'Please proceed to Station 3. Stylist Vikram Joshi is ready for you.',
-          type: 'TURN_CALLED',
-          isRead: false,
-          createdAt: new Date().toISOString(),
-          actionUrl: '/queue',
-        };
       }
     } else if (current.status === 'CALLED') {
-      // Step 3: Service started
       current.status = 'IN_SERVICE';
     } else if (current.status === 'IN_SERVICE') {
-      // Step 4: Service completed
       current.status = 'COMPLETED';
-      newNotif = {
-        id: 'notif-' + Date.now(),
-        userId: current.customerId,
-        title: 'Service Completed',
-        message: 'We hope you loved your new haircut! Please take 15 seconds to leave your feedback.',
-        type: 'COMPLETED',
-        isRead: false,
-        createdAt: new Date().toISOString(),
-        actionUrl: '/feedback',
-      };
     }
 
     this.saveLocalToken(current);
-
-    if (newNotif) {
-      const notifs = this.getLocalNotifs();
-      this.saveLocalNotifs([newNotif, ...notifs]);
-    }
-
-    return { token: current, notification: newNotif };
+    return { token: current };
   }
 
-  async resetDemoQueue(): Promise<QueueToken> {
-    const fresh = { ...INITIAL_DEMO_TOKEN };
-    this.saveLocalToken(fresh);
-    this.saveLocalNotifs(INITIAL_NOTIFICATIONS);
-    return fresh;
+  async resetDemoQueue(): Promise<QueueToken | null> {
+    this.saveLocalToken(null);
+    return null;
   }
 }
 
+const toUuidOrNull = (id?: string): string | null => {
+  if (!id) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null;
+};
+
 export class ApiCustomerService implements ICustomerService {
-  private baseUrl: string;
   private fallback: MockCustomerService;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8080';
     this.fallback = new MockCustomerService();
+  }
+
+  private getApiUrl(endpoint: string): string {
+    const base = getApiBaseUrl();
+    return base ? `${base}${endpoint}` : endpoint;
   }
 
   async getServices(category?: string): Promise<SalonService[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/services`);
-      if (!res.ok) throw new Error('API fetch failed');
-      const data: SalonService[] = await res.json();
-      if (!category || category === 'All') return data;
-      return data.filter((s) => s.category === category);
-    } catch (err) {
-      return this.fallback.getServices(category);
+      const res = await fetch(this.getApiUrl('/api/services'), {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+        if (!category || category === 'All') return list;
+        return list.filter((s: SalonService) => s.category === category);
+      }
+    } catch {
+      // ignore
     }
+    return this.fallback.getServices(category);
   }
 
   async getHairstyles(): Promise<Hairstyle[]> {
-    return this.fallback.getHairstyles();
+    try {
+      const res = await fetch(this.getApiUrl('/api/styles/specific'), {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        return list.map((item: any) => ({
+          id: item.id || item.code,
+          name: item.name,
+          description: item.description || '',
+          imageUrl: item.imageUrl || '',
+          category: item.styleTypeName || 'Hairstyles',
+          suitableFaceShapes: item.suitableFaceShapes ? item.suitableFaceShapes.split(',') : [],
+          suitableHairTypes: item.suitableHairTypes ? item.suitableHairTypes.split(',') : [],
+          mappedServiceId: item.styleTypeId,
+        }));
+      }
+    } catch {
+      // ignore
+    }
+    return [];
   }
 
   async getStaff(): Promise<SalonStaff[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/staff`);
-      if (!res.ok) throw new Error('API fetch failed');
-      return await res.json();
+      const res = await fetch(this.getApiUrl('/api/staff'), {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        return list.map((st: any) => ({
+          id: st.id,
+          name: st.name,
+          salonId: st.salonId,
+          specialization: st.specialization || 'Barber & Stylist',
+          status: st.status || 'AVAILABLE',
+          avatarUrl: st.profileImage || '',
+          rating: 5.0,
+        }));
+      }
     } catch {
-      return this.fallback.getStaff();
+      // ignore
     }
+    return [];
   }
 
   async joinQueue(data: {
     salonId: string;
-    serviceId: string;
-    customerId: string;
+    serviceId?: string;
+    serviceName?: string;
+    serviceDurationMinutes?: number;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
     staffId?: string;
     selectedHairstyleId?: string;
   }): Promise<QueueToken> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/queue/join`, {
+      const payload = {
+        salonId: toUuidOrNull(data.salonId),
+        customerName: data.customerName || 'Customer',
+        customerPhone: data.customerPhone || '',
+        userId: toUuidOrNull(data.customerId),
+        serviceId: toUuidOrNull(data.serviceId),
+        serviceName: data.serviceName,
+        serviceDurationMinutes: data.serviceDurationMinutes || 30,
+        staffId: toUuidOrNull(data.staffId),
+        source: 'ONLINE',
+      };
+
+      const res = await fetch(this.getApiUrl('/api/queue/join'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Join queue API failed');
-      return await res.json();
+
+      if (res.ok) {
+        const json = await res.json();
+        const tokenData = json.data || json;
+        const mappedToken: QueueToken = {
+          tokenId: tokenData.id || `tok-${Date.now()}`,
+          tokenNumber: tokenData.tokenNumber || 1,
+          position: tokenData.position || 1,
+          estimatedWait: tokenData.estimatedWaitMinutes || 0,
+          status: tokenData.status || 'WAITING',
+          salonId: tokenData.salonId || data.salonId,
+          salonName: tokenData.salonName || '',
+          customerId: tokenData.userId || data.customerId || '',
+          serviceId: tokenData.serviceId || data.serviceId || '',
+          serviceName: tokenData.serviceName || data.serviceName || '',
+          servicePrice: 0,
+          staffId: tokenData.staffId || data.staffId,
+          staffName: tokenData.staffName,
+          queueDate: tokenData.queueDate || new Date().toISOString().split('T')[0],
+          createdAt: tokenData.joinedAt || new Date().toISOString(),
+          stationNumber: tokenData.stationNumber,
+          selectedHairstyleId: data.selectedHairstyleId,
+        };
+        this.fallback['saveLocalToken'](mappedToken);
+        return mappedToken;
+      }
     } catch (err) {
-      console.warn('Backend /api/queue/join unavailable, using MockCustomerService fallback.', err);
-      return this.fallback.joinQueue(data);
+      console.warn('Backend /api/queue/join notice:', err);
     }
+    return this.fallback.joinQueue(data);
   }
 
   async getToken(tokenId: string): Promise<QueueToken | null> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/queue/token/${tokenId}`);
-      if (!res.ok) throw new Error('Get token API failed');
-      return await res.json();
-    } catch {
-      return this.fallback.getToken(tokenId);
+    if (!tokenId) return null;
+    if (tokenId === 'active') {
+      return this.fallback.getToken('active');
     }
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(tokenId)) {
+      try {
+        const res = await fetch(this.getApiUrl(`/api/queue/token/${tokenId}`));
+        if (res.ok) {
+          const json = await res.json();
+          const t = json.data || json;
+          if (t && t.tokenNumber) {
+            return {
+              tokenId: t.id,
+              tokenNumber: t.tokenNumber,
+              position: t.position || 1,
+              estimatedWait: t.estimatedWaitMinutes || 0,
+              status: t.status || 'WAITING',
+              salonId: t.salonId,
+              customerId: t.userId,
+              serviceId: t.serviceId,
+              serviceName: t.serviceName,
+              servicePrice: 0,
+              staffId: t.staffId,
+              staffName: t.staffName,
+              queueDate: t.queueDate,
+              createdAt: t.joinedAt,
+            };
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return this.fallback.getToken(tokenId);
   }
 
   async cancelToken(tokenId: string): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/queue/${tokenId}/cancel`, { method: 'PUT' });
-      if (!res.ok) throw new Error('Cancel failed');
-      return true;
-    } catch {
-      return this.fallback.cancelToken(tokenId);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(tokenId)) {
+      try {
+        const res = await fetch(this.getApiUrl(`/api/queue/${tokenId}/cancel`), {
+          method: 'PUT',
+          headers: { Accept: 'application/json' },
+        });
+        if (res.ok) {
+          this.fallback['saveLocalToken'](null);
+          return true;
+        }
+      } catch {
+        // ignore
+      }
     }
+    return this.fallback.cancelToken(tokenId);
   }
 
   async getNotifications(customerId: string): Promise<Notification[]> {
+    if (!customerId) return [];
     try {
-      const res = await fetch(`${this.baseUrl}/api/notifications/${customerId}`);
-      if (!res.ok) throw new Error('Notifs failed');
-      return await res.json();
+      const res = await fetch(this.getApiUrl(`/api/notifications/${customerId}`));
+      if (res.ok) {
+        const json = await res.json();
+        return Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+      }
     } catch {
-      return this.fallback.getNotifications(customerId);
+      // ignore
     }
+    return this.fallback.getNotifications(customerId);
   }
 
   async markNotificationAsRead(id: string): Promise<void> {
     try {
-      await fetch(`${this.baseUrl}/api/notifications/${id}/read`, { method: 'PUT' });
+      await fetch(this.getApiUrl(`/api/notifications/${id}/read`), { method: 'PUT' });
     } catch {
-      await this.fallback.markNotificationAsRead(id);
+      // ignore
     }
+    await this.fallback.markNotificationAsRead(id);
   }
 
   async submitFeedback(feedback: Feedback): Promise<boolean> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/feedback`, {
+      const res = await fetch(this.getApiUrl('/api/feedback'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(feedback),
       });
-      return res.ok;
+      if (res.ok) return true;
     } catch {
-      return this.fallback.submitFeedback(feedback);
+      // ignore
     }
+    return this.fallback.submitFeedback(feedback);
+  }
+
+  async rateAppointment(appointmentId: string, rating: number, feedback?: string, userId?: string): Promise<boolean> {
+    try {
+      const cleanUserId = toUuidOrNull(userId);
+      const res = await fetch(this.getApiUrl(`/api/appointments/${appointmentId}/rating`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          userId: cleanUserId,
+          rating,
+          feedback,
+          message: feedback,
+        }),
+      });
+      if (res.ok) {
+        // Also update fallback mock cache
+        await this.fallback.rateAppointment(appointmentId, rating, feedback);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Failed to submit appointment rating to backend:', err);
+    }
+    return this.fallback.rateAppointment(appointmentId, rating, feedback);
   }
 
   async createAppointment(data: {
     salonId: string;
-    serviceId: string;
-    customerId: string;
+    serviceId?: string;
+    serviceName?: string;
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
     staffId?: string;
     appointmentDate: string;
     appointmentTime: string;
   }): Promise<Appointment> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/appointments`, {
+      const payload = {
+        salonId: toUuidOrNull(data.salonId),
+        customerId: toUuidOrNull(data.customerId),
+        userId: toUuidOrNull(data.customerId),
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        serviceId: toUuidOrNull(data.serviceId),
+        serviceName: data.serviceName,
+        staffId: toUuidOrNull(data.staffId),
+        appointmentDate: data.appointmentDate,
+        appointmentTime: data.appointmentTime,
+        bookingSource: 'ONLINE',
+      };
+      const res = await fetch(this.getApiUrl('/api/appointments'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Appointment API failed');
-      return await res.json();
-    } catch {
-      return this.fallback.createAppointment(data);
+      if (res.ok) {
+        const json = await res.json();
+        const item = json.data || json;
+        return this.fallback.addAppointment({
+          id: item.id,
+          salonId: item.salonId || data.salonId,
+          customerId: item.userId || data.customerId,
+          serviceId: item.serviceId || data.serviceId,
+          serviceName: item.serviceName || data.serviceName,
+          servicePrice: item.servicePrice || 0,
+          staffId: item.staffId || data.staffId,
+          staffName: item.staffName,
+          appointmentDate: item.appointmentDate || data.appointmentDate,
+          appointmentTime: item.appointmentTime || data.appointmentTime,
+          status: item.status || 'CONFIRMED',
+          source: item.bookingSource || 'ONLINE',
+          createdAt: item.createdAt || new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      console.warn('Backend /api/appointments create failed, using local store:', err);
     }
+    return this.fallback.createAppointment(data);
   }
 
   async getAppointments(customerId?: string): Promise<Appointment[]> {
+    let lookup = customerId;
+    if (!lookup && typeof window !== 'undefined') {
+      lookup = localStorage.getItem('salonflow_customer_phone') || undefined;
+    }
+
+    if (lookup) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const endpoint = uuidRegex.test(lookup)
+        ? `/api/appointments/user/${lookup}`
+        : `/api/appointments/phone/${encodeURIComponent(lookup)}`;
+
+      try {
+        const res = await fetch(this.getApiUrl(endpoint), {
+          headers: { Accept: 'application/json' },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
+          if (items && items.length > 0) {
+            const mapped: Appointment[] = items.map((a: any) => ({
+              id: a.id,
+              customerId: a.userId || a.customerId || lookup,
+              customerName: a.customerName,
+              customerPhone: a.customerPhone,
+              salonId: a.salonId,
+              salonName: a.salonName || 'Salon',
+              salonAddress: a.salonAddress || '',
+              salonArea: a.salonArea || '',
+              serviceId: a.serviceId,
+              serviceName: a.serviceName || 'Haircut & Styling',
+              servicePrice: a.servicePrice || 0,
+              serviceDuration: a.serviceDurationMinutes || 30,
+              staffId: a.staffId,
+              staffName: a.staffName,
+              appointmentDate: a.appointmentDate,
+              appointmentTime: a.appointmentTime,
+              status: a.status || 'CONFIRMED',
+              source: a.bookingSource || 'ONLINE',
+              bookingType: 'SCHEDULED',
+              tokenNumber: a.queueTokenNumber || a.tokenNumber,
+              rating: a.rating,
+              feedback: a.feedback,
+              lateTimestamp: a.lateTimestamp,
+              cancellationFee: a.cancellationFee,
+              createdAt: a.createdAt,
+            }));
+            return mapped;
+          }
+        }
+      } catch (err) {
+        console.warn('Appointments API fetch notice:', err);
+      }
+    }
     return this.fallback.getAppointments(customerId);
   }
 
   async addAppointment(data: Partial<Appointment>): Promise<Appointment> {
+    try {
+      let apptDate = data.appointmentDate;
+      if (!apptDate || apptDate === 'Today') {
+        apptDate = new Date().toISOString().split('T')[0];
+      } else if (apptDate === 'Tomorrow') {
+        const tom = new Date();
+        tom.setDate(tom.getDate() + 1);
+        apptDate = tom.toISOString().split('T')[0];
+      }
+
+      if (data.customerPhone && typeof window !== 'undefined') {
+        localStorage.setItem('salonflow_customer_phone', data.customerPhone);
+      }
+
+      const payload = {
+        salonId: toUuidOrNull(data.salonId),
+        userId: toUuidOrNull(data.customerId),
+        customerId: toUuidOrNull(data.customerId),
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        serviceId: toUuidOrNull(data.serviceId),
+        serviceName: data.serviceName,
+        servicePrice: data.servicePrice,
+        serviceDurationMinutes: data.serviceDuration,
+        staffId: toUuidOrNull(data.staffId),
+        staffName: data.staffName,
+        appointmentDate: apptDate,
+        appointmentTime: data.appointmentTime,
+        bookingSource: data.source || 'ONLINE',
+      };
+      const res = await fetch(this.getApiUrl('/api/appointments'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const item = json.data || json;
+        return this.fallback.addAppointment({ ...data, id: item.id, appointmentDate: apptDate });
+      }
+    } catch (err) {
+      console.warn('Add appointment backend call notice:', err);
+    }
     return this.fallback.addAppointment(data);
   }
 
   async cancelAppointment(appointmentId: string): Promise<boolean> {
+    try {
+      const res = await fetch(this.getApiUrl(`/api/appointments/${appointmentId}/status?status=CANCELLED`), {
+        method: 'PUT',
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        return this.fallback.cancelAppointment(appointmentId);
+      }
+    } catch {
+      // ignore
+    }
     return this.fallback.cancelAppointment(appointmentId);
   }
 
@@ -544,6 +852,32 @@ export class ApiCustomerService implements ICustomerService {
 
   resetDemoQueue() {
     return this.fallback.resetDemoQueue();
+  }
+
+  async getLiveQueueBoard(salonId: string): Promise<{
+    salonId: string;
+    currentServingTokenNumber?: number | null;
+    lastCalledTokenNumber?: number | null;
+    nextAvailableTokenNumber?: number;
+    totalWaiting: number;
+    activeStylistsCount: number;
+    activeQueue: any[];
+  } | null> {
+    try {
+      const cleanId = toUuidOrNull(salonId) || salonId;
+      const res = await fetch(this.getApiUrl(`/api/queue/live/${cleanId}`), {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.data) {
+          return json.data;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch live queue board from backend API:', e);
+    }
+    return this.fallback.getLiveQueueBoard(salonId);
   }
 }
 

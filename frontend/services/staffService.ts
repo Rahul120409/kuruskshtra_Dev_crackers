@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './apiConfig';
+
 export type StaffStatus = 'AVAILABLE' | 'BUSY' | 'BREAK' | 'OFFLINE';
 
 export interface StaffRequest {
@@ -38,6 +40,19 @@ export interface ApiResponse<T> {
 
 // Resilient default seed data if database has not yet been seeded with staff
 export const DEFAULT_STAFF: StaffResponse[] = [
+  {
+    id: 'staff-vikram-01',
+    salonId: 'salon-pune-01',
+    userId: 'd7e3a981-55bb-4a23-88cd-112233445577',
+    name: 'Vikram Joshi (Master Stylist)',
+    email: 'vikram.joshi@salonflow.com',
+    phone: '+919876543219',
+    specialization: 'Top Rated Stylist',
+    status: 'AVAILABLE',
+    experienceYears: 12,
+    profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+    createdAt: '2026-09-11T17:50:00',
+  },
   {
     id: '89ab12cd-34ef-5678-90ab-cdef12345678',
     salonId: 'c4b2a8d5-1122-48f1-a1e6-348e89cf1862',
@@ -91,10 +106,7 @@ export const DEFAULT_STAFF: StaffResponse[] = [
 
 class StaffService {
   private getBaseUrl(): string {
-    if (typeof window !== 'undefined') {
-      return ''; // browser relative proxy
-    }
-    return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8081';
+    return getApiBaseUrl();
   }
 
   /**
@@ -120,41 +132,44 @@ class StaffService {
         }
       }
     } catch (err) {
-      console.warn('⚠️ [staffService: getAllStaff] Could not fetch live staff, using defaults:', err);
+      console.warn('⚠️ [staffService: getAllStaff] Could not fetch live staff:', err);
     }
-    return DEFAULT_STAFF;
+    return [];
   }
 
   /**
    * 2. Get Staff by Salon ID with optional status filter
    * GET /api/staff/salon/{salonId}?status=AVAILABLE
+   * If salonId is omitted or no staff is mapped specifically to this salon, queries all real staff.
    */
-  async getStaffBySalon(salonId: string, status?: StaffStatus): Promise<StaffResponse[]> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
-    console.log(`💈 [staffService: getStaffBySalon] Querying /api/staff/salon/${salonId}${query}...`);
+  async getStaffBySalon(salonId?: string, status?: StaffStatus): Promise<StaffResponse[]> {
+    const isUuid = !!salonId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
 
-    try {
-      const res = await fetch(`${this.getBaseUrl()}/api/staff/salon/${salonId}${query}`, {
-        cache: 'no-store',
-        headers: { Accept: 'application/json' },
-      });
+    if (isUuid) {
+      const query = status ? `?status=${encodeURIComponent(status)}` : '';
+      console.log(`💈 [staffService: getStaffBySalon] Querying /api/staff/salon/${salonId}${query}...`);
 
-      if (res.ok) {
-        const json = await res.json();
-        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
-        if (items && items.length > 0) {
-          console.log(`✅ [staffService: getStaffBySalon] Loaded ${items.length} staff members:`, items);
-          return items;
+      try {
+        const res = await fetch(`${this.getBaseUrl()}/api/staff/salon/${salonId}${query}`, {
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
+          if (items && items.length > 0) {
+            console.log(`✅ [staffService: getStaffBySalon] Loaded ${items.length} staff members for salon ${salonId}:`, items);
+            return items;
+          }
         }
+      } catch (err) {
+        console.warn('⚠️ [staffService: getStaffBySalon] Could not fetch salon staff:', err);
       }
-    } catch (err) {
-      console.warn('⚠️ [staffService: getStaffBySalon] Could not fetch salon staff, falling back:', err);
     }
 
-    if (status) {
-      return DEFAULT_STAFF.filter(s => s.status === status);
-    }
-    return DEFAULT_STAFF;
+    // Return all real staff from DB
+    return this.getAllStaff(isUuid ? salonId : undefined);
   }
 
   /**
@@ -175,7 +190,7 @@ class StaffService {
     } catch (err) {
       console.error(`❌ [staffService: getStaffById] Error fetching ${id}:`, err);
     }
-    return DEFAULT_STAFF.find(st => st.id === id) || null;
+    return null;
   }
 
   /**

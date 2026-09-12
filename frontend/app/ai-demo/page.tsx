@@ -1,7 +1,7 @@
 'use client';
 
-import { AIHairstyleConsultationPage } from '@/components/AIHairstyleConsultationPage';
+import AIRecommendPage from '../ai-recommend/page';
 
 export default function AIDemoPage() {
-  return <AIHairstyleConsultationPage />;
+  return <AIRecommendPage />;
 }

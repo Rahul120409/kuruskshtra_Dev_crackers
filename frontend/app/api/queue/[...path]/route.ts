@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
-
 const CANDIDATE_BACKEND_HOSTS = [
-  ...(BACKEND_BASE ? [BACKEND_BASE] : []),
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081',
   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8081',
   'http://localhost:8081',
@@ -11,7 +8,7 @@ const CANDIDATE_BACKEND_HOSTS = [
 ];
 
 async function fetchFromBackend(endpoint: string, options?: RequestInit): Promise<Response> {
-  const hosts = Array.from(new Set(CANDIDATE_BACKEND_HOSTS.filter(Boolean)));
+  const hosts = Array.from(new Set(CANDIDATE_BACKEND_HOSTS));
   let lastError: any = null;
 
   for (const host of hosts) {
@@ -32,15 +29,13 @@ async function fetchFromBackend(endpoint: string, options?: RequestInit): Promis
   throw lastError || new Error('All backend hosts unreachable');
 }
 
-export async function GET(req: Request, context: any) {
+export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   try {
-    const resolvedParams = context?.params ? await Promise.resolve(context.params) : {};
-    const rawPath = resolvedParams?.path;
-    const pathSegments = Array.isArray(rawPath) ? rawPath : (rawPath ? [rawPath] : []);
+    const { path } = await params;
     const url = new URL(req.url);
     const search = url.search;
-    const endpoint = `/api/styles/${pathSegments.join('/')}${search}`;
-    console.log(`🖥️ [API PROXY: GET] Forwarding to backend: ${endpoint}`);
+    const endpoint = `/api/queue/${path.join('/')}${search}`;
+    console.log(`⏱️ [API PROXY: GET] Forwarding to backend queue API: ${endpoint}`);
 
     const res = await fetchFromBackend(endpoint, {
       headers: {
@@ -52,12 +47,12 @@ export async function GET(req: Request, context: any) {
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    console.error('❌ [API PROXY: GET /api/styles] Error:', err?.message || err);
+    console.error('❌ [API PROXY: GET /api/queue/*] Error:', err?.message || err);
     return NextResponse.json(
       {
         success: false,
-        message: err?.message || 'Failed to fetch style data from backend',
-        data: [],
+        message: err?.message || 'Failed to fetch queue data from backend',
+        data: null,
       },
       { status: 502 }
     );
@@ -67,9 +62,9 @@ export async function GET(req: Request, context: any) {
 export async function POST(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   try {
     const { path } = await params;
-    const endpoint = `/api/styles/${path.join('/')}`;
+    const endpoint = `/api/queue/${path.join('/')}`;
     const body = await req.json();
-    console.log(`🖥️ [API PROXY: POST] Forwarding to backend: ${endpoint}`, body);
+    console.log(`⏱️ [API PROXY: POST] Forwarding to backend queue API: ${endpoint}`, body);
 
     const res = await fetchFromBackend(endpoint, {
       method: 'POST',
@@ -83,11 +78,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    console.error('❌ [API PROXY: POST /api/styles] Error:', err?.message || err);
+    console.error('❌ [API PROXY: POST /api/queue/*] Error:', err?.message || err);
     return NextResponse.json(
       {
         success: false,
-        message: err?.message || 'Failed to create style on backend',
+        message: err?.message || 'Failed to post queue data to backend',
       },
       { status: 502 }
     );
@@ -97,9 +92,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
 export async function PUT(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   try {
     const { path } = await params;
-    const endpoint = `/api/styles/${path.join('/')}`;
-    const body = await req.json();
-    console.log(`🖥️ [API PROXY: PUT] Forwarding to backend: ${endpoint}`, body);
+    const endpoint = `/api/queue/${path.join('/')}`;
+    let body = {};
+    try {
+      body = await req.json();
+    } catch {
+      // Empty body
+    }
+    console.log(`⏱️ [API PROXY: PUT] Forwarding to backend queue API: ${endpoint}`, body);
 
     const res = await fetchFromBackend(endpoint, {
       method: 'PUT',
@@ -113,38 +113,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ path: st
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    console.error('❌ [API PROXY: PUT /api/styles] Error:', err?.message || err);
+    console.error('❌ [API PROXY: PUT /api/queue/*] Error:', err?.message || err);
     return NextResponse.json(
       {
         success: false,
-        message: err?.message || 'Failed to update style on backend',
-      },
-      { status: 502 }
-    );
-  }
-}
-
-export async function DELETE(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
-  try {
-    const { path } = await params;
-    const endpoint = `/api/styles/${path.join('/')}`;
-    console.log(`🖥️ [API PROXY: DELETE] Forwarding to backend: ${endpoint}`);
-
-    const res = await fetchFromBackend(endpoint, {
-      method: 'DELETE',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
-  } catch (err: any) {
-    console.error('❌ [API PROXY: DELETE /api/styles] Error:', err?.message || err);
-    return NextResponse.json(
-      {
-        success: false,
-        message: err?.message || 'Failed to delete style on backend',
+        message: err?.message || 'Failed to update queue on backend',
       },
       { status: 502 }
     );

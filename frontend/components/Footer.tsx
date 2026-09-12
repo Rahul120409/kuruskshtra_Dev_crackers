@@ -37,7 +37,7 @@ export const Footer: React.FC = () => {
           </Link>
           <span>•</span>
           <span className="font-mono text-[11px] text-amber-500/90">
-            {process.env.NEXT_PUBLIC_API_BASE_URL ? `API: ${process.env.NEXT_PUBLIC_API_BASE_URL}` : 'Cloud Live'}
+            API: {(process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081').replace(/^https?:\/\//, '')}
           </span>
         </div>
       </div>

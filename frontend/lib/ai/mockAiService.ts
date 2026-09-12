@@ -393,6 +393,7 @@ export function getRealHaircutLook(styleId: string, gender: 'boy' | 'girl' = 'bo
     'HS-B06': '/looks/boy_crop.jpg',
     'HS-B07': '/looks/boy_quiff.jpg',
     'HS-B08': '/looks/boy_buzz.jpg',
+    'HS-B09': '/looks/boy_buzz.jpg',
   };
 
   const girlLooks: Record<string, string> = {
@@ -404,6 +405,7 @@ export function getRealHaircutLook(styleId: string, gender: 'boy' | 'girl' = 'bo
     'HS-G06': '/looks/girl_butterfly.jpg',
     'HS-G07': '/looks/girl_curtain_bob.jpg',
     'HS-G08': '/looks/girl_pixie.jpg',
+    'HS-B09': '/looks/boy_buzz.jpg',
   };
 
   if (gender === 'girl') {

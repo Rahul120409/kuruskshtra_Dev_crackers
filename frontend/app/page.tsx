@@ -38,9 +38,11 @@ import { WalkinQrModal } from '@/components/WalkinQrModal';
 import { LandingNavbar } from '@/components/LandingNavbar';
 import { AIHairstyleConsultationPage } from '@/components/AIHairstyleConsultationPage';
 import AdminPortal from './admin/page';
+import CustomerHomePage from './home/page';
 
 // Re-export for any deep links / sub-routes
 export { AIHairstyleConsultationPage };
+export { default as AIRecommendPage } from './ai-recommend/page';
 
 interface FeatureStyleDemo {
   id: string;
@@ -142,8 +144,6 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('portal') === 'admin' || params.get('admin') === 'true' || params.get('view') === 'admin') {
         setActivePortal('admin');
-      } else if (params.get('portal') === 'ai' || params.get('ai') === 'true' || params.get('view') === 'ai') {
-        setActivePortal('ai');
       }
     }
   }, []);

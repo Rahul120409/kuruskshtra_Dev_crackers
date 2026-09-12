@@ -38,6 +38,7 @@ import { styleService, SpecificStyleResponse } from '../../services/styleService
 import { staffService, StaffResponse } from '../../services/staffService';
 import { WalkinQrModal } from '../../components/WalkinQrModal';
 import { LocationModal } from '../../components/LocationModal';
+import { CustomerChatbotWidget } from '../../components/CustomerChatbotWidget';
 import {
   LocationData,
   DEFAULT_USER_LOCATION,
@@ -1327,6 +1328,15 @@ export default function CustomerHomePage() {
             localStorage.setItem('salonflow_user_location', JSON.stringify(loc));
           }
           setIsLocationModalOpen(false);
+        }}
+      />
+
+      {/* Real-time Customer Concierge Chatbot (Floating Bottom-Right on Home Screen) */}
+      <CustomerChatbotWidget
+        userLocation={userLocation}
+        onOpenBookingModal={(salon) => {
+          if (salon) setSelectedSalonForBooking(salon);
+          setIsBookingModalOpen(true);
         }}
       />
 

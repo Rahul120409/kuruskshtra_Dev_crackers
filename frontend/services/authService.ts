@@ -14,7 +14,7 @@ export interface AuthResponse {
 
 export class AuthService {
   private getBaseUrl(): string {
-    return getApiBaseUrl();
+    return process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || getApiBaseUrl() || 'http://localhost:8081';
   }
 
   getCurrentUser(): User | null {

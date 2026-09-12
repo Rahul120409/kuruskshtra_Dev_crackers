@@ -556,6 +556,9 @@ export class ApiCustomerService implements ICustomerService {
 
   async getToken(tokenId: string): Promise<QueueToken | null> {
     if (!tokenId) return null;
+    if (tokenId === 'active') {
+      return this.fallback.getToken('active');
+    }
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (uuidRegex.test(tokenId)) {
       try {

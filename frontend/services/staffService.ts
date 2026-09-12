@@ -38,7 +38,71 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-export const DEFAULT_STAFF: StaffResponse[] = [];
+// Resilient default seed data if database has not yet been seeded with staff
+export const DEFAULT_STAFF: StaffResponse[] = [
+  {
+    id: 'staff-vikram-01',
+    salonId: 'salon-pune-01',
+    userId: 'd7e3a981-55bb-4a23-88cd-112233445577',
+    name: 'Vikram Joshi (Master Stylist)',
+    email: 'vikram.joshi@salonflow.com',
+    phone: '+919876543219',
+    specialization: 'Top Rated Stylist',
+    status: 'AVAILABLE',
+    experienceYears: 12,
+    profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+    createdAt: '2026-09-11T17:50:00',
+  },
+  {
+    id: '89ab12cd-34ef-5678-90ab-cdef12345678',
+    salonId: 'c4b2a8d5-1122-48f1-a1e6-348e89cf1862',
+    userId: 'd7e3a981-55bb-4a23-88cd-112233445566',
+    name: 'Alex Smith',
+    email: 'alex.smith@example.com',
+    phone: '+919876543210',
+    specialization: 'Master Barber & Fade Specialist',
+    status: 'AVAILABLE',
+    experienceYears: 7,
+    profileImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+    createdAt: '2026-09-11T17:50:00',
+  },
+  {
+    id: 'staff-02',
+    salonId: 'c4b2a8d5-1122-48f1-a1e6-348e89cf1862',
+    name: 'Marcus Vance',
+    email: 'marcus.v@example.com',
+    phone: '+919876543211',
+    specialization: 'Executive Beard Sculptor',
+    status: 'BUSY',
+    experienceYears: 9,
+    profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+    createdAt: '2026-09-11T17:50:00',
+  },
+  {
+    id: 'staff-03',
+    salonId: 'c4b2a8d5-1122-48f1-a1e6-348e89cf1862',
+    name: 'Elena Rostova',
+    email: 'elena.r@example.com',
+    phone: '+919876543212',
+    specialization: 'Keratin & Scalp Therapy Lead',
+    status: 'AVAILABLE',
+    experienceYears: 6,
+    profileImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400',
+    createdAt: '2026-09-11T17:50:00',
+  },
+  {
+    id: 'staff-04',
+    salonId: 'c4b2a8d5-1122-48f1-a1e6-348e89cf1862',
+    name: 'Tariq Al-Mansoor',
+    email: 'tariq.m@example.com',
+    phone: '+919876543213',
+    specialization: 'Royal Hot Lather Artisan',
+    status: 'BREAK',
+    experienceYears: 11,
+    profileImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
+    createdAt: '2026-09-11T17:50:00',
+  },
+];
 
 class StaffService {
   private getBaseUrl(): string {

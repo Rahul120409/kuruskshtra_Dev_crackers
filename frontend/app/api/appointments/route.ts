@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
-
 const CANDIDATE_BACKEND_HOSTS = [
-  ...(BACKEND_BASE ? [BACKEND_BASE] : []),
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081',
   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8081',
   'http://localhost:8081',
@@ -11,7 +8,7 @@ const CANDIDATE_BACKEND_HOSTS = [
 ];
 
 async function fetchFromBackend(endpoint: string, options?: RequestInit): Promise<Response> {
-  const hosts = Array.from(new Set(CANDIDATE_BACKEND_HOSTS.filter(Boolean)));
+  const hosts = Array.from(new Set(CANDIDATE_BACKEND_HOSTS));
   let lastError: any = null;
 
   for (const host of hosts) {
@@ -35,27 +32,21 @@ async function fetchFromBackend(endpoint: string, options?: RequestInit): Promis
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const search = url.search; // preserves ?salonId=...
-    const endpoint = `/api/staff${search}`;
-    console.log(`💈 [API PROXY: GET /api/staff] Forwarding to backend: ${endpoint}`);
+    const search = url.search;
+    const endpoint = `/api/appointments${search}`;
+    console.log(`📅 [API PROXY: GET /api/appointments] Forwarding to backend: ${endpoint}`);
 
     const res = await fetchFromBackend(endpoint, {
-      headers: {
-        Accept: 'application/json',
-      },
+      headers: { Accept: 'application/json' },
       cache: 'no-store',
     });
 
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    console.error('❌ [API PROXY: GET /api/staff] Error:', err?.message || err);
+    console.error('❌ [API PROXY: GET /api/appointments] Error:', err?.message || err);
     return NextResponse.json(
-      {
-        success: false,
-        message: err?.message || 'Failed to fetch staff data from backend',
-        data: [],
-      },
+      { success: false, message: err?.message || 'Failed to fetch appointments', data: [] },
       { status: 502 }
     );
   }
@@ -63,11 +54,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const endpoint = `/api/staff`;
     const body = await req.json();
-    console.log(`💈 [API PROXY: POST /api/staff] Forwarding to backend: ${endpoint}`, body);
+    console.log('📅 [API PROXY: POST /api/appointments] Forwarding booking payload to backend:', body);
 
-    const res = await fetchFromBackend(endpoint, {
+    const res = await fetchFromBackend('/api/appointments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,12 +69,9 @@ export async function POST(req: Request) {
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch (err: any) {
-    console.error('❌ [API PROXY: POST /api/staff] Error:', err?.message || err);
+    console.error('❌ [API PROXY: POST /api/appointments] Error:', err?.message || err);
     return NextResponse.json(
-      {
-        success: false,
-        message: err?.message || 'Failed to create staff on backend',
-      },
+      { success: false, message: err?.message || 'Failed to book appointment on backend' },
       { status: 502 }
     );
   }

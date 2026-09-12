@@ -34,7 +34,7 @@ export interface BackendSalonResponse {
   createdAt: string;
 }
 
-const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
 function formatTimeString(timeStr?: string): string {
   if (!timeStr) return '09:00 AM';
@@ -139,8 +139,43 @@ function storeSalonsLocally(salons: Salon[]) {
 
 async function fetchApi(endpoint: string, options?: RequestInit): Promise<Response> {
   const base = getApiBaseUrl();
-  const url = base ? `${base}${endpoint}` : endpoint;
-  return fetch(url, options);
+  const candidateUrls: string[] = [];
+  if (typeof window !== 'undefined') {
+    candidateUrls.push(''); // Relative URL e.g. /api/salons
+  }
+  if (base) {
+    candidateUrls.push(base);
+  }
+  if (BASE_URL) {
+    candidateUrls.push(BASE_URL);
+  }
+  candidateUrls.push(
+    'http://localhost:8081',
+    'http://127.0.0.1:8081'
+  );
+
+  const uniqueCandidates = Array.from(new Set(candidateUrls.filter((u) => u !== undefined && u !== null)));
+  let lastError: any = null;
+
+  for (const host of uniqueCandidates) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const url = host ? `${host}${endpoint}` : endpoint;
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (res.ok || res.status === 201) {
+        return res;
+      }
+      lastError = new Error(`HTTP ${res.status} from ${url}`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('All candidate backend hosts failed to connect');
 }
 
 class SalonService {

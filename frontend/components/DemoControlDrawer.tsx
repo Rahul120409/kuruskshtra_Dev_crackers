@@ -203,7 +203,9 @@ export const DemoControlDrawer: React.FC<DemoControlDrawerProps> = ({ isOpen, on
             <Server className="w-3.5 h-3.5 text-zinc-500" />
             Target Backend:
           </span>
-          <span className="font-mono text-zinc-300">{process.env.NEXT_PUBLIC_API_BASE_URL || 'Configured via .env'}</span>
+          <span className="font-mono text-zinc-300">
+            {(process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8081').replace(/^https?:\/\//, '')}
+          </span>
         </div>
       </div>
     </div>

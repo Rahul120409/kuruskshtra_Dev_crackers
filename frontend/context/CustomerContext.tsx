@@ -2,9 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, QueueToken, Notification, Hairstyle, Appointment } from '../types';
-import { DEMO_USER } from '../services/mockData';
 import { customerService } from '../services/customerService';
 import { authService, AuthResponse } from '../services/authService';
+import { queueWebSocket } from '../services/websocketService';
 
 interface CustomerContextType {
   user: User | null;
@@ -25,6 +25,7 @@ interface CustomerContextType {
   joinLiveQueue: (serviceId: string, staffId?: string, hairstyleId?: string, salonId?: string) => Promise<QueueToken>;
   addAppointment: (data: Partial<Appointment>) => Promise<Appointment>;
   cancelAppointment: (id: string) => Promise<void>;
+  rateAppointment: (id: string, rating: number, feedback?: string) => Promise<boolean>;
   updateUserProfile: (updatedData: Partial<User>) => Promise<void>;
   clearActiveToken: () => void;
   loginUser: (emailOrPhone: string, password: string) => Promise<AuthResponse>;
@@ -57,7 +58,9 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const refreshAppointments = async () => {
     try {
-      const appts = await customerService.getAppointments(user?.id);
+      const storedPhone = typeof window !== 'undefined' ? localStorage.getItem('salonflow_customer_phone') : null;
+      const lookupKey = user?.id || user?.phone || storedPhone || undefined;
+      const appts = await customerService.getAppointments(lookupKey);
       setAppointments(appts);
     } catch (e) {
       console.error('Failed to load appointments:', e);
@@ -68,7 +71,6 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     try {
       const token = await customerService.getToken('active');
       setActiveToken(token);
-      await refreshAppointments();
       if (user) {
         const notifs = await customerService.getNotifications(user.id);
         setNotifications(notifs);
@@ -82,11 +84,48 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   useEffect(() => {
     refreshState();
-    const interval = setInterval(() => {
-      refreshState();
-    }, 10000);
-    return () => clearInterval(interval);
   }, [user]);
+
+  // Real-time WebSocket listener: updates active token instantly without polling or REST calls
+  useEffect(() => {
+    const sId = activeToken?.salonId;
+    if (!sId) return;
+
+    const unsubSalon = queueWebSocket.subscribeToSalon(sId, (board) => {
+      if (activeToken && Array.isArray(board.activeQueue)) {
+        const match = board.activeQueue.find(
+          (t: any) =>
+            t.tokenNumber === activeToken.tokenNumber ||
+            t.id === activeToken.tokenId ||
+            t.tokenId === activeToken.tokenId
+        );
+        if (match) {
+          setActiveToken((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  position: match.position ?? prev.position,
+                  status: match.status ?? prev.status,
+                  estimatedWait: match.estimatedWait ?? match.estimatedWaitMinutes ?? prev.estimatedWait,
+                }
+              : null
+          );
+        } else if (
+          typeof board.currentServingTokenNumber === 'number' &&
+          typeof activeToken.tokenNumber === 'number' &&
+          activeToken.tokenNumber < board.currentServingTokenNumber
+        ) {
+          setActiveToken((prev) =>
+            prev ? { ...prev, status: 'COMPLETED', position: 0, estimatedWait: 0 } : null
+          );
+        }
+      }
+    });
+
+    return () => {
+      if (unsubSalon) unsubSalon();
+    };
+  }, [activeToken?.salonId, activeToken?.tokenNumber, activeToken?.tokenId]);
 
   const unreadNotifCount = notifications.filter((n) => !n.isRead).length;
 
@@ -149,11 +188,13 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const joinLiveQueue = async (serviceId: string, staffId?: string, hairstyleId?: string, salonId?: string) => {
-    const customerId = user ? user.id : 'usr-guest-' + Date.now();
+    const customerId = user ? user.id : undefined;
     const token = await customerService.joinQueue({
-      salonId: salonId || 'salon-pune-01',
+      salonId: salonId || '',
       serviceId,
       customerId,
+      customerName: user?.name,
+      customerPhone: user?.phone,
       staffId,
       selectedHairstyleId: hairstyleId,
     });
@@ -163,17 +204,30 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const addAppointment = async (data: Partial<Appointment>) => {
+    if (data.customerPhone && typeof window !== 'undefined') {
+      localStorage.setItem('salonflow_customer_phone', data.customerPhone);
+    }
     const newApt = await customerService.addAppointment({
       ...data,
-      customerId: user ? user.id : 'usr-customer-001',
+      customerId: user ? user.id : data.customerId,
+      customerName: user ? user.name : data.customerName,
+      customerPhone: user ? user.phone : data.customerPhone,
     });
-    setAppointments((prev) => [newApt, ...prev]);
+    setAppointments((prev) => [newApt, ...prev.filter((a) => a.id !== newApt.id)]);
     return newApt;
   };
 
   const cancelAppointment = async (id: string) => {
     await customerService.cancelAppointment(id);
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'CANCELLED' as const } : a)));
+  };
+
+  const rateAppointment = async (id: string, rating: number, feedback?: string) => {
+    const success = await customerService.rateAppointment(id, rating, feedback, user?.id);
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, rating, feedback } : a))
+    );
+    return success;
   };
 
   const updateUserProfile = async (updatedData: Partial<User>) => {
@@ -213,6 +267,7 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
         joinLiveQueue,
         addAppointment,
         cancelAppointment,
+        rateAppointment,
         updateUserProfile,
         clearActiveToken,
         loginUser,

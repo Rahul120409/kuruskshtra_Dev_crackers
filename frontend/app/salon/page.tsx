@@ -40,6 +40,8 @@ import {
   Zap,
   Sun,
   Moon,
+  Star,
+  MessageSquareHeart,
 } from "lucide-react";
 
 import {
@@ -56,7 +58,11 @@ import {
   createAppointmentApi,
   getAllStylistsApi,
   updateStylistStatusApi,
+  markTokenLateApi,
+  lateCheckInTokenApi,
+  markAppointmentLateApi,
 } from "../services/salonOperations";
+import { queueWebSocket } from "../../services/websocketService";
 
 import { getAllSalons, updateSalonApi, SalonData } from "../services/salon";
 import {
@@ -152,196 +158,11 @@ export default function SalonPortal() {
   const [editSalonForm, setEditSalonForm] = useState<Partial<SalonData>>({});
   const [isSavingSalon, setIsSavingSalon] = useState(false);
 
-  // Live Queue State
-  const [queueTokens, setQueueTokens] = useState<QueueTokenData[]>([
-    {
-      id: "tok-101",
-      tokenNumber: 101,
-      salonId: "sl-baner-01",
-      customerName: "Aarav Sharma",
-      customerPhone: "+91 98231 44556",
-      serviceName: "Signature AI Haircut & Styling",
-      servicePrice: 650,
-      staffName: "Pooja Varma",
-      status: "IN_SERVICE",
-      position: 0,
-      estimatedWait: 0,
-      createdAt: "14:15",
-      startedAt: "14:20",
-      aiRecommendation: {
-        faceShape: "Oval",
-        hairType: "Wavy",
-        hairDensity: "High",
-        selectedHairstyle: "Textured Crop Fade",
-        matchScore: 96,
-        reason: "Complements high cheekbones and accentuates natural wave texture.",
-      },
-    },
-    {
-      id: "tok-102",
-      tokenNumber: 102,
-      salonId: "sl-baner-01",
-      customerName: "Vikram Malhotra",
-      customerPhone: "+91 99882 11223",
-      serviceName: "Royal Beard Sculpture & Detailing",
-      servicePrice: 450,
-      staffName: "Sameer Joshi",
-      status: "IN_SERVICE",
-      position: 0,
-      estimatedWait: 0,
-      createdAt: "14:25",
-      startedAt: "14:30",
-      aiRecommendation: {
-        faceShape: "Square",
-        hairType: "Straight",
-        hairDensity: "Medium",
-        selectedHairstyle: "Short Taper Beard Outline",
-        matchScore: 92,
-        reason: "Rounds sharp jaw corners for balanced professional presence.",
-      },
-    },
-    {
-      id: "tok-103",
-      tokenNumber: 103,
-      salonId: "sl-baner-01",
-      customerName: "Rohan Deshmukh",
-      customerPhone: "+91 97654 33221",
-      serviceName: "Balayage Color & Hair Spa Treatment",
-      servicePrice: 2200,
-      staffName: "Pooja Varma",
-      status: "CALLED",
-      position: 1,
-      estimatedWait: 5,
-      createdAt: "14:40",
-      calledAt: "14:52",
-      aiRecommendation: {
-        faceShape: "Round",
-        hairType: "Thick / Dense",
-        hairDensity: "High",
-        selectedHairstyle: "Layered Ash Brown Balayage",
-        matchScore: 89,
-        reason: "Adds vertical height and elongation to soften facial proportions.",
-      },
-    },
-    {
-      id: "tok-104",
-      tokenNumber: 104,
-      salonId: "sl-baner-01",
-      customerName: "Ananya Iyer",
-      customerPhone: "+91 98450 99887",
-      serviceName: "Hydra Radiance Facial & De-tan",
-      servicePrice: 1800,
-      staffName: "Kavita Nair",
-      status: "WAITING",
-      position: 2,
-      estimatedWait: 20,
-      createdAt: "15:00",
-      aiRecommendation: {
-        faceShape: "Heart",
-        hairType: "Fine",
-        hairDensity: "Medium",
-        selectedHairstyle: "Face-framing Curtain Bob",
-        matchScore: 94,
-        reason: "Harmonizes narrow chin with gentle soft side volume.",
-      },
-    },
-    {
-      id: "tok-105",
-      tokenNumber: 105,
-      salonId: "sl-baner-01",
-      customerName: "Karan Singhania",
-      customerPhone: "+91 91234 56789",
-      serviceName: "Signature AI Haircut & Styling",
-      servicePrice: 650,
-      staffName: "Sameer Joshi",
-      status: "WAITING",
-      position: 3,
-      estimatedWait: 35,
-      createdAt: "15:15",
-      aiRecommendation: {
-        faceShape: "Diamond",
-        hairType: "Coarse / Wavy",
-        hairDensity: "High",
-        selectedHairstyle: "Classic Pompadour Low Fade",
-        matchScore: 91,
-        reason: "Provides balanced forehead volume while keeping temple neat.",
-      },
-    },
-  ]);
+  // Live Queue State (Dynamic from Backend API)
+  const [queueTokens, setQueueTokens] = useState<QueueTokenData[]>([]);
 
-  // Appointments State
-  const [appointments, setAppointments] = useState<AppointmentData[]>([
-    {
-      id: "apt-201",
-      customerName: "Neha Kulkarni",
-      customerPhone: "+91 98220 33441",
-      customerEmail: "neha.kulkarni@gmail.com",
-      serviceName: "Balayage Color & Hair Spa Treatment",
-      servicePrice: 2200,
-      stylistName: "Pooja Varma",
-      appointmentDate: "Today",
-      appointmentTime: "16:00",
-      status: "CONFIRMED",
-      source: "ONLINE",
-      notes: "Requested gentle ammonia-free color toner.",
-      createdAt: "Today, 10:15 AM",
-    },
-    {
-      id: "apt-202",
-      customerName: "Aditya Roy",
-      customerPhone: "+91 97665 11990",
-      customerEmail: "aditya.roy@yahoo.com",
-      serviceName: "Signature AI Haircut & Styling",
-      servicePrice: 650,
-      stylistName: "Sameer Joshi",
-      appointmentDate: "Today",
-      appointmentTime: "16:30",
-      status: "CHECKED_IN",
-      source: "ONLINE",
-      notes: "First-time visitor via AI Recommendation tool.",
-      createdAt: "Today, 11:30 AM",
-    },
-    {
-      id: "apt-203",
-      customerName: "Tanvi Patel",
-      customerPhone: "+91 99234 88776",
-      serviceName: "Hydra Radiance Facial & De-tan",
-      servicePrice: 1800,
-      stylistName: "Kavita Nair",
-      appointmentDate: "Today",
-      appointmentTime: "17:15",
-      status: "CONFIRMED",
-      source: "CALL",
-      notes: "Pre-wedding facial treatment session.",
-      createdAt: "Yesterday, 04:00 PM",
-    },
-    {
-      id: "apt-204",
-      customerName: "Siddharth Mehra",
-      customerPhone: "+91 98112 44332",
-      serviceName: "Royal Beard Sculpture & Detailing",
-      servicePrice: 450,
-      stylistName: "Sameer Joshi",
-      appointmentDate: "Today",
-      appointmentTime: "14:00",
-      status: "COMPLETED",
-      source: "ONLINE",
-      createdAt: "Today, 09:00 AM",
-    },
-    {
-      id: "apt-205",
-      customerName: "Priya Hegde",
-      customerPhone: "+91 98210 55443",
-      serviceName: "Keratin Smooth Gloss Therapy",
-      servicePrice: 3500,
-      stylistName: "Pooja Varma",
-      appointmentDate: "Tomorrow",
-      appointmentTime: "11:00 AM",
-      status: "CONFIRMED",
-      source: "ONLINE",
-      createdAt: "Today, 01:20 PM",
-    },
-  ]);
+  // Appointments State (Dynamic from Backend API)
+  const [appointments, setAppointments] = useState<AppointmentData[]>([]);
 
   // Stylists State
   const [stylists, setStylists] = useState<StylistData[]>([
@@ -770,6 +591,34 @@ export default function SalonPortal() {
     });
   }, [activeSalon]);
 
+  // Load backend live queue for the active salon
+  const fetchLiveSalonQueue = async (targetSalonId?: string) => {
+    const sId = targetSalonId || activeSalon.id || selectedSalonId;
+    if (!sId || sId.startsWith("sl-")) return;
+    try {
+      const res = await getLiveQueue(sId);
+      if (res.data && res.data.activeQueue) {
+        setQueueTokens(res.data.activeQueue);
+      }
+    } catch (e) {
+      console.warn("Could not refresh live queue in salon panel:", e);
+    }
+  };
+
+  // Load backend appointments for the active salon
+  const fetchSalonAppointments = async (targetSalonId?: string) => {
+    const sId = targetSalonId || activeSalon.id || selectedSalonId;
+    if (!sId || sId.startsWith("sl-")) return;
+    try {
+      const res = await getSalonAppointments(sId);
+      if (res.data && Array.isArray(res.data)) {
+        setAppointments(res.data);
+      }
+    } catch (e) {
+      console.warn("Could not load salon appointments:", e);
+    }
+  };
+
   // Load backend data if available
   useEffect(() => {
     getAllSalons()
@@ -779,19 +628,89 @@ export default function SalonPortal() {
           const current = res.data.find((s) => s.id === selectedSalonId) || res.data[0];
           if (current) {
             setActiveSalon((prev) => ({ ...prev, ...current }));
+            if (selectedSalonId !== current.id) {
+              setSelectedSalonId(current.id);
+            }
+            fetchLiveSalonQueue(current.id);
+            fetchSalonAppointments(current.id);
           }
         }
       })
       .catch(() => { });
   }, [selectedSalonId]);
 
+  // Real-time WebSocket connection for live Queue & Appointments (No page refresh needed)
+  useEffect(() => {
+    const sId = activeSalon.id || selectedSalonId;
+    if (!sId || sId.startsWith("sl-")) return;
+
+    fetchLiveSalonQueue(sId);
+    fetchSalonAppointments(sId);
+
+    const unsubscribe = queueWebSocket.subscribeToSalon(sId, (data) => {
+      if (data && Array.isArray(data.activeQueue)) {
+        setQueueTokens(data.activeQueue);
+      }
+      setActiveSalon((prev) => ({
+        ...prev,
+        totalWaiting: typeof data.totalWaiting === "number" ? data.totalWaiting : prev.totalWaiting,
+        currentServingTokenNumber: data.currentServingTokenNumber !== undefined ? data.currentServingTokenNumber : prev.currentServingTokenNumber,
+      }));
+      fetchSalonAppointments(sId);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeSalon.id, selectedSalonId]);
+
   // ========================= QUEUE ACTIONS =========================
   const handleCallNext = async (token: QueueTokenData) => {
+    // When a higher token is called (e.g. #7), check if any earlier waiting tokens (e.g. #6) were not arrived
+    const skippedTokens: QueueTokenData[] = [];
     setQueueTokens((prev) =>
-      prev.map((t) => (t.id === token.id ? { ...t, status: "CALLED", calledAt: "Just now" } : t))
+      prev.map((t) => {
+        if (t.id === token.id) {
+          return { ...t, status: "CALLED", calledAt: "Just now" };
+        }
+        // If lower token number was still WAITING when higher token is called, mark as LATE / ON_HOLD
+        if (t.tokenNumber < token.tokenNumber && t.status === "WAITING") {
+          skippedTokens.push(t);
+          return { ...t, status: "LATE" as const };
+        }
+        return t;
+      })
     );
+
+    if (skippedTokens.length > 0) {
+      const nums = skippedTokens.map((s) => `#${s.tokenNumber}`).join(", ");
+      showToast(`Token ${nums} skipped & marked LATE / ON HOLD (Client not in lobby).`, "info");
+      for (const st of skippedTokens) {
+        markTokenLateApi(st.id).catch(() => {});
+      }
+    }
+
     showToast(`Token #${token.tokenNumber} (${token.customerName}) has been CALLED to the station!`);
     await callQueueTokenApi(token.id);
+    fetchLiveSalonQueue();
+  };
+
+  const handleMarkTokenLate = async (token: QueueTokenData) => {
+    setQueueTokens((prev) =>
+      prev.map((t) => (t.id === token.id ? { ...t, status: "LATE" as const } : t))
+    );
+    showToast(`Token #${token.tokenNumber} (${token.customerName}) marked as LATE / ON HOLD.`, "info");
+    await markTokenLateApi(token.id);
+    fetchLiveSalonQueue();
+  };
+
+  const handleLateCheckIn = async (token: QueueTokenData) => {
+    setQueueTokens((prev) =>
+      prev.map((t) => (t.id === token.id ? { ...t, status: "WAITING" as const, position: 1 } : t))
+    );
+    showToast(`Late Check-in complete for Token #${token.tokenNumber} (${token.customerName})! Placed as Priority Next.`, "success");
+    await lateCheckInTokenApi(token.id);
+    fetchLiveSalonQueue();
   };
 
   const handleStartService = async (token: QueueTokenData) => {
@@ -800,6 +719,7 @@ export default function SalonPortal() {
     );
     showToast(`Service started for Token #${token.tokenNumber}! Client in chair.`);
     await startQueueServiceApi(token.id);
+    fetchLiveSalonQueue();
   };
 
   const handleCompleteService = async (token: QueueTokenData) => {
@@ -810,6 +730,7 @@ export default function SalonPortal() {
     }));
     showToast(`Token #${token.tokenNumber} completed! Added ₹${token.servicePrice} to today's revenue.`);
     await completeQueueServiceApi(token.id);
+    fetchLiveSalonQueue();
   };
 
   const handleCancelToken = (tokenId: string, tokenNum: number) => {
@@ -825,7 +746,6 @@ export default function SalonPortal() {
       return;
     }
 
-    const nextNumber = Math.max(...queueTokens.map((t) => t.tokenNumber), 100) + 1;
     const priceMap: Record<string, number> = {
       "Signature AI Haircut & Styling": 650,
       "Balayage Color & Hair Spa Treatment": 2200,
@@ -834,38 +754,30 @@ export default function SalonPortal() {
       "Keratin Smooth Gloss Therapy": 3500,
     };
 
-    const waitEst = (queueTokens.filter((t) => t.status === "WAITING").length + 1) * 15;
+    const targetSalonId = activeSalon.id || selectedSalonId;
+    setShowAddWalkinModal(false);
+    showToast(`Issuing walk-in ticket for ${walkinName}...`, "info");
 
-    const newToken: QueueTokenData = {
-      id: `tok-${Date.now()}`,
-      tokenNumber: nextNumber,
-      salonId: selectedSalonId,
+    const res = await joinQueueApi({
+      salonId: targetSalonId,
       customerName: walkinName.trim(),
-      customerPhone: walkinPhone.trim() || "+91 98000 00000",
+      customerPhone: walkinPhone.trim() || "9800000000",
       serviceName: walkinService,
       servicePrice: priceMap[walkinService] || 650,
       staffName: walkinStylist || "Next Available Stylist",
-      status: "WAITING",
-      position: queueTokens.filter((t) => t.status === "WAITING").length + 1,
-      estimatedWait: waitEst,
-      createdAt: "Just now",
-      aiRecommendation: {
-        faceShape: "Analyzed Oval",
-        hairType: "Natural Wave",
-        hairDensity: "Medium",
-        selectedHairstyle: walkinStyle,
-        matchScore: 95,
-        reason: "Smart match based on facial proportion & walk-in selection.",
-      },
-    };
+      source: "OFFLINE",
+    });
 
-    setQueueTokens((prev) => [...prev, newToken]);
-    setShowAddWalkinModal(false);
     setWalkinName("");
     setWalkinPhone("");
-    showToast(`Walk-in Token #${nextNumber} issued for ${newToken.customerName}! Wait ~${waitEst} mins.`);
 
-    await joinQueueApi(newToken);
+    if (res.data && res.data.tokenNumber) {
+      showToast(`Walk-in Token #${res.data.tokenNumber} issued successfully!`);
+    } else {
+      showToast(`Walk-in ticket added to queue.`);
+    }
+
+    fetchLiveSalonQueue();
   };
 
   // ========================= APPOINTMENT ACTIONS =========================
@@ -884,9 +796,14 @@ export default function SalonPortal() {
       "Keratin Smooth Gloss Therapy": 3500,
     };
 
-    const newApt: AppointmentData = {
-      id: `apt-${Date.now()}`,
-      customerName: newAptName.trim(),
+    const targetSalonId = activeSalon.id || selectedSalonId;
+    const custName = newAptName.trim();
+    setShowAddAppointmentModal(false);
+    showToast(`Booking appointment for ${custName}...`, "info");
+
+    await createAppointmentApi({
+      salonId: targetSalonId,
+      customerName: custName,
       customerPhone: newAptPhone.trim(),
       customerEmail: newAptEmail.trim() || undefined,
       serviceName: newAptService,
@@ -894,59 +811,57 @@ export default function SalonPortal() {
       stylistName: newAptStylist,
       appointmentDate: newAptDate,
       appointmentTime: newAptTime,
-      status: "CONFIRMED",
       source: "WALK_IN",
       notes: newAptNotes.trim() || undefined,
-      createdAt: "Just now",
-    };
+    });
 
-    setAppointments((prev) => [newApt, ...prev]);
-    setShowAddAppointmentModal(false);
     setNewAptName("");
     setNewAptPhone("");
     setNewAptEmail("");
     setNewAptNotes("");
-    showToast(`Appointment booked successfully for ${newApt.customerName} at ${newApt.appointmentTime}!`);
-
-    await createAppointmentApi(newApt);
+    showToast(`Appointment booked successfully for ${custName}!`);
+    fetchSalonAppointments();
   };
 
-  const handleCheckInAppointment = (apt: AppointmentData) => {
-    // Transition appointment to CHECKED_IN
+  const handleCheckInAppointment = async (apt: AppointmentData) => {
     setAppointments((prev) =>
       prev.map((a) => (a.id === apt.id ? { ...a, status: "CHECKED_IN" } : a))
     );
 
-    // Also automatically create a Live Queue Token for seamless flow!
-    const nextNumber = Math.max(...queueTokens.map((t) => t.tokenNumber), 100) + 1;
-    const waitEst = (queueTokens.filter((t) => t.status === "WAITING").length + 1) * 12;
+    showToast(`Checking in ${apt.customerName}...`, "info");
+    await updateAppointmentStatusApi(apt.id, "CHECKED_IN");
 
-    const tokenFromApt: QueueTokenData = {
-      id: `tok-${Date.now()}`,
-      tokenNumber: nextNumber,
-      salonId: selectedSalonId,
+    const res = await joinQueueApi({
+      salonId: activeSalon.id || selectedSalonId,
       customerName: apt.customerName,
       customerPhone: apt.customerPhone,
       serviceName: apt.serviceName,
       servicePrice: apt.servicePrice,
       staffName: apt.stylistName,
-      status: "WAITING",
-      position: queueTokens.filter((t) => t.status === "WAITING").length + 1,
-      estimatedWait: waitEst,
-      createdAt: "Checked-in",
-      aiRecommendation: {
-        faceShape: "Confirmed Profile",
-        hairType: "Custom Style",
-        hairDensity: "High",
-        selectedHairstyle: apt.serviceName,
-        matchScore: 98,
-        reason: "Appointment check-in. Priority client slot reserved.",
-      },
-    };
+      source: "ONLINE",
+    });
 
-    setQueueTokens((prev) => [...prev, tokenFromApt]);
-    showToast(`Checked in ${apt.customerName}! Issued Token #${nextNumber} in Live Queue.`);
-    updateAppointmentStatusApi(apt.id, "CHECKED_IN");
+    if (res.data && res.data.tokenNumber) {
+      showToast(`Checked in ${apt.customerName}! Issued Token #${res.data.tokenNumber} in Live Queue.`);
+    } else {
+      showToast(`Checked in ${apt.customerName} successfully!`);
+    }
+
+    fetchLiveSalonQueue();
+    fetchSalonAppointments();
+  };
+
+  const handleMarkAppointmentLate = async (apt: AppointmentData) => {
+    try {
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === apt.id ? { ...a, status: "LATE" as any } : a))
+      );
+      showToast(`Marked ${apt.customerName} as Late arrival.`, "info");
+      await markAppointmentLateApi(apt.id);
+      fetchSalonAppointments();
+    } catch (e) {
+      console.warn("Could not mark appointment as late:", e);
+    }
   };
 
   const handleOpenEditApt = (apt: AppointmentData) => {
@@ -965,17 +880,19 @@ export default function SalonPortal() {
       prev.map((a) =>
         a.id === editingApt.id
           ? {
-            ...a,
-            status: editAptStatus,
-            stylistName: editAptStylist,
-            appointmentTime: editAptTime,
-          }
+              ...a,
+              status: editAptStatus,
+              stylistName: editAptStylist,
+              appointmentTime: editAptTime,
+            }
           : a
       )
     );
+
     setShowEditAppointmentModal(false);
-    showToast(`Appointment for ${editingApt.customerName} updated!`);
+    showToast(`Appointment status for ${editingApt.customerName} updated to ${editAptStatus}.`);
     await updateAppointmentStatusApi(editingApt.id, editAptStatus);
+    fetchSalonAppointments();
   };
 
   const handleDeleteApt = (id: string) => {
@@ -1518,12 +1435,46 @@ export default function SalonPortal() {
             </div>
           </div>
 
-          {/* Active Branch Selector */}
-          <div className={`hidden sm:flex items-center gap-2 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"
-            }`}>
-            <Store className="w-3.5 h-3.5 text-amber-500" />
-            <span className={`font-semibold ${theme === "dark" ? "text-white" : "text-slate-800"
-              }`}>{activeSalon.salonName}</span>
+          {/* Active Branch Selector Dropdown */}
+          <div className="flex items-center gap-2">
+            <Store className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            {salonsList && salonsList.length > 1 ? (
+              <select
+                value={activeSalon.id}
+                onChange={(e) => {
+                  const targetId = e.target.value;
+                  const selected = salonsList.find((s) => s.id === targetId);
+                  if (selected) {
+                    setActiveSalon(selected);
+                    setSelectedSalonId(selected.id);
+                    setAppointments([]);
+                    setQueueTokens([]);
+                    fetchLiveSalonQueue(selected.id);
+                    fetchSalonAppointments(selected.id);
+                    showToast(`Switched view to salon: ${selected.salonName}`);
+                  }
+                }}
+                className={`text-xs font-bold rounded-lg px-2.5 py-1 border outline-none cursor-pointer ${
+                  theme === "dark"
+                    ? "bg-[#141926] border-[#2b364d] text-white focus:border-amber-400"
+                    : "bg-slate-50 border-slate-300 text-slate-900 focus:border-amber-500"
+                }`}
+              >
+                {salonsList.map((sl) => (
+                  <option
+                    key={sl.id}
+                    value={sl.id}
+                    className={theme === "dark" ? "bg-[#141926] text-white" : "bg-white text-slate-900"}
+                  >
+                    {sl.salonName} ({sl.city || "Pune"})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className={`font-semibold text-xs ${theme === "dark" ? "text-white" : "text-slate-800"}`}>
+                {activeSalon.salonName}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -2058,15 +2009,29 @@ export default function SalonPortal() {
             <div className="max-w-[1520px] mx-auto space-y-8 animate-fadeIn">
               {/* HeaderSection */}
               <header className="mb-8">
-                <div className="flex flex-col gap-1.5">
-                  <h1 className={`text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3 ${theme === "dark" ? "text-white" : "text-slate-900"
-                    }`}>
-                    Salon Appointments Book
-                  </h1>
-                  <p className={`text-sm sm:text-base font-normal tracking-wide ${theme === "dark" ? "text-slate-400" : "text-slate-600"
-                    }`}>
-                    Manage online and offline bookings, slot check-ins, and direct queue transitions.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                        <Store className="w-3 h-3" />
+                        {activeSalon.salonName}
+                      </span>
+                      <span className="text-xs text-slate-400">• Branch-Specific Appointments</span>
+                    </div>
+                    <h1 className={`text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                      {activeSalon.salonName} Appointments Book
+                    </h1>
+                    <p className={`text-sm sm:text-base font-normal tracking-wide mt-0.5 ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
+                      Independent appointment roster and slot check-ins for {activeSalon.salonName} only.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddAppointmentModal(true)}
+                    className="self-start sm:self-auto px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New Appointment</span>
+                  </button>
                 </div>
               </header>
 
@@ -2115,6 +2080,57 @@ export default function SalonPortal() {
                   </div>
                 </div>
               </section>
+
+              {/* Salon Reviews & Rating Summary KPI Strip */}
+              {(() => {
+                const ratedApts = appointments.filter((a) => a.rating != null && a.rating > 0);
+                const avg = ratedApts.length > 0
+                  ? (ratedApts.reduce((sum, a) => sum + (a.rating || 0), 0) / ratedApts.length).toFixed(1)
+                  : "5.0";
+                const totalFeedbacks = appointments.filter((a) => !!a.feedback).length;
+
+                return (
+                  <div className={`p-4 rounded-2xl border transition-colors flex flex-wrap items-center justify-between gap-4 ${
+                    theme === "dark"
+                      ? "bg-gradient-to-r from-amber-500/10 via-[#0f1622] to-amber-500/5 border-amber-500/20 shadow-lg"
+                      : "bg-gradient-to-r from-amber-50 via-white to-amber-50/50 border-amber-200 shadow-sm"
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                        <Star className="w-5 h-5 fill-amber-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-base font-extrabold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                            {avg} / 5.0
+                          </span>
+                          <span className="text-xs text-amber-400 font-semibold flex items-center gap-0.5">
+                            {"★".repeat(Math.min(5, Math.max(1, Math.round(Number(avg)))))}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Overall Customer Rating ({ratedApts.length} rated bookings, {totalFeedbacks} text feedbacks)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs">
+                      <div className={`px-3 py-1.5 rounded-lg border ${theme === "dark" ? "bg-slate-900/60 border-slate-800 text-slate-300" : "bg-white border-slate-200 text-slate-700"}`}>
+                        <span className="text-slate-400">Fulfilled: </span>
+                        <strong className="text-emerald-400">{appointments.filter((a) => a.status === "COMPLETED").length}</strong>
+                      </div>
+                      <div className={`px-3 py-1.5 rounded-lg border ${theme === "dark" ? "bg-slate-900/60 border-slate-800 text-slate-300" : "bg-white border-slate-200 text-slate-700"}`}>
+                        <span className="text-slate-400">Cancelled: </span>
+                        <strong className="text-rose-400">{appointments.filter((a) => a.status === "CANCELLED").length}</strong>
+                      </div>
+                      <div className={`px-3 py-1.5 rounded-lg border ${theme === "dark" ? "bg-slate-900/60 border-slate-800 text-slate-300" : "bg-white border-slate-200 text-slate-700"}`}>
+                        <span className="text-slate-400">Customer Reviews: </span>
+                        <strong className="text-amber-400">{totalFeedbacks}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* AppointmentsGrid / Horizontal Rows */}
               <main className="flex flex-col gap-3">
@@ -2191,6 +2207,12 @@ export default function SalonPortal() {
                               CANCELLED
                             </span>
                           )}
+                          {apt.status === "LATE" && (
+                            <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wider flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                              LATE ARRIVAL
+                            </span>
+                          )}
                         </div>
 
                         {/* 2. Client Monogram + Name + Phone */}
@@ -2226,18 +2248,31 @@ export default function SalonPortal() {
                           </div>
                         </div>
 
-                        {/* 4. Customer note badge/quote */}
-                        {apt.notes ? (
-                          <div className={`hidden md:flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs italic max-w-[280px] border-l-2 shrink-0 ${theme === "dark"
-                            ? "bg-[#0a0e17]/70 border border-white/5 border-l-amber-500/40 text-slate-400"
-                            : "bg-amber-50/80 border border-amber-200 border-l-amber-500 text-slate-700"
-                            }`}>
-                            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <p className="truncate">"{apt.notes}"</p>
-                          </div>
-                        ) : (
-                          <div className="hidden md:block w-[280px] shrink-0"></div>
-                        )}
+                        {/* 4. Customer note badge/quote AND Rating Review */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {apt.notes ? (
+                            <div className={`hidden md:flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs italic max-w-[240px] border-l-2 shrink-0 ${theme === "dark"
+                              ? "bg-[#0a0e17]/70 border border-white/5 border-l-amber-500/40 text-slate-400"
+                              : "bg-amber-50/80 border border-amber-200 border-l-amber-500 text-slate-700"
+                              }`}>
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <p className="truncate">"{apt.notes}"</p>
+                            </div>
+                          ) : null}
+
+                          {(apt.rating || apt.feedback) ? (
+                            <div className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs border max-w-[320px] shrink-0 ${theme === "dark"
+                              ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                              : "bg-amber-50 border-amber-300 text-amber-900"
+                              }`}>
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                              <div className="min-w-0">
+                                <span className="font-bold">{apt.rating ? `${apt.rating}.0★` : 'Review'}:</span>{" "}
+                                <span className="italic truncate">{apt.feedback || 'Customer Rated'}</span>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
 
                       {/* Right side: Price + Actions & Queue CTA */}
@@ -2260,12 +2295,32 @@ export default function SalonPortal() {
                         )}
 
                         {apt.status === "CONFIRMED" && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => handleCheckInAppointment(apt)}
+                              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-medium px-3.5 py-1.5 rounded-lg shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              Check-In to Queue
+                            </button>
+                            <button
+                              onClick={() => handleMarkAppointmentLate(apt)}
+                              className="border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 shrink-0 cursor-pointer"
+                              title="Mark customer as Late arrival"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>Mark Late</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {apt.status === "LATE" && (
                           <button
                             onClick={() => handleCheckInAppointment(apt)}
-                            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-medium px-3.5 py-1.5 rounded-lg shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg shadow-md transition flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
                           >
                             <UserCheck className="w-3.5 h-3.5" />
-                            Check-In to Queue
+                            Late Check-In
                           </button>
                         )}
 
@@ -2447,6 +2502,7 @@ export default function SalonPortal() {
                   const isCalled = token.status === "CALLED";
                   const isInService = token.status === "IN_SERVICE";
                   const isWaiting = token.status === "WAITING";
+                  const isLate = token.status === "LATE" || token.status === "ON_HOLD" || (token.status as string) === "NO_SHOW";
 
                   // Card border and background styling
                   const cardBorderClass =
@@ -2455,12 +2511,16 @@ export default function SalonPortal() {
                         ? "border-2 border-emerald-500/40 shadow-[0_0_25px_-4px_rgba(16,185,129,0.25)] bg-[#0b0f19]/80"
                         : isCalled
                           ? "border border-amber-500/30 hover:border-amber-500/50 bg-[#0b0f19]/70"
-                          : "border border-white/10 hover:border-white/20 bg-[#0b0f19]/60"
+                          : isLate
+                            ? "border border-orange-500/40 hover:border-orange-500/60 bg-[#140e0a]/80"
+                            : "border border-white/10 hover:border-white/20 bg-[#0b0f19]/60"
                       : isInService
                         ? "border-2 border-emerald-400 bg-white shadow-md"
                         : isCalled
                           ? "border border-amber-300 hover:border-amber-400 bg-white shadow-sm"
-                          : "border border-slate-200 hover:border-slate-300 bg-white shadow-sm";
+                          : isLate
+                            ? "border border-orange-300 hover:border-orange-400 bg-orange-50/40 shadow-sm"
+                            : "border border-slate-200 hover:border-slate-300 bg-white shadow-sm";
 
                   // Token Identifier box styling
                   const tokenBoxClass =
@@ -2469,12 +2529,16 @@ export default function SalonPortal() {
                         ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-400"
                         : isCalled
                           ? "bg-[#172033]/90 border-amber-500/30 text-amber-400"
-                          : "bg-[#172033]/90 border-blue-500/30 text-blue-400"
+                          : isLate
+                            ? "bg-orange-950/40 border-orange-500/40 text-orange-400"
+                            : "bg-[#172033]/90 border-blue-500/30 text-blue-400"
                       : isInService
                         ? "bg-emerald-50 border-emerald-300 text-emerald-700"
                         : isCalled
                           ? "bg-amber-50 border-amber-300 text-amber-700"
-                          : "bg-blue-50 border-blue-300 text-blue-700";
+                          : isLate
+                            ? "bg-orange-100 border-orange-300 text-orange-800"
+                            : "bg-blue-50 border-blue-300 text-blue-700";
 
                   return (
                     <article
@@ -2511,6 +2575,13 @@ export default function SalonPortal() {
                             {isWaiting && (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide bg-blue-500/15 border border-blue-500/35 text-blue-600 dark:text-blue-400 uppercase">
                                 WAITING
+                              </span>
+                            )}
+
+                            {isLate && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide bg-orange-500/20 border border-orange-500/40 text-orange-400 uppercase">
+                                <Clock className="w-3 h-3 text-orange-400" />
+                                LATE / ON HOLD
                               </span>
                             )}
 
@@ -2568,15 +2639,42 @@ export default function SalonPortal() {
                       )}
 
                       {/* Action Buttons */}
-                      <div className="flex items-center gap-2.5 justify-end xl:w-1/5 flex-shrink-0">
+                      <div className="flex items-center gap-2 justify-end xl:w-1/4 flex-shrink-0">
                         {isWaiting && (
+                          <>
+                            <button
+                              onClick={() => handleCallNext(token)}
+                              className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-500/20 transition-all duration-200 cursor-pointer"
+                              type="button"
+                              title="Call customer to chair"
+                            >
+                              <Phone className="w-3.5 h-3.5 text-slate-950" />
+                              <span>Call Next</span>
+                            </button>
+                            <button
+                              onClick={() => handleMarkTokenLate(token)}
+                              className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                                theme === "dark"
+                                  ? "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30 text-orange-300"
+                                  : "bg-orange-50 hover:bg-orange-100 border-orange-300 text-orange-800"
+                              }`}
+                              type="button"
+                              title="Customer not in lobby? Mark late / put on hold so next client is called without deleting ticket"
+                            >
+                              <span>Skip (Late)</span>
+                            </button>
+                          </>
+                        )}
+
+                        {isLate && (
                           <button
-                            onClick={() => handleCallNext(token)}
-                            className="flex-1 xl:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-[0_0_25px_-4px_rgba(245,158,11,0.25)] transition-all duration-200 cursor-pointer"
+                            onClick={() => handleLateCheckIn(token)}
+                            className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/20 transition-all duration-200 cursor-pointer"
                             type="button"
+                            title="Customer has arrived! Check them in as next in line"
                           >
-                            <Phone className="w-4 h-4 text-slate-950" />
-                            <span>Call Next</span>
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Late Check-in</span>
                           </button>
                         )}
 

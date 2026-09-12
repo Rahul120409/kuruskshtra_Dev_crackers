@@ -1,4 +1,5 @@
 import { Salon } from '../types';
+import { getApiBaseUrl } from './apiConfig';
 
 export interface CreateSalonRequest {
   salonName: string;
@@ -79,6 +80,7 @@ function extractAreaFromAddress(address: string): string {
 }
 
 function mapBackendSalonToFrontend(item: BackendSalonResponse): Salon {
+  const anyItem = item as any;
   return {
     id: item.id,
     name: item.salonName,
@@ -86,19 +88,19 @@ function mapBackendSalonToFrontend(item: BackendSalonResponse): Salon {
     phone: item.phoneNumber,
     email: item.email,
     address: item.salonAddress,
-    city: item.city || 'Pune',
+    city: item.city || '',
     pincode: item.pincode,
     area: extractAreaFromAddress(item.salonAddress),
-    imageUrl: item.salonLogo || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500',
-    salonDescription: item.salonDescription,
+    imageUrl: item.salonLogo || '',
+    salonDescription: item.salonDescription || '',
     locationLink: item.locationLink || undefined,
     openingTime: formatTimeString(item.openingTime),
     closingTime: formatTimeString(item.closingTime),
     status: item.status === 'ACTIVE' || item.status === 'OPEN' ? 'OPEN' : 'CLOSED',
-    rating: 4.9,
-    reviewCount: 148,
-    currentWaitMinutes: 18,
-    totalWaiting: 3,
+    rating: typeof anyItem.rating === 'number' ? anyItem.rating : (anyItem.rating ? Number(anyItem.rating) : undefined),
+    reviewCount: typeof anyItem.reviewCount === 'number' ? anyItem.reviewCount : (anyItem.reviewCount ? Number(anyItem.reviewCount) : undefined),
+    currentWaitMinutes: typeof anyItem.currentWaitMinutes === 'number' ? anyItem.currentWaitMinutes : (anyItem.waitMinutes ? Number(anyItem.waitMinutes) : 0),
+    totalWaiting: typeof anyItem.totalWaiting === 'number' ? anyItem.totalWaiting : (anyItem.queueCount ? Number(anyItem.queueCount) : 0),
     createdAt: item.createdAt,
   };
 }
@@ -136,7 +138,8 @@ function storeSalonsLocally(salons: Salon[]) {
 }
 
 async function fetchApi(endpoint: string, options?: RequestInit): Promise<Response> {
-  const url = BASE_URL ? `${BASE_URL}${endpoint}` : endpoint;
+  const base = getApiBaseUrl();
+  const url = base ? `${base}${endpoint}` : endpoint;
   return fetch(url, options);
 }
 

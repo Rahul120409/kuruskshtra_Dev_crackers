@@ -1,6 +1,7 @@
 package com.saloon.Salonmgmt.controller;
 
 import com.saloon.Salonmgmt.dto.*;
+import com.saloon.Salonmgmt.entity.AppointmentReview;
 import com.saloon.Salonmgmt.entity.enums.AppointmentStatus;
 import com.saloon.Salonmgmt.service.AppointmentService;
 import lombok.RequiredArgsConstructor;
@@ -163,6 +164,78 @@ public class AppointmentController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to retrieve slots: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Submit rating and feedback for an appointment (saved in separate appointment_reviews table)
+     */
+    @PostMapping("/{id}/rating")
+    public ResponseEntity<ApiResponse<AppointmentResponse>> rateAppointment(
+            @PathVariable UUID id,
+            @RequestBody AppointmentRatingRequest request) {
+        try {
+            AppointmentResponse response = appointmentService.submitRating(
+                    id,
+                    request.getRating(),
+                    request.getEffectiveMessage(),
+                    request.getUserId()
+            );
+            return ResponseEntity.ok(ApiResponse.ok("Rating and feedback saved successfully to reviews table", response));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to submit rating: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * SALON PANEL: Get all customer ratings and reviews from the separate appointment_reviews table
+     */
+    @GetMapping("/salon/{salonId}/reviews")
+    public ResponseEntity<ApiResponse<List<AppointmentReview>>> getSalonReviews(@PathVariable UUID salonId) {
+        try {
+            List<AppointmentReview> reviews = appointmentService.getReviewsBySalon(salonId);
+            return ResponseEntity.ok(ApiResponse.ok("Salon reviews retrieved successfully", reviews));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to retrieve salon reviews: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Mark an appointment as LATE
+     */
+    @PostMapping("/{id}/late")
+    public ResponseEntity<ApiResponse<AppointmentResponse>> markAppointmentLate(@PathVariable UUID id) {
+        try {
+            AppointmentResponse response = appointmentService.markAppointmentLate(id);
+            return ResponseEntity.ok(ApiResponse.ok("Appointment marked as late", response));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to mark appointment as late: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Cancel an appointment (calculates cancellation fee if applicable)
+     */
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<AppointmentResponse>> cancelAppointment(@PathVariable UUID id) {
+        try {
+            AppointmentResponse response = appointmentService.cancelAppointment(id);
+            return ResponseEntity.ok(ApiResponse.ok("Appointment cancelled successfully", response));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to cancel appointment: " + e.getMessage()));
         }
     }
 }

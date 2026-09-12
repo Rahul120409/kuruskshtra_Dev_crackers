@@ -1,10 +1,13 @@
 package com.saloon.Salonmgmt.dto;
-
 import com.saloon.Salonmgmt.entity.Appointment;
 import com.saloon.Salonmgmt.entity.enums.AppointmentStatus;
 import com.saloon.Salonmgmt.entity.enums.BookingSource;
-import lombok.*;
-
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -38,6 +41,10 @@ public class AppointmentResponse {
     private Integer queueTokenNumber;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime lateTimestamp;
+    private BigDecimal cancellationFee;
+    private Integer rating;
+    private String feedback;
 
     public static AppointmentResponse fromEntity(Appointment apt) {
         if (apt == null) return null;
@@ -64,6 +71,12 @@ public class AppointmentResponse {
                 .queueTokenNumber(apt.getQueueTokenNumber())
                 .createdAt(apt.getCreatedAt())
                 .updatedAt(apt.getUpdatedAt())
+                .lateTimestamp(apt.getLateTimestamp())
+                .cancellationFee(apt.getCancellationFee())
+                .rating(apt.getRating())
+                .feedback(apt.getFeedback())
                 .build();
     }
 }
+
+

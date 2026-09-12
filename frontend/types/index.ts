@@ -23,15 +23,19 @@ export interface Salon {
   area?: string;
   city?: string;
   phone: string;
+  phoneNumber?: string;
   email?: string;
   ownerName?: string;
   pincode?: string;
+  description?: string;
   salonDescription?: string;
   locationLink?: string;
   rating?: number;
   reviewCount?: number;
   currentWaitMinutes?: number;
   totalWaiting?: number;
+  currentServingTokenNumber?: number | null;
+  nextAvailableTokenNumber?: number;
   imageUrl?: string;
   openingTime: string;
   closingTime: string;
@@ -42,7 +46,7 @@ export interface Salon {
 
 export interface SalonStaff {
   id: string;
-  userId: string;
+  userId?: string;
   name: string;
   salonId: string;
   specialization: string;
@@ -118,6 +122,8 @@ export interface QueueToken {
 export interface Appointment {
   id: string;
   customerId: string;
+  customerName?: string;
+  customerPhone?: string;
   salonId: string;
   salonName?: string;
   salonAddress?: string;
@@ -137,6 +143,10 @@ export interface Appointment {
   tokenNumber?: number;
   paymentMethod?: string;
   paymentStatus?: 'PAID' | 'PENDING_AT_COUNTER';
+  rating?: number;
+  feedback?: string;
+  lateTimestamp?: string;
+  cancellationFee?: number;
   createdAt: string;
 }
 

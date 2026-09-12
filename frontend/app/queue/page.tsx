@@ -23,12 +23,13 @@ export default function LiveQueuePage() {
   const { 
     activeToken, 
     advanceDemoQueue, 
-    resetDemoQueue, 
     cancelActiveToken,
     isLoadingToken 
   } = useCustomer();
 
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const handleStepAdvance = async () => {
     setIsAdvancing(true);
@@ -70,17 +71,12 @@ export default function LiveQueuePage() {
             <Sparkles className="w-4 h-4 text-amber-400" />
             <span>AI Style Match & Recommendations</span>
           </Link>
-          <button
-            onClick={resetDemoQueue}
-            className="w-full py-2 rounded-xl text-zinc-400 hover:text-zinc-200 text-xs transition-all"
-          >
-            Load Sample Token #108
-          </button>
         </div>
       </div>
     );
   }
 
+  const isLate = (activeToken as any).status === 'LATE' || (activeToken as any).status === 'ON_HOLD' || (activeToken as any).status === 'NO_SHOW';
   const isTurnApproaching = activeToken.position === 2 && activeToken.status === 'WAITING';
   const isTurnCalled = activeToken.status === 'CALLED';
   const isInService = activeToken.status === 'IN_SERVICE';
@@ -89,8 +85,37 @@ export default function LiveQueuePage() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       
+      {/* Live WebSocket Connection Status */}
+      <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span className="font-bold text-emerald-400">Live WebSocket Connected</span>
+        </div>
+        <span className="text-[11px] text-zinc-400">Live queue count & position update automatically without refresh</span>
+      </div>
+
       {/* Top Status Alert (LLD Section 12) */}
-      {isTurnCalled ? (
+      {isLate ? (
+        <div className="rounded-2xl bg-orange-500/15 border-2 border-orange-500/50 p-5 text-orange-300 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-orange-500 text-slate-950 flex items-center justify-center font-bold">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white">MARKED LATE / ON HOLD (Token #{activeToken.tokenNumber})</h3>
+              <p className="text-xs text-orange-200 mt-0.5">
+                You were skipped because you were not at the salon when your token was called. Please notify the receptionist upon arrival to resume priority seating!
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-orange-500 text-slate-950 text-xs font-bold uppercase tracking-wider">
+            On Hold
+          </span>
+        </div>
+      ) : isTurnCalled ? (
         <div className="rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/60 p-5 text-emerald-300 emerald-glow-shadow animate-pulse-glow flex items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
@@ -99,7 +124,7 @@ export default function LiveQueuePage() {
             <div>
               <h3 className="text-base font-extrabold text-white">IT'S YOUR TURN! (Token #{activeToken.tokenNumber})</h3>
               <p className="text-xs text-emerald-200 mt-0.5">
-                Please proceed immediately to <strong>Station {activeToken.stationNumber || 3}</strong>. Stylist <strong>{activeToken.staffName || 'Vikram Joshi'}</strong> is ready.
+                Please proceed immediately to <strong>{activeToken.stationNumber ? `Station ${activeToken.stationNumber}` : 'your assigned station'}</strong>. {activeToken.staffName ? <>Stylist <strong>{activeToken.staffName}</strong> is ready.</> : 'Your stylist is ready.'}
               </p>
             </div>
           </div>
@@ -161,10 +186,13 @@ export default function LiveQueuePage() {
               <span className="text-xs text-zinc-400">• {activeToken?.salonName || 'Live Salon'}</span>
             </div>
             <h1 className="text-2xl font-extrabold text-white mt-1.5">
-              {activeToken.serviceName || 'Precision Haircut'}
+              {activeToken.serviceName || 'Service'}
             </h1>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Barber: <span className="text-zinc-200 font-semibold">{activeToken.staffName || 'Vikram Joshi'}</span> • Station: {activeToken.stationNumber || 3}
+              {activeToken.staffName && (
+                <>Stylist: <span className="text-zinc-200 font-semibold">{activeToken.staffName}</span> • </>
+              )}
+              Station: {activeToken.stationNumber || 'Pending'}
             </p>
           </div>
 
@@ -184,34 +212,47 @@ export default function LiveQueuePage() {
           </div>
         </div>
 
-        {/* Dynamic Position & Estimated Wait Counter */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 my-6">
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-zinc-800">
-            <span className="text-[11px] text-zinc-400 block uppercase font-medium">Position Ahead</span>
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="text-2xl font-extrabold text-amber-400 font-mono">
-                {activeToken.position > 0 ? `${activeToken.position}` : '0'}
+        {/* Dynamic Token Status Grid: Ongoing, Your Token, Next Available, Estimated Wait */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-6">
+          <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-emerald-500/40">
+            <span className="text-[10px] text-emerald-400 block uppercase font-bold">Ongoing Token</span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-2xl font-extrabold text-white font-mono">
+                #{Math.max(1, activeToken.tokenNumber - Math.max(0, (activeToken.position || 1) - 1))}
               </span>
-              <span className="text-xs text-zinc-400">{activeToken.position > 0 ? 'customers ahead' : 'Being Served'}</span>
             </div>
+            <span className="text-[10px] text-emerald-300 block mt-0.5">Currently serving</span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/60 border border-zinc-800">
-            <span className="text-[11px] text-zinc-400 block uppercase font-medium">Estimated Wait</span>
-            <div className="flex items-baseline gap-1.5 mt-1">
+          <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-amber-500/40">
+            <span className="text-[10px] text-amber-400 block uppercase font-bold">Your Token</span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-2xl font-extrabold text-amber-400 font-mono">
+                #{activeToken.tokenNumber}
+              </span>
+            </div>
+            <span className="text-[10px] text-amber-200 block mt-0.5">Assigned to you</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-zinc-800">
+            <span className="text-[10px] text-zinc-400 block uppercase font-medium">Next Available Token</span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-2xl font-extrabold text-zinc-300 font-mono">
+                #{activeToken.tokenNumber + 1}
+              </span>
+            </div>
+            <span className="text-[10px] text-zinc-400 block mt-0.5">Next in line</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-zinc-800">
+            <span className="text-[10px] text-zinc-400 block uppercase font-medium">Estimated Wait</span>
+            <div className="flex items-baseline gap-1 mt-1">
               <span className="text-2xl font-extrabold text-white font-mono">
                 {activeToken.estimatedWait}
               </span>
-              <span className="text-xs text-zinc-400">minutes</span>
+              <span className="text-xs text-zinc-400">mins</span>
             </div>
-          </div>
-
-          <div className="col-span-2 sm:col-span-1 p-4 rounded-2xl bg-slate-950/60 border border-zinc-800 flex flex-col justify-between">
-            <span className="text-[11px] text-zinc-400 block uppercase font-medium">Queue Status</span>
-            <span className="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              {activeToken.status === 'WAITING' ? 'Moving Smoothly' : activeToken.status}
-            </span>
+            <span className="text-[10px] text-zinc-400 block mt-0.5">{Math.max(0, (activeToken.position || 1) - 1)} customers ahead</span>
           </div>
         </div>
 
@@ -269,15 +310,15 @@ export default function LiveQueuePage() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={cancelActiveToken}
-              className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 text-xs font-semibold text-zinc-400 hover:text-white transition-colors"
+              onClick={() => setShowCancelModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/60 text-xs font-semibold text-zinc-400 hover:text-white transition-colors cursor-pointer"
             >
               Cancel Token
             </button>
             <button
               onClick={handleStepAdvance}
               disabled={isAdvancing}
-              className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+              className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               title="Simulate queue advance for winning demo"
             >
               <FastForward className="w-3.5 h-3.5" />
@@ -308,13 +349,90 @@ export default function LiveQueuePage() {
       <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-zinc-400 gap-3">
         <div className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
-          <span>{activeToken?.salonName ? `${activeToken.salonName} • Pune` : 'Verified Salon Location'}</span>
+          <span>{activeToken?.salonName || 'Verified Salon Location'}</span>
         </div>
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <span>Verified Queue Pass • Official Booking</span>
         </div>
       </div>
+
+      {/* 5% CANCELLATION FEE CONFIRMATION MODAL */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="relative w-full max-w-md rounded-3xl bg-[#121622] border border-rose-500/30 p-6 sm:p-7 shadow-2xl space-y-5 text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-[#232a3b]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Cancel Token Pass</h3>
+                  <span className="text-[11px] text-rose-400 font-semibold">5% Booking Deduction</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="text-zinc-400 hover:text-white text-lg p-1 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-zinc-300 leading-relaxed">
+                Are you sure you want to cancel Token <strong className="text-amber-400">#{activeToken.tokenNumber}</strong> for <strong className="text-white">{activeToken.serviceName || 'Haircut'}</strong>?
+              </p>
+
+              {/* Breakdown Card */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-[#232a3b] space-y-2 font-mono">
+                <div className="flex items-center justify-between text-zinc-400">
+                  <span>Pass Value:</span>
+                  <span className="text-white font-bold">₹{activeToken.servicePrice || 650}.00</span>
+                </div>
+                <div className="flex items-center justify-between text-rose-400">
+                  <span>5% Cancellation Fee:</span>
+                  <span>- ₹{(((activeToken.servicePrice || 650)) * 0.05).toFixed(2)}</span>
+                </div>
+                <div className="border-t border-[#232a3b] pt-2 flex items-center justify-between font-bold text-sm">
+                  <span className="text-emerald-400">Net Refund / Adjusted:</span>
+                  <span className="text-emerald-400">₹{(((activeToken.servicePrice || 650)) * 0.95).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 leading-relaxed">
+                According to salon cancellation policy, 5% of the total amount is deducted for queue slot reservation. The remaining 95% is refunded or credited.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-[#181e2b] hover:bg-[#222b3d] text-white font-semibold text-xs border border-[#2b354b] transition-colors cursor-pointer"
+              >
+                Keep Token
+              </button>
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={async () => {
+                  setIsCancelling(true);
+                  try {
+                    await cancelActiveToken();
+                  } finally {
+                    setIsCancelling(false);
+                    setShowCancelModal(false);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isCancelling ? "Cancelling..." : "Confirm & Deduct 5%"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -30,9 +30,10 @@ import { BookingWizardModal } from '../../components/BookingWizardModal';
 
 export default function AppointmentsPage() {
   const router = useRouter();
-  const { user, appointments, cancelAppointment, activeToken } = useCustomer();
-  const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ALL');
+  const { user, appointments, cancelAppointment, markAppointmentLate, activeToken } = useCustomer();
+  const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'LATE' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [markingLateId, setMarkingLateId] = useState<string | null>(null);
 
   // Live Salons from Backend API
   const [salons, setSalons] = useState<Salon[]>([]);
@@ -54,6 +55,7 @@ export default function AppointmentsPage() {
     return appointments.filter((apt) => {
       if (filter === 'ALL') return true;
       if (filter === 'ACTIVE') return apt.status === 'CONFIRMED' || apt.status === 'CHECKED_IN';
+      if (filter === 'LATE') return apt.status === 'LATE';
       if (filter === 'COMPLETED') return apt.status === 'COMPLETED';
       if (filter === 'CANCELLED') return apt.status === 'CANCELLED';
       return true;
@@ -61,6 +63,7 @@ export default function AppointmentsPage() {
   }, [appointments, filter]);
 
   const activeCount = appointments.filter((a) => a.status === 'CONFIRMED' || a.status === 'CHECKED_IN').length;
+  const lateCount = appointments.filter((a) => a.status === 'LATE').length;
   const completedCount = appointments.filter((a) => a.status === 'COMPLETED').length;
   const cancelledCount = appointments.filter((a) => a.status === 'CANCELLED').length;
 
@@ -72,6 +75,17 @@ export default function AppointmentsPage() {
       console.error('Failed to cancel appointment:', err);
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const handleMarkLate = async (aptId: string) => {
+    setMarkingLateId(aptId);
+    try {
+      await markAppointmentLate(aptId);
+    } catch (err) {
+      console.error('Failed to mark appointment late:', err);
+    } finally {
+      setMarkingLateId(null);
     }
   };
 
@@ -140,6 +154,17 @@ export default function AppointmentsPage() {
         </button>
 
         <button
+          onClick={() => setFilter('LATE')}
+          className={`px-4 py-2 rounded-xl font-bold transition-all border whitespace-nowrap ${
+            filter === 'LATE'
+              ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/20'
+              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+          }`}
+        >
+          Late ({lateCount})
+        </button>
+
+        <button
           onClick={() => setFilter('COMPLETED')}
           className={`px-4 py-2 rounded-xl font-bold transition-all border whitespace-nowrap ${
             filter === 'COMPLETED'
@@ -166,14 +191,16 @@ export default function AppointmentsPage() {
       {filteredAppointments.length > 0 ? (
         <div className="space-y-4">
           {filteredAppointments.map((apt) => {
-            const isLive = apt.status === 'CONFIRMED' || apt.status === 'CHECKED_IN';
+            const isLive = apt.status === 'CONFIRMED' || apt.status === 'CHECKED_IN' || apt.status === 'LATE';
             const isWalkin = apt.bookingType === 'WALK_IN';
 
             return (
               <div
                 key={apt.id}
                 className={`rounded-2xl border transition-all p-5 sm:p-6 flex flex-col justify-between gap-5 shadow-lg ${
-                  isLive
+                  apt.status === 'LATE'
+                    ? 'bg-gradient-to-r from-slate-900 via-slate-900 to-rose-950/30 border-rose-500/40 hover:border-rose-500/60'
+                    : isLive
                     ? 'bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/30 border-indigo-500/30 hover:border-indigo-500/50'
                     : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
                 }`}
@@ -203,12 +230,31 @@ export default function AppointmentsPage() {
                   </div>
 
                   {/* Status Pill */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {apt.status === 'CONFIRMED' && (
                       <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                         {isWalkin ? 'Live Queue Pass' : 'Confirmed Slot'}
                       </span>
+                    )}
+                    {apt.status === 'CHECKED_IN' && (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                        Checked In
+                      </span>
+                    )}
+                    {apt.status === 'LATE' && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center gap-1.5 animate-pulse">
+                          <span className="w-2 h-2 rounded-full bg-rose-400" />
+                          LATE Check-in
+                        </span>
+                        {apt.lateTimestamp && (
+                          <span className="text-[11px] text-rose-400 font-mono font-semibold">
+                            Late at {new Date(apt.lateTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
                     )}
                     {apt.status === 'COMPLETED' && (
                       <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5">
@@ -318,6 +364,17 @@ export default function AppointmentsPage() {
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     {isLive ? (
                       <>
+                        {apt.status === 'CONFIRMED' && (
+                          <button
+                            onClick={() => handleMarkLate(apt.id)}
+                            disabled={markingLateId === apt.id}
+                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white shadow-md shadow-rose-500/20 hover:scale-[1.02] transition-all flex items-center gap-1.5"
+                          >
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            <span>{markingLateId === apt.id ? 'Marking...' : 'Mark Late'}</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleCancel(apt.id)}
                           disabled={cancellingId === apt.id}

@@ -42,6 +42,14 @@ import {
   Ticket,
   Sun,
   Moon,
+  CalendarClock,
+  CalendarRange,
+  Copy,
+  Save,
+  Code2,
+  SlidersHorizontal,
+  Timer,
+  CheckCircle,
 } from "lucide-react";
 
 import {
@@ -59,12 +67,25 @@ import {
   getSalonAppointments,
   updateAppointmentStatusApi,
   checkInAppointmentApi,
+  markAppointmentLateApi,
   createAppointmentApi,
   getAllStylistsApi,
   updateStylistStatusApi,
 } from "../services/salonOperations";
 
-import { getAllSalons, updateSalonApi, SalonData } from "../services/salon";
+import {
+  getAllSalons,
+  updateSalonApi,
+  SalonData,
+  getSalonSchedule,
+  updateSalonSchedule,
+  suggestBookingSlots,
+  DayScheduleDto,
+  ShiftDto,
+  SalonScheduleResponse,
+  SuggestedSlotDto,
+  getDefaultWeeklySchedule,
+} from "../services/salon";
 import {
   StyleTypeData,
   SpecificStyleData,
@@ -120,7 +141,7 @@ function isHairstylistSpecialization(spec?: string): boolean {
 
 export default function SalonPortal() {
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "appointments" | "queue" | "salon_details" | "stylists" | "salon_staff"
+    "dashboard" | "appointments" | "queue" | "salon_details" | "stylists" | "salon_staff" | "schedule"
   >("dashboard");
 
   // Theme State: Dark / Light Mode
@@ -142,7 +163,7 @@ export default function SalonPortal() {
   // Global State
   const [currentUser, setCurrentUser] = useState<UserData | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState<boolean>(false);
-  const [selectedSalonId, setSelectedSalonId] = useState<string>("889f71a0-9bb5-45e8-b2dc-344cfbb96472");
+  const [selectedSalonId, setSelectedSalonId] = useState<string>("");
   const [salonsList, setSalonsList] = useState<SalonData[]>([]);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -476,15 +497,249 @@ export default function SalonPortal() {
     }
   };
 
+  // =========================================================================
+  // SALON WEEKLY OPERATING SCHEDULE & SHIFT TIMINGS (Database JSON format)
+  // =========================================================================
+  const [weeklySchedule, setWeeklySchedule] = useState<DayScheduleDto[]>([]);
+  const [scheduleUpdatedAt, setScheduleUpdatedAt] = useState<string | null>(null);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState<boolean>(false);
+  const [isSavingSchedule, setIsSavingSchedule] = useState<boolean>(false);
+  const [showJsonPreview, setShowJsonPreview] = useState<boolean>(false);
+
+  // AI Smart Slot Simulation State
+  const [aiSlotDate, setAiSlotDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [aiSlotDuration, setAiSlotDuration] = useState<number>(45);
+  const [aiPreferredStaffId, setAiPreferredStaffId] = useState<string>("");
+  const [aiSuggestions, setAiSuggestions] = useState<SuggestedSlotDto[]>([]);
+  const [isLoadingAiSlots, setIsLoadingAiSlots] = useState<boolean>(false);
+  const [aiSlotSummary, setAiSlotSummary] = useState<string>("");
+
+  const loadSchedule = async (salonId?: string) => {
+    const targetId = salonId || activeSalon.id || selectedSalonId;
+    if (!targetId) return;
+    setIsLoadingSchedule(true);
+    try {
+      const res = await getSalonSchedule(targetId);
+      if (res.data && Array.isArray(res.data.weeklySchedule)) {
+        setWeeklySchedule(res.data.weeklySchedule);
+        if (res.data.updatedAt) {
+          setScheduleUpdatedAt(res.data.updatedAt);
+        }
+      } else {
+        setWeeklySchedule([]);
+      }
+    } catch (err: any) {
+      console.error("Failed to load salon schedule from database:", err);
+      setWeeklySchedule([]);
+    } finally {
+      setIsLoadingSchedule(false);
+    }
+  };
+
+  const handleSaveSchedule = async () => {
+    const targetId = activeSalon.id || selectedSalonId;
+    if (!targetId) {
+      Swal.fire("Error", "No active salon selected.", "error");
+      return;
+    }
+    setIsSavingSchedule(true);
+    try {
+      const res = await updateSalonSchedule(targetId, {
+        weeklySchedule,
+      });
+      if (res.data) {
+        if (res.data.weeklySchedule) {
+          setWeeklySchedule(res.data.weeklySchedule);
+        }
+        if (res.data.updatedAt) {
+          setScheduleUpdatedAt(res.data.updatedAt);
+        }
+      }
+      showToast("Salon weekly schedule saved successfully in database!", "success");
+      Swal.fire({
+        icon: "success",
+        title: "Schedule Saved to Database",
+        text: "Weekly operating hours & shift timings saved to database in JSON format (operating_schedule).",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      console.error("Failed to save schedule:", err);
+      Swal.fire("Save Failed", err.message || "Could not save schedule to server.", "error");
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  const handleToggleDayClosed = (dayIndex: number) => {
+    setWeeklySchedule((prev) => {
+      const updated = [...prev];
+      const target = { ...updated[dayIndex] };
+      const nextClosed = !target.isClosed;
+      target.isClosed = nextClosed;
+      if (nextClosed) {
+        target.shifts = [];
+      } else if (!target.shifts || target.shifts.length === 0) {
+        target.shifts = [{ fromTime: "09:00 AM", toTime: "08:00 PM" }];
+      }
+      updated[dayIndex] = target;
+      return updated;
+    });
+  };
+
+  const handleAddShift = (dayIndex: number) => {
+    setWeeklySchedule((prev) => {
+      const updated = [...prev];
+      const target = { ...updated[dayIndex] };
+      const currentShifts = target.shifts ? [...target.shifts] : [];
+      currentShifts.push({ fromTime: "02:00 PM", toTime: "08:00 PM" });
+      target.shifts = currentShifts;
+      target.isClosed = false;
+      updated[dayIndex] = target;
+      return updated;
+    });
+  };
+
+  const handleRemoveShift = (dayIndex: number, shiftIndex: number) => {
+    setWeeklySchedule((prev) => {
+      const updated = [...prev];
+      const target = { ...updated[dayIndex] };
+      const currentShifts = target.shifts ? [...target.shifts] : [];
+      currentShifts.splice(shiftIndex, 1);
+      target.shifts = currentShifts;
+      if (currentShifts.length === 0) {
+        target.isClosed = true;
+      }
+      updated[dayIndex] = target;
+      return updated;
+    });
+  };
+
+  const handleShiftTimeChange = (
+    dayIndex: number,
+    shiftIndex: number,
+    field: "fromTime" | "toTime",
+    value: string
+  ) => {
+    setWeeklySchedule((prev) => {
+      const updated = [...prev];
+      const target = { ...updated[dayIndex] };
+      const currentShifts = target.shifts ? [...target.shifts] : [];
+      if (currentShifts[shiftIndex]) {
+        currentShifts[shiftIndex] = {
+          ...currentShifts[shiftIndex],
+          [field]: value,
+        };
+      }
+      target.shifts = currentShifts;
+      updated[dayIndex] = target;
+      return updated;
+    });
+  };
+
+  const handleApplyPreset = (preset: "standard" | "split" | "weekend_extended" | "reset_default") => {
+    const baseDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    if (preset === "reset_default") {
+      loadSchedule();
+      showToast("Reloaded schedule from database", "info");
+      return;
+    }
+
+    setWeeklySchedule(() =>
+      baseDays.map((dayName) => {
+        if (dayName === "Sunday" && preset !== "weekend_extended") {
+          return { day: dayName, isClosed: true, shifts: [] };
+        }
+        if (preset === "standard") {
+          return {
+            day: dayName,
+            isClosed: false,
+            shifts: [{ fromTime: "09:00 AM", toTime: "08:00 PM" }],
+          };
+        }
+        if (preset === "split") {
+          return {
+            day: dayName,
+            isClosed: false,
+            shifts: [
+              { fromTime: "09:00 AM", toTime: "01:00 PM" },
+              { fromTime: "02:00 PM", toTime: "08:00 PM" },
+            ],
+          };
+        }
+        if (preset === "weekend_extended") {
+          const isWeekend = dayName === "Saturday" || dayName === "Sunday";
+          return {
+            day: dayName,
+            isClosed: false,
+            shifts: isWeekend
+              ? [{ fromTime: "08:00 AM", toTime: "10:00 PM" }]
+              : [{ fromTime: "09:00 AM", toTime: "08:00 PM" }],
+          };
+        }
+        return { day: dayName, isClosed: false, shifts: [] };
+      })
+    );
+    showToast(`Preset "${preset}" applied. Click "Save Schedule to DB" to commit.`, "info");
+  };
+
+  const handleCopyDayToWeekdays = (sourceDayIndex: number) => {
+    const source = weeklySchedule[sourceDayIndex];
+    if (!source) return;
+    setWeeklySchedule((prev) =>
+      prev.map((dayObj) => {
+        if (dayObj.day === "Sunday") return dayObj; // Keep Sunday as is
+        return {
+          day: dayObj.day,
+          isClosed: source.isClosed,
+          shifts: source.shifts ? source.shifts.map((s) => ({ ...s })) : [],
+        };
+      })
+    );
+    showToast(`Copied ${source.day}'s timing to all weekdays!`, "success");
+  };
+
+  const handleRunAiSlotSuggestions = async () => {
+    const targetId = activeSalon.id || selectedSalonId;
+    if (!targetId) return;
+    setIsLoadingAiSlots(true);
+    setAiSuggestions([]);
+    setAiSlotSummary("");
+    try {
+      const res = await suggestBookingSlots({
+        salonId: targetId,
+        date: aiSlotDate,
+        serviceDurationMinutes: aiSlotDuration,
+        preferredStaffId: aiPreferredStaffId || null,
+      });
+      if (res.data && res.data.suggestedSlots) {
+        setAiSuggestions(res.data.suggestedSlots);
+        if ((res.data as any).aiSummary) {
+          setAiSlotSummary((res.data as any).aiSummary);
+        }
+        showToast("AI Smart Slots calculated based on operating schedule!", "success");
+      }
+    } catch (err: any) {
+      console.error("Failed to generate AI slots:", err);
+      showToast(err.message || "Failed to generate AI slots", "error");
+    } finally {
+      setIsLoadingAiSlots(false);
+    }
+  };
+
   useEffect(() => {
     loadSalonStaff();
     loadSalonAppointments();
     loadStylists();
+    loadSchedule();
   }, [activeSalon.id]);
 
   useEffect(() => {
     if (activeTab === "appointments") {
       loadSalonAppointments();
+    }
+    if (activeTab === "schedule") {
+      loadSchedule();
     }
   }, [activeTab]);
 
@@ -523,11 +778,11 @@ export default function SalonPortal() {
           // Auto-match salon by current user's email or owner name if logged in (e.g. hitija -> woww)
           const userMatch = currentUser
             ? res.data.find(
-                (s) =>
-                  (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-                  (s.ownerName && currentUser.name && s.ownerName.toLowerCase() === currentUser.name.toLowerCase()) ||
-                  (s.ownerName && currentUser.name && s.ownerName.toLowerCase().includes(currentUser.name.toLowerCase()))
-              )
+              (s) =>
+                (s.email && currentUser.email && s.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+                (s.ownerName && currentUser.name && s.ownerName.toLowerCase() === currentUser.name.toLowerCase()) ||
+                (s.ownerName && currentUser.name && s.ownerName.toLowerCase().includes(currentUser.name.toLowerCase()))
+            )
             : null;
           const savedMatch = savedId ? res.data.find((s) => s.id === savedId) : null;
           const current = userMatch || savedMatch || res.data.find((s) => s.id === selectedSalonId) || res.data[0];
@@ -809,6 +1064,30 @@ export default function SalonPortal() {
         prev.map((a) => (a.id === apt.id ? { ...a, status: "CHECKED_IN" } : a))
       );
       showToast(`Checked in ${apt.customerName}!`);
+    }
+  };
+
+  const handleMarkLate = async (apt: AppointmentData) => {
+    try {
+      const nowIso = new Date().toISOString();
+      // Optimistic local state update
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === apt.id ? { ...a, status: "LATE", lateTimestamp: nowIso } : a
+        )
+      );
+      showToast(`Marking ${apt.customerName} as LATE...`, "info");
+      const res = await markAppointmentLateApi(apt.id);
+      if (res.success && res.data) {
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === apt.id ? { ...a, ...res.data, status: "LATE" } : a))
+        );
+      }
+      showToast(`Appointment for ${apt.customerName} marked as LATE`, "success");
+      await loadSalonAppointments();
+    } catch (err: any) {
+      console.warn("Mark late API fallback:", err);
+      showToast(`Marked ${apt.customerName} as late!`);
     }
   };
 
@@ -1337,7 +1616,7 @@ export default function SalonPortal() {
       setNewSalonStaffStatus("AVAILABLE");
       setNewSalonStaffExp(3);
       setNewSalonStaffImage("");
-      
+
       const isStylist = isHairstylistSpecialization(staffSpec);
       showToast(`Salon staff "${staffName}" saved successfully${isStylist ? " and added to Hairstylists Details roster!" : "!"}`);
       await loadSalonStaff();
@@ -1592,11 +1871,10 @@ export default function SalonPortal() {
                     showToast(`Active salon: ${chosen.salonName}`);
                   }
                 }}
-                className={`text-xs font-bold px-2 py-1 rounded-lg border outline-none cursor-pointer transition-all ${
-                  theme === "dark"
+                className={`text-xs font-bold px-2 py-1 rounded-lg border outline-none cursor-pointer transition-all ${theme === "dark"
                     ? "bg-[#141926] border-[#252f44] text-amber-300 hover:border-amber-400/50"
                     : "bg-slate-100 border-slate-300 text-slate-900 hover:border-amber-400"
-                }`}
+                  }`}
               >
                 {salonsList.map((salon) => (
                   <option key={salon.id} value={salon.id} className={theme === "dark" ? "bg-[#141926] text-white" : "bg-white text-slate-900"}>
@@ -1657,8 +1935,8 @@ export default function SalonPortal() {
             <div className="flex items-center gap-2">
               <div
                 className={`flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all ${theme === "dark"
-                    ? "bg-[#141926] border-[#252f44] text-white shadow-inner"
-                    : "bg-slate-100/90 border-slate-200 text-slate-900 shadow-sm"
+                  ? "bg-[#141926] border-[#252f44] text-white shadow-inner"
+                  : "bg-slate-100/90 border-slate-200 text-slate-900 shadow-sm"
                   }`}
               >
                 <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-300 text-black flex items-center justify-center font-black text-xs uppercase shadow-sm">
@@ -1678,8 +1956,8 @@ export default function SalonPortal() {
                 type="button"
                 onClick={() => setShowLogoutModal(true)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer shadow-sm ${theme === "dark"
-                    ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border-rose-500/25 hover:border-rose-500/40"
-                    : "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200 hover:border-rose-300"
+                  ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border-rose-500/25 hover:border-rose-500/40"
+                  : "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200 hover:border-rose-300"
                   }`}
                 title="Sign out of staff session"
               >
@@ -1718,6 +1996,7 @@ export default function SalonPortal() {
                   { id: "appointments", label: "Appointments", icon: Calendar, badge: `${appointments.length}` },
                   { id: "queue", label: "Live Queue Tab", icon: Layers, badge: `${waitingTokens.length} Wait` },
                   { id: "salon_details", label: "Salon Details", icon: Store },
+                  { id: "schedule", label: "Operating Schedule", icon: CalendarClock, badge: "7 Days" },
                   { id: "stylists", label: "Hairstylists Details", icon: Users, badge: `${stylists.length}` },
                   { id: "salon_staff", label: "Salon Staff", icon: UserCheck, badge: `${salonStaffList.length}` },
                 ].map((item) => {
@@ -1813,6 +2092,7 @@ export default function SalonPortal() {
               { id: "appointments", label: "Appointments", icon: Calendar },
               { id: "queue", label: "Live Queue", icon: Layers },
               { id: "salon_details", label: "Salon Details", icon: Store },
+              { id: "schedule", label: "Schedule", icon: CalendarClock },
               { id: "stylists", label: "Hairstylists", icon: Users },
               { id: "salon_staff", label: "Salon Staff", icon: UserCheck },
             ].map((t) => (
@@ -2290,9 +2570,8 @@ export default function SalonPortal() {
                             showToast(`Active branch: ${chosen.salonName}`);
                           }
                         }}
-                        className={`text-xs font-bold bg-transparent outline-none cursor-pointer transition-all ${
-                          theme === "dark" ? "text-amber-300" : "text-slate-900"
-                        }`}
+                        className={`text-xs font-bold bg-transparent outline-none cursor-pointer transition-all ${theme === "dark" ? "text-amber-300" : "text-slate-900"
+                          }`}
                       >
                         {salonsList.map((salon) => (
                           <option key={salon.id} value={salon.id} className={theme === "dark" ? "bg-[#141926] text-white" : "bg-white text-slate-900"}>
@@ -2305,7 +2584,7 @@ export default function SalonPortal() {
 
                   {/* Filter Pills List */}
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
-                    {["ALL", "CONFIRMED", "CHECKED_IN", "COMPLETED", "CANCELLED"].map((status) => {
+                    {["ALL", "CONFIRMED", "CHECKED_IN", "LATE", "COMPLETED", "CANCELLED"].map((status) => {
                       const isActive = aptStatusFilter === status;
                       const count = status === "ALL" ? appointments.length : appointments.filter((a) => a.status === status).length;
                       return (
@@ -2366,9 +2645,11 @@ export default function SalonPortal() {
                         ? "bg-gradient-to-b from-emerald-500 via-teal-400 to-emerald-600"
                         : apt.status === "CONFIRMED"
                           ? "bg-gradient-to-b from-sky-500 via-blue-500 to-cyan-400"
-                          : apt.status === "COMPLETED"
-                            ? "bg-gradient-to-b from-purple-600 via-purple-500 to-purple-700"
-                            : "bg-gradient-to-b from-rose-600 via-rose-500 to-rose-700";
+                          : apt.status === "LATE"
+                            ? "bg-gradient-to-b from-rose-500 via-amber-500 to-red-600"
+                            : apt.status === "COMPLETED"
+                              ? "bg-gradient-to-b from-purple-600 via-purple-500 to-purple-700"
+                              : "bg-gradient-to-b from-rose-600 via-rose-500 to-rose-700";
 
                     // Monogram styling
                     const monogramClass =
@@ -2377,12 +2658,16 @@ export default function SalonPortal() {
                           ? "bg-gradient-to-br from-emerald-500/20 via-[#141d2b] to-emerald-600/30 border-2 border-emerald-500/40 text-emerald-300"
                           : apt.status === "CONFIRMED"
                             ? "bg-gradient-to-br from-sky-400/20 via-[#141d2b] to-sky-600/30 border-2 border-sky-500/40 text-sky-300"
-                            : "bg-gradient-to-br from-slate-500/20 via-[#141d2b] to-slate-700/40 border-2 border-slate-600/40 text-slate-300"
+                            : apt.status === "LATE"
+                              ? "bg-gradient-to-br from-rose-500/20 via-[#141d2b] to-amber-600/30 border-2 border-rose-500/40 text-rose-300"
+                              : "bg-gradient-to-br from-slate-500/20 via-[#141d2b] to-slate-700/40 border-2 border-slate-600/40 text-slate-300"
                         : apt.status === "CHECKED_IN"
                           ? "bg-emerald-100 border-2 border-emerald-400 text-emerald-900 font-bold"
                           : apt.status === "CONFIRMED"
                             ? "bg-sky-100 border-2 border-sky-400 text-sky-900 font-bold"
-                            : "bg-slate-100 border-2 border-slate-300 text-slate-700 font-bold";
+                            : apt.status === "LATE"
+                              ? "bg-rose-100 border-2 border-rose-400 text-rose-900 font-bold"
+                              : "bg-slate-100 border-2 border-slate-300 text-slate-700 font-bold";
 
                     return (
                       <article
@@ -2406,7 +2691,7 @@ export default function SalonPortal() {
                               {apt.appointmentDate} • {apt.appointmentTime}
                             </span>
 
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               {apt.status === "CHECKED_IN" && (
                                 <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wider flex items-center gap-1.5 shadow-sm whitespace-nowrap">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -2418,6 +2703,19 @@ export default function SalonPortal() {
                                   <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
                                   CONFIRMED
                                 </span>
+                              )}
+                              {apt.status === "LATE" && (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="bg-rose-500/20 text-rose-400 border border-rose-500/40 rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wider flex items-center gap-1.5 shadow-sm whitespace-nowrap animate-pulse">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                    LATE
+                                  </span>
+                                  {apt.lateTimestamp && (
+                                    <span className="text-[10px] font-mono text-rose-400/90 font-semibold">
+                                      Late at {new Date(apt.lateTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                               {apt.status === "COMPLETED" && (
                                 <span className="bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wider flex items-center gap-1.5 shadow-sm whitespace-nowrap">
@@ -2522,13 +2820,41 @@ export default function SalonPortal() {
                           )}
 
                           {apt.status === "CONFIRMED" && (
-                            <button
-                              onClick={() => handleCheckInAppointment(apt)}
-                              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold px-3.5 py-1.5 rounded-xl shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
-                            >
-                              <UserCheck className="w-3.5 h-3.5" />
-                              Check-In to Queue
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleCheckInAppointment(apt)}
+                                className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold px-3 py-1.5 rounded-xl shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                Check-In
+                              </button>
+                              <button
+                                onClick={() => handleMarkLate(apt)}
+                                className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md shadow-rose-500/20 hover:shadow-rose-500/40 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                                title="Mark this appointment as Late"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                Mark Late
+                              </button>
+                            </div>
+                          )}
+
+                          {apt.status === "LATE" && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleCheckInAppointment(apt)}
+                                className="bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-black font-bold px-3 py-1.5 rounded-xl shadow-md shadow-amber-500/20 hover:scale-[1.02] transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
+                                title="Check in late appointment to queue"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                Late Check-In
+                              </button>
+                              {apt.cancellationFee !== undefined && apt.cancellationFee > 0 && (
+                                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
+                                  Fee: ₹{apt.cancellationFee}
+                                </span>
+                              )}
+                            </div>
                           )}
 
                           {apt.status === "COMPLETED" && (
@@ -4051,6 +4377,551 @@ export default function SalonPortal() {
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 7: SALON SCHEDULE & SHIFT TIMINGS (Database JSON format)
+             ========================================================================= */}
+          {activeTab === "schedule" && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Header Title & Top Controls */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="p-2 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      <CalendarClock className="w-5 h-5" />
+                    </span>
+                    <h1 className={`text-2xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                      Salon Operating Schedule &amp; Shift Timings
+                    </h1>
+                  </div>
+                  <p className={`text-xs mt-1.5 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                    Configure weekly working days, opening/closing hours, multiple shifts per day, and sync in database (JSON format).
+                  </p>
+                </div>
+
+                {/* Primary Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowJsonPreview(!showJsonPreview)}
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${showJsonPreview
+                        ? "bg-amber-400 text-black border-amber-400 shadow-md font-bold"
+                        : theme === "dark"
+                          ? "bg-[#161c28] border-[#252f44] text-zinc-300 hover:text-white hover:bg-[#1e2738]"
+                          : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <Code2 className="w-3.5 h-3.5" />
+                    <span>{showJsonPreview ? "Hide JSON DB View" : "View DB JSON"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset("reset_default")}
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${theme === "dark"
+                        ? "bg-[#161c28] border-[#252f44] text-zinc-300 hover:text-white hover:bg-[#1e2738]"
+                        : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Reset Defaults</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveSchedule}
+                    disabled={isSavingSchedule}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-black font-bold text-xs shadow-lg shadow-amber-500/20 hover:from-amber-300 hover:to-amber-500 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                  >
+                    {isSavingSchedule ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    <span>{isSavingSchedule ? "Saving to Database..." : "Save Schedule to DB"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Banner / Metadata Pill */}
+              <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs transition-colors ${theme === "dark"
+                  ? "bg-gradient-to-r from-amber-500/10 via-[#121622] to-amber-500/5 border-amber-500/30 text-zinc-300"
+                  : "bg-amber-50/70 border-amber-200 text-slate-800 shadow-sm"
+                }`}>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <div>
+                    <span className="font-bold text-amber-400">{activeSalon.salonName}</span>
+                    <span className="mx-2 opacity-40">•</span>
+                    <span>Database Field: <code className="px-1.5 py-0.5 rounded bg-black/20 text-amber-300 font-mono text-[11px]">operating_schedule (JSON TEXT)</code></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-[11px] font-mono">
+                  <span className="opacity-70">
+                    {scheduleUpdatedAt ? `Updated: ${new Date(scheduleUpdatedAt).toLocaleString()}` : "Live Synced"}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full font-bold ${theme === "dark" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    }`}>
+                    {weeklySchedule.filter(d => !d.isClosed).length} Days Open / 7
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Presets Toolbar */}
+              <div className={`p-4 rounded-2xl border space-y-3 ${theme === "dark" ? "bg-[#10141e] border-[#21293a]" : "bg-white border-slate-200 shadow-sm"
+                }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-500">
+                    <SlidersHorizontal className="w-4 h-4" />
+                    <span>Quick Schedule Presets &amp; Templates</span>
+                  </div>
+                  <span className={`text-[11px] ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`}>
+                    Apply standard working shift patterns across days
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset("standard")}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${theme === "dark" ? "bg-[#18202f] border-[#2b3851] text-zinc-300 hover:text-white hover:border-amber-400/50" : "bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
+                      }`}
+                  >
+                    Standard (Mon-Sat 09:00 AM - 08:00 PM)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset("split")}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${theme === "dark" ? "bg-[#18202f] border-[#2b3851] text-zinc-300 hover:text-white hover:border-amber-400/50" : "bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
+                      }`}
+                  >
+                    Split Shift (Morning 9-1 &amp; Evening 2-8)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset("weekend_extended")}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer ${theme === "dark" ? "bg-[#18202f] border-[#2b3851] text-zinc-300 hover:text-white hover:border-amber-400/50" : "bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
+                      }`}
+                  >
+                    Weekend Extended (Sat-Sun 8 AM - 10 PM)
+                  </button>
+                </div>
+              </div>
+
+              {/* JSON Inspector View Modal/Card (If toggled) */}
+              {showJsonPreview && (
+                <div className={`p-5 rounded-2xl border space-y-3 animate-fadeIn ${theme === "dark" ? "bg-[#0c0f17] border-amber-500/40 text-zinc-200" : "bg-slate-900 text-slate-100 border-slate-700 shadow-xl"
+                  }`}>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <Code2 className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                        Database JSON Payload (`operating_schedule`)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify({ weeklySchedule }, null, 2));
+                        showToast("Schedule JSON copied to clipboard!", "success");
+                      }}
+                      className="px-3 py-1 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copy JSON</span>
+                    </button>
+                  </div>
+                  <pre className="text-[11px] font-mono p-3.5 rounded-xl bg-black/50 overflow-x-auto text-emerald-400 leading-relaxed max-h-64 scrollbar-thin">
+                    {JSON.stringify({ weeklySchedule }, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* 7 Days Weekly Schedule List */}
+              {weeklySchedule.length === 0 ? (
+                <div className={`p-10 text-center rounded-2xl border ${theme === "dark" ? "bg-[#121622] border-[#232a3b] text-zinc-300" : "bg-white border-slate-200 text-slate-700 shadow-sm"
+                  }`}>
+                  <CalendarClock className="w-12 h-12 mx-auto text-amber-500 mb-3 opacity-80" />
+                  <h3 className="text-base font-bold mb-1">No Schedule Configured Yet</h3>
+                  <p className={`text-xs mb-4 max-w-md mx-auto ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                    This salon currently has no shift timings stored in the database. Choose a quick preset template above or initialize weekly days below.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset("standard")}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-bold text-xs shadow-md cursor-pointer hover:from-amber-300 hover:to-amber-400"
+                  >
+                    + Initialize 7-Day Schedule
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {weeklySchedule.map((dayObj, dayIdx) => {
+                    const isClosed = Boolean(dayObj.isClosed);
+                    const shifts = dayObj.shifts || [];
+
+                    return (
+                      <div
+                        key={dayObj.day || dayIdx}
+                        className={`p-5 rounded-2xl border transition-all ${isClosed
+                            ? theme === "dark"
+                              ? "bg-[#0f121a]/60 border-[#1f2636] opacity-75"
+                              : "bg-slate-50/80 border-slate-200 opacity-80"
+                            : theme === "dark"
+                              ? "bg-[#121622] border-[#222b3d] shadow-sm hover:border-amber-500/40"
+                              : "bg-white border-slate-200 shadow-sm hover:border-amber-300"
+                          }`}
+                      >
+                        {/* Day Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm uppercase ${isClosed
+                                ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                                : "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                              }`}>
+                              {dayObj.day.slice(0, 3)}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className={`text-base font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                                  {dayObj.day}
+                                </h3>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${isClosed
+                                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
+                                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                  }`}>
+                                  {isClosed ? "Closed / Off" : `${shifts.length} Shift(s) Active`}
+                                </span>
+                              </div>
+                              <p className={`text-[11px] ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                                {isClosed ? "No bookings or appointments accepted on this day" : "Regular customer operations and chair appointments"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Controls for Day */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleCopyDayToWeekdays(dayIdx)}
+                              title="Copy this timing to all weekdays (Mon-Sat)"
+                              className={`px-3 py-1.5 rounded-xl border text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${theme === "dark"
+                                  ? "bg-[#18202f] border-[#29364e] text-zinc-300 hover:text-white hover:border-amber-400"
+                                  : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200"
+                                }`}
+                            >
+                              <Copy className="w-3 h-3 text-amber-400" />
+                              <span>Copy to Weekdays</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDayClosed(dayIdx)}
+                              className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${isClosed
+                                  ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-900/30"
+                                  : "bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400"
+                                }`}
+                            >
+                              {isClosed ? "Open Day" : "Mark Closed"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Day Shifts Area */}
+                        <div className="pt-4">
+                          {isClosed ? (
+                            <div className={`p-4 rounded-xl border border-dashed flex items-center justify-between text-xs ${theme === "dark" ? "bg-black/20 border-white/10 text-zinc-400" : "bg-slate-50 border-slate-300 text-slate-500"
+                              }`}>
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-500/70" />
+                                <span>Salon is closed on {dayObj.day}. AI booking engine will block slots for this date.</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDayClosed(dayIdx)}
+                                className="text-amber-400 hover:underline font-semibold text-xs cursor-pointer"
+                              >
+                                Add Shift &amp; Open
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {shifts.map((shift, shiftIdx) => (
+                                <div
+                                  key={shiftIdx}
+                                  className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${theme === "dark" ? "bg-[#171d2b] border-[#252f44]" : "bg-slate-50 border-slate-200"
+                                    }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold font-mono">
+                                      #{shiftIdx + 1}
+                                    </span>
+                                    <span className={`text-xs font-bold uppercase tracking-wider ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                                      {shiftIdx === 0 ? "Primary Shift" : `Split Shift ${shiftIdx + 1}`}
+                                    </span>
+                                  </div>
+
+                                  {/* Shift Time Controls */}
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="text"
+                                          value={shift.fromTime}
+                                          onChange={(e) => handleShiftTimeChange(dayIdx, shiftIdx, "fromTime", e.target.value)}
+                                          placeholder="09:00 AM"
+                                          className={`w-24 px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold text-center focus:outline-none transition-colors ${theme === "dark"
+                                              ? "bg-[#0d1017] border border-[#2c374d] text-white focus:border-amber-400"
+                                              : "bg-white border border-slate-300 text-slate-900 focus:border-amber-500 shadow-inner"
+                                            }`}
+                                        />
+                                        <span className={theme === "dark" ? "text-zinc-500" : "text-slate-400"}>to</span>
+                                        <input
+                                          type="text"
+                                          value={shift.toTime}
+                                          onChange={(e) => handleShiftTimeChange(dayIdx, shiftIdx, "toTime", e.target.value)}
+                                          placeholder="08:00 PM"
+                                          className={`w-24 px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold text-center focus:outline-none transition-colors ${theme === "dark"
+                                              ? "bg-[#0d1017] border border-[#2c374d] text-white focus:border-amber-400"
+                                              : "bg-white border border-slate-300 text-slate-900 focus:border-amber-500 shadow-inner"
+                                            }`}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Quick Preset Pills for this shift */}
+                                    <div className="hidden lg:flex items-center gap-1">
+                                      {["09:00 AM - 01:00 PM", "02:00 PM - 08:00 PM", "09:00 AM - 08:00 PM", "08:00 AM - 09:00 PM"].map((presetTime) => {
+                                        const [f, t] = presetTime.split(" - ");
+                                        return (
+                                          <button
+                                            key={presetTime}
+                                            type="button"
+                                            onClick={() => {
+                                              handleShiftTimeChange(dayIdx, shiftIdx, "fromTime", f);
+                                              handleShiftTimeChange(dayIdx, shiftIdx, "toTime", t);
+                                            }}
+                                            className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${shift.fromTime === f && shift.toTime === t
+                                                ? "bg-amber-400 text-black font-bold"
+                                                : theme === "dark"
+                                                  ? "bg-[#10141e] text-zinc-400 hover:text-white"
+                                                  : "bg-slate-200 text-slate-600 hover:bg-slate-300"
+                                              }`}
+                                          >
+                                            {f.replace(":00", "")}-{t.replace(":00", "")}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* Delete Shift Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveShift(dayIdx, shiftIdx)}
+                                      title="Delete this shift"
+                                      className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* Add Shift Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleAddShift(dayIdx)}
+                                className={`w-full py-2.5 rounded-xl border border-dashed text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${theme === "dark"
+                                    ? "border-[#28344b] text-amber-400 hover:bg-amber-400/5 hover:border-amber-400/40"
+                                    : "border-slate-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400"
+                                  }`}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ Add Shift for {dayObj.day}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Bottom Sticky-like Save Bar */}
+              <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 transition-colors ${theme === "dark" ? "bg-[#0e121a] border-amber-500/30" : "bg-white border-amber-300 shadow-md"
+                }`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Save className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                      Ready to update Salon Operating Schedule?
+                    </h4>
+                    <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                      Changes will be immediately persisted to PostgreSQL database in JSON format.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSchedule}
+                  disabled={isSavingSchedule}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-black font-bold text-xs shadow-lg shadow-amber-500/20 hover:from-amber-300 hover:to-amber-500 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {isSavingSchedule ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>Save All Changes to Database</span>
+                </button>
+              </div>
+
+              {/* =========================================================================
+                  AI SMART BOOKING SLOT SUGGESTER (Interactive Live Simulator)
+                 ========================================================================= */}
+              <div className={`p-6 rounded-2xl border space-y-5 transition-colors ${theme === "dark"
+                  ? "bg-gradient-to-br from-indigo-950/20 via-[#10141e] to-purple-950/20 border-indigo-500/30"
+                  : "bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/60 border-indigo-200 shadow-sm"
+                }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                      <Sparkles className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h3 className={`text-lg font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        AI Smart Booking Slot Suggester
+                      </h3>
+                      <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                        Evaluates schedule shifts &amp; live load to suggest low-congestion optimal booking windows.
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-mono font-bold self-start sm:self-auto">
+                    POST /api/ai/suggest-booking-slots
+                  </span>
+                </div>
+
+                {/* AI Simulator Parameter Controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                  <div>
+                    <label className={`block font-semibold uppercase text-[11px] mb-1.5 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                      Select Booking Date
+                    </label>
+                    <input
+                      type="date"
+                      value={aiSlotDate}
+                      onChange={(e) => setAiSlotDate(e.target.value)}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono focus:outline-none transition-colors ${theme === "dark"
+                          ? "bg-[#151a26] border border-[#28344b] text-white focus:border-indigo-400"
+                          : "bg-white border border-slate-300 text-slate-900 focus:border-indigo-500 shadow-inner"
+                        }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block font-semibold uppercase text-[11px] mb-1.5 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                      Service Duration (Minutes)
+                    </label>
+                    <select
+                      value={aiSlotDuration}
+                      onChange={(e) => setAiSlotDuration(Number(e.target.value))}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-medium focus:outline-none transition-colors ${theme === "dark"
+                          ? "bg-[#151a26] border border-[#28344b] text-white focus:border-indigo-400"
+                          : "bg-white border border-slate-300 text-slate-900 focus:border-indigo-500 shadow-inner"
+                        }`}
+                    >
+                      <option value={30}>30 Minutes (Quick Trim / Fade)</option>
+                      <option value={45}>45 Minutes (Full Haircut &amp; Styling)</option>
+                      <option value={60}>60 Minutes (Haircut + Beard Spa)</option>
+                      <option value={90}>90 Minutes (Color / Keratin / Complex)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`block font-semibold uppercase text-[11px] mb-1.5 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                      Preferred Stylist (Optional)
+                    </label>
+                    <select
+                      value={aiPreferredStaffId}
+                      onChange={(e) => setAiPreferredStaffId(e.target.value)}
+                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-medium focus:outline-none transition-colors ${theme === "dark"
+                          ? "bg-[#151a26] border border-[#28344b] text-white focus:border-indigo-400"
+                          : "bg-white border border-slate-300 text-slate-900 focus:border-indigo-500 shadow-inner"
+                        }`}
+                    >
+                      <option value="">Any Available Stylist</option>
+                      {stylists.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.name} ({st.specialization || "Stylist"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={handleRunAiSlotSuggestions}
+                    disabled={isLoadingAiSlots}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs shadow-lg shadow-indigo-950/40 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                  >
+                    {isLoadingAiSlots ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    <span>{isLoadingAiSlots ? "Calculating AI Slots..." : "Run AI Smart Slot Predictor"}</span>
+                  </button>
+                </div>
+
+                {/* AI Results Output Cards */}
+                {aiSlotSummary && (
+                  <div className={`p-3 rounded-xl border text-xs leading-relaxed ${theme === "dark" ? "bg-indigo-950/30 border-indigo-500/30 text-indigo-200" : "bg-indigo-50 border-indigo-200 text-indigo-900"
+                    }`}>
+                    💡 {aiSlotSummary}
+                  </div>
+                )}
+
+                {aiSuggestions.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-2">
+                    {aiSuggestions.map((slot, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-4 rounded-xl border space-y-2.5 transition-all ${theme === "dark"
+                            ? "bg-[#141926] border-[#253046] hover:border-indigo-500/50"
+                            : "bg-white border-slate-200 shadow-sm hover:border-indigo-300"
+                          }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {slot.startTime} - {slot.endTime}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${slot.crowdLevel === "LOW"
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                            }`}>
+                            {slot.crowdLevel} Crowd
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="text-xs font-bold text-amber-400">
+                            {(slot as any).badge || "⭐ Optimal Window"}
+                          </div>
+                          <p className={`text-[11px] leading-relaxed ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
+                            {(slot as any).reason || `Estimated wait: ${slot.estimatedWaitMinutes} mins. Optimal chair turnaround.`}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </main>

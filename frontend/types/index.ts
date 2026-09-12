@@ -137,7 +137,11 @@ export interface Appointment {
   staffAvatar?: string;
   appointmentDate: string;
   appointmentTime: string;
-  status: 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED';
+  status: 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED' | 'LATE';
+  lateTimestamp?: string;
+  cancellationFee?: number;
+  rating?: number;
+  feedback?: string;
   source: 'ONLINE' | 'WALK_IN';
   bookingType?: 'WALK_IN' | 'SCHEDULED';
   tokenNumber?: number;

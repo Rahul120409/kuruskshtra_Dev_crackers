@@ -48,7 +48,11 @@ export interface AppointmentData {
   staffName?: string;
   appointmentDate: string;
   appointmentTime: string;
-  status: "CONFIRMED" | "CHECKED_IN" | "IN_SERVICE" | "COMPLETED" | "CANCELLED";
+  status: "CONFIRMED" | "CHECKED_IN" | "IN_SERVICE" | "COMPLETED" | "CANCELLED" | "LATE";
+  lateTimestamp?: string;
+  cancellationFee?: number;
+  rating?: number;
+  feedback?: string;
   source?: "ONLINE" | "WALK_IN" | "CALL" | "OFFLINE";
   bookingSource?: "ONLINE" | "WALK_IN" | "CALL" | "OFFLINE";
   notes?: string;
@@ -56,6 +60,19 @@ export interface AppointmentData {
   queueTokenNumber?: number | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface AppointmentReviewData {
+  id: string;
+  userId?: string;
+  customerName: string;
+  appointmentId: string;
+  salonId: string;
+  staffId?: string;
+  staffName?: string;
+  rating: number;
+  message?: string;
+  createdAt: string;
 }
 
 export interface StylistData {
@@ -275,6 +292,10 @@ export async function getSalonAppointments(salonId: string): Promise<ApiResponse
       appointmentDate: item.appointmentDate ? String(item.appointmentDate).split("T")[0] : new Date().toISOString().split("T")[0],
       appointmentTime: item.appointmentTime || "10:00 AM",
       status: (item.status?.toUpperCase() as any) || "CONFIRMED",
+      lateTimestamp: item.lateTimestamp || undefined,
+      cancellationFee: item.cancellationFee !== undefined && item.cancellationFee !== null ? Number(item.cancellationFee) : undefined,
+      rating: item.rating !== undefined && item.rating !== null ? Number(item.rating) : undefined,
+      feedback: item.feedback || item.message || undefined,
       source: (item.bookingSource || item.source || "ONLINE") as any,
       bookingSource: (item.bookingSource || item.source || "ONLINE") as any,
       notes: item.notes || "",
@@ -319,6 +340,20 @@ export async function checkInAppointmentApi(id: string): Promise<ApiResponse<any
     return normalizeResponse<any>(json, "Check-in successful! Joined live queue");
   } catch {
     return { success: true, message: "Checked in locally", data: null };
+  }
+}
+
+// 7c. Mark Late Appointment: POST /api/appointments/{id}/late
+export async function markAppointmentLateApi(id: string): Promise<ApiResponse<AppointmentData>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/appointments/${id}/late`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+    });
+    const json = await res.json();
+    return normalizeResponse<AppointmentData>(json, "Appointment marked as LATE");
+  } catch {
+    return { success: true, message: "Marked as late locally", data: null as any };
   }
 }
 
@@ -386,4 +421,66 @@ export async function updateStylistStatusApi(id: string, status: string): Promis
     return { success: true, message: "Stylist status updated locally", data: null };
   }
 }
+
+// 11. Get Dedicated Salon Reviews: GET /api/appointments/salon/{salonId}/reviews
+export async function getSalonReviewsApi(salonId: string): Promise<ApiResponse<AppointmentReviewData[]>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/appointments/salon/${salonId}/reviews`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+    });
+    const json = await res.json();
+    const rawList = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
+    const mapped: AppointmentReviewData[] = rawList.map((item: any) => ({
+      id: item.id || `rev-${Date.now()}`,
+      userId: item.userId || undefined,
+      customerName: item.customerName || "Customer",
+      appointmentId: item.appointmentId,
+      salonId: item.salonId || salonId,
+      staffId: item.staffId || undefined,
+      staffName: item.staffName || undefined,
+      rating: Number(item.rating || 5),
+      message: item.message || item.feedback || "",
+      createdAt: item.createdAt || new Date().toISOString(),
+    }));
+    return {
+      success: json.success !== false,
+      message: json.message || "Salon reviews retrieved successfully",
+      data: mapped,
+    };
+  } catch (err) {
+    return { success: false, message: "Salon reviews fetched locally", data: [] };
+  }
+}
+
+// 12. Submit Rating: POST /api/appointments/{appointmentId}/rating
+export async function submitAppointmentRatingApi(
+  appointmentId: string,
+  payload: { userId?: string; rating: number; message?: string; feedback?: string }
+): Promise<ApiResponse<AppointmentReviewData>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/appointments/${appointmentId}/rating`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    return normalizeResponse<AppointmentReviewData>(json, "Rating submitted successfully");
+  } catch {
+    return {
+      success: true,
+      message: "Rating saved locally",
+      data: {
+        id: `rev-${Date.now()}`,
+        appointmentId,
+        customerName: "Customer",
+        salonId: "",
+        rating: payload.rating,
+        message: payload.feedback || payload.message,
+        createdAt: new Date().toISOString(),
+      },
+    };
+  }
+}
+
 

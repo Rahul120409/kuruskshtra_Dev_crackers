@@ -201,4 +201,121 @@ export async function updateSalonApi(id: string, payload: Partial<CreateSalonPay
   return normalizeResponse<SalonData>(json, "Salon updated successfully");
 }
 
+export interface ShiftDto {
+  fromTime: string;
+  toTime: string;
+}
+
+export interface DayScheduleDto {
+  day: string;
+  isClosed?: boolean;
+  shifts?: ShiftDto[];
+}
+
+export interface SalonScheduleResponse {
+  salonId: string;
+  salonName?: string;
+  status?: string;
+  weeklySchedule: DayScheduleDto[];
+  updatedAt?: string;
+}
+
+export interface SalonScheduleRequest {
+  weeklySchedule: DayScheduleDto[];
+}
+
+export interface AiSlotSuggestionRequest {
+  salonId: string;
+  date: string;
+  serviceDurationMinutes?: number;
+  preferredStaffId?: string | null;
+}
+
+export interface SuggestedSlotDto {
+  startTime: string;
+  endTime: string;
+  crowdLevel: "LOW" | "MODERATE" | "HIGH";
+  estimatedWaitMinutes: number;
+}
+
+export interface AiSlotSuggestionResponse {
+  suggestedSlots: SuggestedSlotDto[];
+}
+
+// 6. Get Salon Schedule: GET /api/salons/{id}/schedule
+export async function getSalonSchedule(salonId: string): Promise<ApiResponse<SalonScheduleResponse>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/salons/${salonId}/schedule`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    const json = await res.json();
+    return normalizeResponse<SalonScheduleResponse>(json, "Salon schedule retrieved successfully");
+  } catch (err: any) {
+    console.warn("getSalonSchedule network error:", err);
+    return {
+      success: false,
+      message: err.message || "Failed to load schedule from server",
+      data: {
+        salonId,
+        weeklySchedule: getDefaultWeeklySchedule(),
+      },
+    };
+  }
+}
+
+// 7. Update Salon Schedule: PUT /api/salons/{id}/schedule
+export async function updateSalonSchedule(
+  salonId: string,
+  payload: SalonScheduleRequest
+): Promise<ApiResponse<SalonScheduleResponse>> {
+  const res = await fetch(`${API_BASE_URL}/api/salons/${salonId}/schedule`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json?.message || "Failed to save schedule");
+  }
+  return normalizeResponse<SalonScheduleResponse>(json, "Salon schedule updated successfully");
+}
+
+// 8. AI Smart Booking Slot Suggestions: POST /api/ai/suggest-booking-slots
+export async function suggestBookingSlots(
+  payload: AiSlotSuggestionRequest
+): Promise<ApiResponse<AiSlotSuggestionResponse>> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/suggest-booking-slots`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json?.message || "Failed to fetch AI slot suggestions");
+  }
+  return normalizeResponse<AiSlotSuggestionResponse>(json, "Smart booking slots suggested successfully");
+}
+
+export function getDefaultWeeklySchedule(): DayScheduleDto[] {
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  return days.map((day) => ({
+    day,
+    isClosed: day === "Sunday",
+    shifts: [],
+  }));
+}
+
 

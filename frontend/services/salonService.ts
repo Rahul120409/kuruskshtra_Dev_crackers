@@ -145,7 +145,6 @@ class SalonService {
    * Real-time fetch of all salons from backend API with localStorage resilience
    */
   async getSalons(): Promise<Salon[]> {
-    console.log("💈 [salonService: getSalons] Querying /api/salons...");
     try {
       const res = await fetchApi('/api/salons', {
         cache: 'no-store',
@@ -159,8 +158,6 @@ class SalonService {
         const rawList = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
         if (rawList) {
           const liveSalons = rawList.map(mapBackendSalonToFrontend);
-          console.log(`✅ [salonService: getSalons] Successfully fetched ${liveSalons.length} salons from DB:`, liveSalons);
-
           // Merge with any locally registered salons by user
           const localSalons = getStoredSalons();
           const liveIds = new Set(liveSalons.map((s: Salon) => s.id));
@@ -173,8 +170,8 @@ class SalonService {
           return merged;
         }
       }
-    } catch (err) {
-      console.warn('❌ [salonService: getSalons] Backend salon fetch notice, using cache:', err);
+    } catch {
+      // Backend offline: silently and seamlessly serve cached/registered salons
     }
 
     // Resilience fallback: Return cached/registered salons so salons never vanish

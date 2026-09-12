@@ -28,6 +28,7 @@ export interface ICustomerService {
   getAppointments(customerId?: string): Promise<Appointment[]>;
   addAppointment(data: Partial<Appointment>): Promise<Appointment>;
   cancelAppointment(appointmentId: string): Promise<boolean>;
+  markAppointmentLate(appointmentId: string): Promise<any>;
   createAppointment(data: {
     salonId: string;
     serviceId: string;
@@ -156,6 +157,16 @@ export class MockCustomerService implements ICustomerService {
     return true;
   }
 
+  async markAppointmentLate(appointmentId: string): Promise<any> {
+    const list = this.getLocalAppointments();
+    const nowIso = new Date().toISOString();
+    const updated = list.map((a) =>
+      a.id === appointmentId ? { ...a, status: 'LATE' as const, lateTimestamp: nowIso } : a
+    );
+    this.saveLocalAppointments(updated);
+    return { status: 'LATE', lateTimestamp: nowIso };
+  }
+
   async getServices(category?: string): Promise<SalonService[]> {
     return [];
   }
@@ -282,7 +293,7 @@ export class ApiCustomerService implements ICustomerService {
   private fallback: MockCustomerService;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.199:8081';
+    this.baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://192.168.137.128:8081';
     this.fallback = new MockCustomerService();
   }
 
@@ -430,7 +441,7 @@ export class ApiCustomerService implements ICustomerService {
 
   async getAppointments(customerId?: string): Promise<Appointment[]> {
     try {
-      const url = customerId 
+      const url = customerId
         ? `${this.baseUrl}/api/appointments/customer/${customerId}`
         : `${this.baseUrl}/api/appointments`;
       const res = await fetch(url);
@@ -468,6 +479,19 @@ export class ApiCustomerService implements ICustomerService {
       return res.ok;
     } catch {
       return this.fallback.cancelAppointment(appointmentId);
+    }
+  }
+
+  async markAppointmentLate(appointmentId: string): Promise<any> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/appointments/${appointmentId}/late`, { method: 'POST' });
+      if (res.ok) {
+        const json = await res.json();
+        return json.data || json;
+      }
+      return null;
+    } catch {
+      return null;
     }
   }
 

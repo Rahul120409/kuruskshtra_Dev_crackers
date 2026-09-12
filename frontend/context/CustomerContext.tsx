@@ -24,6 +24,7 @@ interface CustomerContextType {
   joinLiveQueue: (serviceId: string, staffId?: string, hairstyleId?: string, salonId?: string) => Promise<QueueToken>;
   addAppointment: (data: Partial<Appointment>) => Promise<Appointment>;
   cancelAppointment: (id: string) => Promise<void>;
+  markAppointmentLate: (id: string) => Promise<void>;
   updateUserProfile: (updatedData: Partial<User>) => Promise<void>;
   clearActiveToken: () => void;
   loginUser: (emailOrPhone: string, password: string) => Promise<AuthResponse>;
@@ -175,6 +176,18 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'CANCELLED' as const } : a)));
   };
 
+  const markAppointmentLate = async (id: string) => {
+    const updated = await customerService.markAppointmentLate(id);
+    const nowIso = new Date().toISOString();
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, status: 'LATE' as const, lateTimestamp: updated?.lateTimestamp || nowIso }
+          : a
+      )
+    );
+  };
+
   const updateUserProfile = async (updatedData: Partial<User>) => {
     if (!user) return;
     const updated: User = { ...user, ...updatedData };
@@ -212,6 +225,7 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
         joinLiveQueue,
         addAppointment,
         cancelAppointment,
+        markAppointmentLate,
         updateUserProfile,
         clearActiveToken,
         loginUser,

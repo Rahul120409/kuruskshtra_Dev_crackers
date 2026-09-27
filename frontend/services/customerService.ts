@@ -61,19 +61,51 @@ export interface ICustomerService {
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8081').replace(/\/$/, '');
 
-const STORAGE_KEY_TOKEN = 'salonflow_active_token';
+// ─── User-scoped storage keys ──────────────────────────────────────────────
+// Each key is suffixed with the logged-in user's ID so that no data from
+// User A is ever visible to User B on the same browser/device.
+const STORAGE_KEY_TOKEN_PREFIX = 'salonflow_active_token';
 const STORAGE_KEY_NOTIFS = 'salonflow_notifications';
-const STORAGE_KEY_APPOINTMENTS = 'salonflow_appointments';
+const STORAGE_KEY_APPOINTMENTS_PREFIX = 'salonflow_appointments';
+const STORAGE_KEY_PHONE = 'salonflow_customer_phone';
+
+/** Returns the token storage key scoped to a specific user, or the legacy global key */
+export function getUserScopedTokenKey(userId?: string): string {
+  return userId ? `${STORAGE_KEY_TOKEN_PREFIX}_${userId}` : STORAGE_KEY_TOKEN_PREFIX;
+}
+
+/** Returns the appointments storage key scoped to a specific user */
+export function getUserScopedApptsKey(userId?: string): string {
+  return userId ? `${STORAGE_KEY_APPOINTMENTS_PREFIX}_${userId}` : STORAGE_KEY_APPOINTMENTS_PREFIX;
+}
+
+/**
+ * Clears all user-specific data from localStorage on logout.
+ * Call this when a user logs out to ensure the next user starts fresh.
+ */
+export function clearUserData(userId?: string): void {
+  if (typeof window === 'undefined') return;
+  const tokenKey = getUserScopedTokenKey(userId);
+  const apptsKey = getUserScopedApptsKey(userId);
+  localStorage.removeItem(tokenKey);
+  localStorage.removeItem(apptsKey);
+  localStorage.removeItem(STORAGE_KEY_NOTIFS);
+  localStorage.removeItem(STORAGE_KEY_PHONE);
+  // Also clear legacy global keys for safety
+  localStorage.removeItem(STORAGE_KEY_TOKEN_PREFIX);
+  localStorage.removeItem(STORAGE_KEY_APPOINTMENTS_PREFIX);
+}
+
 
 function cleanLegacyDemoStorage() {
   if (typeof window === 'undefined') return;
   try {
-    const rawToken = localStorage.getItem(STORAGE_KEY_TOKEN);
+    const rawToken = localStorage.getItem(STORAGE_KEY_TOKEN_PREFIX);
     if (rawToken && (rawToken.includes('tok-108-demo') || rawToken.includes('108-demo'))) {
-      localStorage.removeItem(STORAGE_KEY_TOKEN);
+      localStorage.removeItem(STORAGE_KEY_TOKEN_PREFIX);
     }
 
-    const rawAppts = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
+    const rawAppts = localStorage.getItem(STORAGE_KEY_APPOINTMENTS_PREFIX);
     if (rawAppts) {
       const parsed = JSON.parse(rawAppts);
       if (Array.isArray(parsed)) {
@@ -85,7 +117,7 @@ function cleanLegacyDemoStorage() {
             a.customerId !== 'usr-customer-001'
         );
         if (cleaned.length !== parsed.length) {
-          localStorage.setItem(STORAGE_KEY_APPOINTMENTS, JSON.stringify(cleaned));
+          localStorage.setItem(STORAGE_KEY_APPOINTMENTS_PREFIX, JSON.stringify(cleaned));
         }
       }
     }
@@ -100,18 +132,33 @@ function cleanLegacyDemoStorage() {
 }
 
 export class MockCustomerService implements ICustomerService {
-  constructor() {
+  // userId is injected by CustomerContext and scopes the storage key per user
+  private userId: string | undefined;
+
+  constructor(userId?: string) {
+    this.userId = userId;
     cleanLegacyDemoStorage();
+  }
+
+  /** Call this when user context changes (login/logout) */
+  setUserId(userId: string | undefined) {
+    this.userId = userId;
   }
 
   private getLocalToken(): QueueToken | null {
     if (typeof window === 'undefined') return null;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_TOKEN);
+      const key = getUserScopedTokenKey(this.userId);
+      const raw = localStorage.getItem(key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (parsed?.tokenId === 'tok-108-demo' || parsed?.tokenNumber === 108) {
-        localStorage.removeItem(STORAGE_KEY_TOKEN);
+        localStorage.removeItem(key);
+        return null;
+      }
+      // Extra safety: if stored token belongs to a different user, ignore it
+      if (this.userId && parsed?.customerId && parsed.customerId !== this.userId) {
+        localStorage.removeItem(key);
         return null;
       }
       return parsed;
@@ -122,10 +169,11 @@ export class MockCustomerService implements ICustomerService {
 
   private saveLocalToken(token: QueueToken | null) {
     if (typeof window === 'undefined') return;
+    const key = getUserScopedTokenKey(this.userId);
     if (token) {
-      localStorage.setItem(STORAGE_KEY_TOKEN, JSON.stringify(token));
+      localStorage.setItem(key, JSON.stringify(token));
     } else {
-      localStorage.removeItem(STORAGE_KEY_TOKEN);
+      localStorage.removeItem(key);
     }
   }
 
@@ -147,7 +195,8 @@ export class MockCustomerService implements ICustomerService {
   private getLocalAppointments(): Appointment[] {
     if (typeof window === 'undefined') return [];
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_APPOINTMENTS);
+      const key = getUserScopedApptsKey(this.userId);
+      const raw = localStorage.getItem(key);
       if (!raw) return [];
       const list = JSON.parse(raw);
       return Array.isArray(list)
@@ -165,8 +214,10 @@ export class MockCustomerService implements ICustomerService {
 
   private saveLocalAppointments(appts: Appointment[]) {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(STORAGE_KEY_APPOINTMENTS, JSON.stringify(appts));
+    const key = getUserScopedApptsKey(this.userId);
+    localStorage.setItem(key, JSON.stringify(appts));
   }
+
 
   async getAppointments(customerId?: string): Promise<Appointment[]> {
     const list = this.getLocalAppointments();
@@ -418,8 +469,13 @@ const toUuidOrNull = (id?: string): string | null => {
 export class ApiCustomerService implements ICustomerService {
   private fallback: MockCustomerService;
 
-  constructor() {
-    this.fallback = new MockCustomerService();
+  constructor(userId?: string) {
+    this.fallback = new MockCustomerService(userId);
+  }
+
+  /** Propagate user ID change to the fallback (localStorage) layer */
+  setUserId(userId: string | undefined) {
+    this.fallback.setUserId(userId);
   }
 
   private getApiUrl(endpoint: string): string {

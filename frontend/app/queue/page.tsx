@@ -64,33 +64,47 @@ export default function LiveQueuePage() {
     return () => unsub();
   }, []);
 
-  // Subscribe to live queue updates for the active salon
+  // Subscribe and frequently poll live queue updates for the active salon
   useEffect(() => {
     const salonId = activeToken?.salonId;
     if (!salonId) return;
 
-    // Load initial snapshot once
-    customerService.getLiveQueueBoard(salonId).then((data) => {
-      if (data) setLiveBoard(data);
-    }).catch(() => {});
+    let isSubscribed = true;
 
-    // 1. Topic subscription for this salon
+    const fetchQueueBoard = async () => {
+      try {
+        const data = await customerService.getLiveQueueBoard(salonId);
+        if (data && isSubscribed) setLiveBoard(data);
+      } catch (e) {
+        // Silent catch for resilience
+      }
+    };
+
+    // 1. Initial snapshot
+    fetchQueueBoard();
+
+    // 2. Frequent interval polling (every 3 seconds)
+    const pollInterval = setInterval(fetchQueueBoard, 3000);
+
+    // 3. Topic subscription for this salon
     const unsubSalon = queueWebSocket.subscribeToSalon(salonId, (data) => {
-      if (data) {
+      if (data && isSubscribed) {
         console.log('⚡ [QUEUE WS] Live queue board update:', data);
         setLiveBoard(data);
       }
     });
 
-    // 2. Fallback global topic
+    // 4. Fallback global topic
     const unsubGlobal = queueWebSocket.subscribeToGlobal((data) => {
-      if (data && (!data.salonId || data.salonId.toLowerCase() === salonId.toLowerCase())) {
+      if (data && isSubscribed && (!data.salonId || data.salonId.toLowerCase() === salonId.toLowerCase())) {
         console.log('⚡ [QUEUE WS] Global queue board update:', data);
         setLiveBoard(data);
       }
     });
 
     return () => {
+      isSubscribed = false;
+      clearInterval(pollInterval);
       unsubSalon();
       unsubGlobal();
     };

@@ -3,41 +3,83 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { 
-  Calendar, 
-  Clock, 
-  Scissors, 
-  UserCheck, 
-  Ticket, 
-  MapPin, 
-  CreditCard, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
-  ArrowRight, 
-  Plus, 
-  Store, 
-  Banknote, 
-  Smartphone, 
-  Navigation, 
-  Star, 
+import {
+  Calendar,
+  Clock,
+  Scissors,
+  Ticket,
+  MapPin,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ArrowRight,
+  Plus,
+  Store,
+  Banknote,
+  Smartphone,
+  Star,
   Sparkles,
-  MessageSquareHeart,
-  ThumbsUp
+  ChevronRight,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 import { useCustomer } from '../../context/CustomerContext';
 import { Appointment, Salon } from '../../types';
 import { salonService } from '../../services/salonService';
-import { BookingWizardModal } from '../../components/BookingWizardModal';
 
+// ─── Status Config ────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, {
+  label: string;
+  pill: string;
+  dot?: string;
+  icon: React.ReactNode;
+}> = {
+  CONFIRMED: {
+    label: 'Confirmed',
+    pill: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30',
+    dot: 'bg-emerald-500 animate-pulse',
+    icon: <CheckCircle2 className="w-3 h-3" />,
+  },
+  CHECKED_IN: {
+    label: 'Checked In',
+    pill: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30',
+    dot: 'bg-amber-500 animate-pulse',
+    icon: <Zap className="w-3 h-3" />,
+  },
+  COMPLETED: {
+    label: 'Completed',
+    pill: 'bg-slate-200 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700',
+    icon: <CheckCircle2 className="w-3 h-3 text-slate-400" />,
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    pill: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25',
+    icon: <XCircle className="w-3 h-3" />,
+  },
+};
+
+function getStatusCfg(status: string) {
+  return STATUS_CONFIG[status] ?? STATUS_CONFIG['CONFIRMED'];
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 export default function AppointmentsPage() {
   const router = useRouter();
-  const { user, appointments, cancelAppointment, rateAppointment, activeToken, refreshAppointments } = useCustomer();
+  const {
+    user,
+    isLoggedIn,
+    appointments,
+    cancelAppointment,
+    rateAppointment,
+    refreshAppointments,
+  } = useCustomer();
+
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [selectedAptToCancel, setSelectedAptToCancel] = useState<Appointment | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Rating & Feedback Modal State
+  // Rating modal state
   const [selectedAptToRate, setSelectedAptToRate] = useState<Appointment | null>(null);
   const [ratingScore, setRatingScore] = useState<number>(5);
   const [ratingHover, setRatingHover] = useState<number>(0);
@@ -46,23 +88,23 @@ export default function AppointmentsPage() {
   const [isSubmittingRating, setIsSubmittingRating] = useState<boolean>(false);
   const [ratingSuccessToast, setRatingSuccessToast] = useState<string | null>(null);
 
-  // Live Salons from Backend API
   const [salons, setSalons] = useState<Salon[]>([]);
-  // Modal state for booking a new appointment
-  const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
-  const [selectedSalon, setSelectedSalon] = useState<Salon | null>(null);
+
+  // Auth guard
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('salonflow_auth_user');
+      if (!savedUser && !isLoggedIn) {
+        router.push('/login?redirect=/appointments');
+      }
+    }
+  }, [isLoggedIn, router]);
 
   useEffect(() => {
     refreshAppointments();
-    salonService.getSalons().then((list) => {
-      setSalons(list || []);
-      if (list && list.length > 0) {
-        setSelectedSalon(list[0]);
-      }
-    });
+    salonService.getSalons().then((list) => setSalons(list || []));
   }, []);
 
-  // Filter appointments
   const filteredAppointments = useMemo(() => {
     return appointments.filter((apt) => {
       if (filter === 'ALL') return true;
@@ -76,6 +118,12 @@ export default function AppointmentsPage() {
   const activeCount = appointments.filter((a) => a.status === 'CONFIRMED' || a.status === 'CHECKED_IN').length;
   const completedCount = appointments.filter((a) => a.status === 'COMPLETED').length;
   const cancelledCount = appointments.filter((a) => a.status === 'CANCELLED').length;
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshAppointments();
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
 
   const handleCancel = async (aptId: string) => {
     setCancellingId(aptId);
@@ -106,12 +154,16 @@ export default function AppointmentsPage() {
     if (!selectedAptToRate) return;
     setIsSubmittingRating(true);
     try {
-      const combinedFeedback = selectedTags.length > 0
-        ? (feedbackComment ? `${feedbackComment} [${selectedTags.join(', ')}]` : selectedTags.join(', '))
-        : feedbackComment;
-
+      const combinedFeedback =
+        selectedTags.length > 0
+          ? feedbackComment
+            ? `${feedbackComment} [${selectedTags.join(', ')}]`
+            : selectedTags.join(', ')
+          : feedbackComment;
       await rateAppointment(selectedAptToRate.id, ratingScore, combinedFeedback);
-      setRatingSuccessToast(`Thank you! Your ${ratingScore}★ review for ${selectedAptToRate.salonName || 'the salon'} was submitted and sent to the salon panel.`);
+      setRatingSuccessToast(
+        `Thank you! Your ${ratingScore}★ review for ${selectedAptToRate.salonName || 'the salon'} was submitted.`
+      );
       setTimeout(() => setRatingSuccessToast(null), 5000);
       setSelectedAptToRate(null);
     } catch (err) {
@@ -126,406 +178,446 @@ export default function AppointmentsPage() {
     if (target) {
       const area = (target as any).area || target.city || target.address || '';
       const wait = target.currentWaitMinutes || 18;
-      router.push(`/booking?salonId=${encodeURIComponent(target.id)}&salonName=${encodeURIComponent(target.name)}&area=${encodeURIComponent(area)}&wait=${wait}`);
+      router.push(
+        `/booking?salonId=${encodeURIComponent(target.id)}&salonName=${encodeURIComponent(target.name)}&area=${encodeURIComponent(area)}&wait=${wait}`
+      );
     } else {
       router.push('/booking');
     }
   };
 
+  // ─── RENDER ──────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              Booking Manager
-            </span>
-            <span className="text-xs text-slate-400">• Pune Salon Network</span>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#08090d] text-slate-900 dark:text-white transition-colors duration-200 pb-28 relative overflow-x-hidden">
+
+      {/* Ambient glow — subtle in light, visible in dark */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-72 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
+
+      <main className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 space-y-7">
+
+        {/* ── PAGE HEADER ─────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+          <div className="space-y-1.5">
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+              <Link href="/home" className="hover:text-amber-500 transition-colors">Salons</Link>
+              <ChevronRight className="w-3 h-3" />
+              <span className="text-slate-700 dark:text-slate-300 font-semibold">My Appointments</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  My Appointments
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {user?.name
+                    ? `${user.name}'s booking history & live queue passes`
+                    : 'Your booking history & live queue passes'}
+                </p>
+              </div>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white mt-1 tracking-tight">
-            My Appointments & Queue Passes
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Manage your live haircut tokens, scheduled salon visits, and styling records.
-          </p>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+              title="Refresh appointments"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-500' : ''}`} />
+            </button>
+            <button
+              onClick={() => handleOpenBooking()}
+              className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white font-bold text-xs shadow-lg shadow-amber-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Book Haircut</span>
+            </button>
+          </div>
         </div>
 
-        <button
-          onClick={() => handleOpenBooking()}
-          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Book New Haircut</span>
-        </button>
-      </div>
+        {/* ── STATS STRIP ─────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {
+              label: 'Active',
+              count: activeCount,
+              text: 'text-emerald-600 dark:text-emerald-400',
+              bg: 'bg-white dark:bg-emerald-500/10 border-emerald-500/25',
+              dot: 'bg-emerald-500 animate-pulse',
+            },
+            {
+              label: 'Completed',
+              count: completedCount,
+              text: 'text-slate-600 dark:text-slate-300',
+              bg: 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700',
+              dot: 'bg-slate-400 dark:bg-slate-500',
+            },
+            {
+              label: 'Cancelled',
+              count: cancelledCount,
+              text: 'text-rose-600 dark:text-rose-400',
+              bg: 'bg-white dark:bg-rose-500/10 border-rose-500/20',
+              dot: 'bg-rose-500',
+            },
+          ].map((stat) => (
+            <div key={stat.label} className={`rounded-2xl border p-4 shadow-sm ${stat.bg} flex items-center gap-3`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${stat.dot}`} />
+              <div>
+                <span className={`text-2xl font-black font-mono ${stat.text}`}>{stat.count}</span>
+                <p className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold mt-0.5">{stat.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-        <button
-          onClick={() => setFilter('ALL')}
-          className={`px-4 py-2 rounded-xl font-bold transition-all border whitespace-nowrap ${
-            filter === 'ALL'
-              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/20'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
-          }`}
-        >
-          All Appointments ({appointments.length})
-        </button>
+        {/* ── FILTER TABS ─────────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {([
+            { key: 'ALL', label: `All (${appointments.length})` },
+            { key: 'ACTIVE', label: `Active (${activeCount})` },
+            { key: 'COMPLETED', label: `Completed (${completedCount})` },
+            { key: 'CANCELLED', label: `Cancelled (${cancelledCount})` },
+          ] as const).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
+              className={`px-4 py-2 rounded-xl font-bold text-xs transition-all border whitespace-nowrap cursor-pointer ${
+                filter === tab.key
+                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 shadow-inner'
+                  : 'bg-white dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        <button
-          onClick={() => setFilter('ACTIVE')}
-          className={`px-4 py-2 rounded-xl font-bold transition-all border whitespace-nowrap ${
-            filter === 'ACTIVE'
-              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/20'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
-          }`}
-        >
-          Active & Upcoming ({activeCount})
-        </button>
+        {/* ── APPOINTMENT CARDS ────────────────────────────────────────────── */}
+        {filteredAppointments.length > 0 ? (
+          <div className="space-y-5">
+            {filteredAppointments.map((apt) => {
+              const isLive = apt.status === 'CONFIRMED' || apt.status === 'CHECKED_IN';
+              const isCompleted = apt.status === 'COMPLETED';
+              const isCancelled = apt.status === 'CANCELLED';
+              const cfg = getStatusCfg(apt.status);
 
-        <button
-          onClick={() => setFilter('COMPLETED')}
-          className={`px-4 py-2 rounded-xl font-bold transition-all border whitespace-nowrap ${
-            filter === 'COMPLETED'
-              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/20'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
-          }`}
-        >
-          Completed ({completedCount})
-        </button>
+              return (
+                <div
+                  key={apt.id}
+                  className={`relative rounded-3xl border overflow-hidden transition-all duration-200 shadow-sm ${
+                    isLive
+                      ? 'bg-white dark:bg-gradient-to-br dark:from-[#11141e] dark:via-[#0f1320] dark:to-[#0c1028] border-amber-500/40 dark:border-amber-500/30 shadow-amber-500/8 hover:border-amber-500/60 dark:hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/10'
+                      : isCancelled
+                      ? 'bg-slate-50 dark:bg-[#0f1118]/80 border-slate-200 dark:border-slate-800/60 opacity-80 hover:opacity-100'
+                      : 'bg-white dark:bg-[#11141e]/90 border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
+                  }`}
+                >
+                  {/* Gold top accent line for active */}
+                  {isLive && (
+                    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/70 to-transparent" />
+                  )}
 
-        <button
-          onClick={() => setFilter('CANCELLED')}
-          className={`px-4 py-2 rounded-xl font-bold transition-all border whitespace-nowrap ${
-            filter === 'CANCELLED'
-              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/20'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
-          }`}
-        >
-          Cancelled ({cancelledCount})
-        </button>
-      </div>
+                  <div className="p-5 sm:p-6 space-y-5">
 
-      {/* Appointment Cards List */}
-      {filteredAppointments.length > 0 ? (
-        <div className="space-y-4">
-          {filteredAppointments.map((apt) => {
-            const isLive = apt.status === 'CONFIRMED' || apt.status === 'CHECKED_IN';
-            const isWalkin = apt.bookingType === 'WALK_IN';
+                    {/* ── TOP: Salon + Status ─────────────────────────────── */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                          isLive
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                            : 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/60 text-slate-400 dark:text-slate-500'
+                        }`}>
+                          <Store className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                              {apt.salonName || 'SalonFlow Studio'}
+                            </h3>
+                            {apt.salonArea && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 uppercase tracking-wider whitespace-nowrap">
+                                {apt.salonArea}
+                              </span>
+                            )}
+                          </div>
+                          {apt.salonAddress && (
+                            <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{apt.salonAddress}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
-            return (
-              <div
-                key={apt.id}
-                className={`rounded-2xl border transition-all p-5 sm:p-6 flex flex-col justify-between gap-5 shadow-lg ${
-                  isLive
-                    ? 'bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/30 border-indigo-500/30 hover:border-indigo-500/50'
-                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                {/* Top Section: Salon & Status Badge */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex-shrink-0">
-                      <Store className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-bold text-white tracking-wide">
-                          {apt.salonName || 'SalonFlow Studio & Lounge'}
-                        </h3>
-                        {apt.salonArea && (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            {apt.salonArea}
+                      {/* Status pill */}
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto whitespace-nowrap ${cfg.pill}`}>
+                        {cfg.dot && <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />}
+                        {cfg.label}
+                        {apt.bookingType === 'WALK_IN' && isLive && (
+                          <span className="ml-1 text-[9px] font-black uppercase bg-amber-500/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30">
+                            Live Pass
                           </span>
                         )}
+                      </span>
+                    </div>
+
+                    {/* ── DETAIL GRID ─────────────────────────────────────── */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+                      {/* Service */}
+                      <div className="col-span-2 md:col-span-1 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60 space-y-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600/80 dark:text-amber-500/70 block">
+                          Service
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Scissors className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500 shrink-0" />
+                          <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{apt.serviceName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹{apt.servicePrice}</span>
+                          <span className="text-slate-300 dark:text-slate-600">•</span>
+                          <span>{apt.serviceDuration || 30} mins</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                        <span className="truncate">{apt.salonAddress}</span>
-                      </p>
-                    </div>
-                  </div>
 
-                  {/* Status Pill */}
-                  <div className="flex items-center gap-2">
-                    {apt.status === 'CONFIRMED' && (
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        {isWalkin ? 'Live Queue Pass' : 'Confirmed Slot'}
-                      </span>
-                    )}
-                    {apt.status === 'COMPLETED' && (
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
-                        Completed
-                      </span>
-                    )}
-                    {apt.status === 'CANCELLED' && (
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5">
-                        <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                        Cancelled
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Middle Section: Booking Specifics Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 py-2 text-xs">
-                  
-                  {/* Service & Price */}
-                  <div className="space-y-1">
-                    <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block">
-                      Haircut / Service
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Scissors className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                      <span className="text-sm font-bold text-white truncate">
-                        {apt.serviceName}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <span className="font-semibold text-emerald-400">₹{apt.servicePrice}</span>
-                      <span>•</span>
-                      <span>{apt.serviceDuration || 30} mins</span>
-                    </div>
-                  </div>
-
-                  {/* Stylist Details */}
-                  <div className="space-y-1">
-                    <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block">
-                      Hair Stylist
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={apt.staffAvatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'}
-                        alt={apt.staffName || 'Stylist'}
-                        className="w-7 h-7 rounded-full object-cover border border-slate-700"
-                      />
-                      <div className="min-w-0">
-                        <span className="text-sm font-bold text-white truncate block">
-                          {apt.staffName || 'Vikram Joshi'}
+                      {/* Stylist */}
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60 space-y-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600/80 dark:text-amber-500/70 block">
+                          Stylist
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={apt.staffAvatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'}
+                            alt={apt.staffName || 'Stylist'}
+                            className="w-6 h-6 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                          />
+                          <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {apt.staffName || 'First Available'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-semibold">
+                          <Star className="w-2.5 h-2.5 fill-amber-500 dark:fill-amber-400" />
+                          Top Rated
                         </span>
                       </div>
-                    </div>
-                    <span className="text-[11px] text-amber-400 flex items-center gap-1">
-                      <Star className="w-3 h-3 fill-amber-400" />
-                      Top Rated Stylist
-                    </span>
-                  </div>
 
-                  {/* Date & Time Slot */}
-                  <div className="space-y-1">
-                    <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block">
-                      Date & Time Slot
-                    </span>
-                    <div className="flex items-center gap-1.5 text-white font-semibold">
-                      <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{apt.appointmentDate}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-slate-300">
-                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{apt.appointmentTime}</span>
-                    </div>
-                  </div>
-
-                  {/* Token & Payment Mode */}
-                  <div className="space-y-1">
-                    <span className="text-slate-500 uppercase tracking-wider text-[10px] font-bold block">
-                      Pass & Payment
-                    </span>
-                    {apt.tokenNumber ? (
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-mono font-bold text-xs">
-                        <Ticket className="w-3.5 h-3.5" />
-                        <span>Token #{apt.tokenNumber}</span>
-                      </div>
-                    ) : (
-                      <div className="text-slate-300 font-semibold text-xs">Reserved Slot</div>
-                    )}
-                    <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                      {apt.paymentMethod?.includes('Counter') ? (
-                        <Banknote className="w-3 h-3 text-emerald-400" />
-                      ) : (
-                        <Smartphone className="w-3 h-3 text-indigo-400" />
-                      )}
-                      <span>{apt.paymentMethod || 'Pay at Counter'}</span>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Rating & Customer Review Snippet */}
-                {apt.rating ? (
-                  <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <div className="flex items-center gap-1 text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-md font-bold text-xs shrink-0 mt-0.5">
-                        <Star className="w-3.5 h-3.5 fill-amber-400" />
-                        <span>{apt.rating}.0</span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-amber-300">Your Rating</span>
-                          <span className="text-[10px] text-slate-400 font-medium">• Visible in Salon Portal</span>
+                      {/* Schedule */}
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60 space-y-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600/80 dark:text-amber-500/70 block">
+                          Schedule
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{apt.appointmentDate}</span>
                         </div>
-                        {apt.feedback ? (
-                          <p className="text-xs text-slate-300 italic mt-0.5">"{apt.feedback}"</p>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                          <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{apt.appointmentTime}</span>
+                        </div>
+                      </div>
+
+                      {/* Pass & Pay */}
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/60 space-y-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600/80 dark:text-amber-500/70 block">
+                          Pass & Pay
+                        </span>
+                        {apt.tokenNumber ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-mono font-black text-sm">
+                            <Ticket className="w-3 h-3" />
+                            #{apt.tokenNumber}
+                          </div>
                         ) : (
-                          <p className="text-xs text-slate-400 mt-0.5">Rated {apt.rating} out of 5 stars.</p>
+                          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Reserved Slot</span>
                         )}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                          {apt.paymentMethod?.includes('Counter') ? (
+                            <Banknote className="w-3 h-3 text-emerald-500" />
+                          ) : (
+                            <Smartphone className="w-3 h-3 text-indigo-500" />
+                          )}
+                          <span className="truncate">{apt.paymentMethod || 'Pay at Counter'}</span>
+                        </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleOpenRateModal(apt)}
-                      className="text-[11px] font-semibold text-amber-300 hover:text-amber-200 underline underline-offset-2 shrink-0 cursor-pointer"
-                    >
-                      Edit Review
-                    </button>
-                  </div>
-                ) : null}
 
-                {/* Bottom Actions Bar */}
-                <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    Booking Ref: {apt.id}
-                  </span>
-
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    {isLive ? (
-                      <>
+                    {/* ── RATING SNIPPET ──────────────────────────────────── */}
+                    {apt.rating && (
+                      <div className="flex items-start justify-between gap-3 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-500/8 border border-amber-200 dark:border-amber-500/20">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-500/20 px-2 py-1 rounded-lg font-bold text-xs text-amber-700 dark:text-amber-400 shrink-0">
+                            <Star className="w-3 h-3 fill-amber-500 dark:fill-amber-400" />
+                            {apt.rating}.0
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-amber-700 dark:text-amber-300 block">Your Review</span>
+                            {apt.feedback ? (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 italic mt-0.5 truncate">"{apt.feedback}"</p>
+                            ) : (
+                              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Rated {apt.rating} out of 5 stars.</p>
+                            )}
+                          </div>
+                        </div>
                         <button
-                          onClick={() => setSelectedAptToCancel(apt)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-slate-700 hover:border-rose-500/30 transition-colors cursor-pointer"
+                          onClick={() => handleOpenRateModal(apt)}
+                          className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 underline underline-offset-2 shrink-0 cursor-pointer"
                         >
-                          Cancel Appointment
+                          Edit
                         </button>
-
-                        <Link
-                          href="/queue"
-                          className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all"
-                        >
-                          <span>Track Live Queue</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
-                      </>
-                    ) : (
-                      <>
-                        {apt.rating ? (
-                          <button
-                            onClick={() => handleOpenRateModal(apt)}
-                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-amber-300 hover:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                          >
-                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                            <span>Rated {apt.rating}★ (Edit)</span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleOpenRateModal(apt)}
-                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <Star className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
-                            <span>Rate Service</span>
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => handleOpenBooking()}
-                          className="px-4 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white text-xs font-bold border border-indigo-500/30 transition-all"
-                        >
-                          Book Again
-                        </button>
-                      </>
+                      </div>
                     )}
+
+                    {/* ── BOTTOM ACTION BAR ───────────────────────────────── */}
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-600 font-mono tracking-wider">
+                        REF: {apt.id?.slice(-12)?.toUpperCase()}
+                      </span>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
+                        {isLive ? (
+                          <>
+                            <button
+                              onClick={() => setSelectedAptToCancel(apt)}
+                              className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-500/30 transition-all cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <Link
+                              href="/queue"
+                              className="px-4 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                            >
+                              <Zap className="w-3.5 h-3.5" />
+                              <span>Track Live Queue</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Link>
+                          </>
+                        ) : isCompleted ? (
+                          <>
+                            {apt.rating ? (
+                              <button
+                                onClick={() => handleOpenRateModal(apt)}
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/25 transition-all flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-amber-500 dark:fill-amber-400 text-amber-500 dark:text-amber-400" />
+                                Rated {apt.rating}★ (Edit)
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleOpenRateModal(apt)}
+                                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-slate-950" />
+                                Rate Service
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenBooking()}
+                              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                            >
+                              Book Again
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+
                   </div>
                 </div>
-
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="p-16 text-center rounded-3xl bg-slate-900/40 border border-slate-800 space-y-4 shadow-lg">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
-            <Calendar className="w-8 h-8" />
+              );
+            })}
           </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">No Appointments Found</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-              {filter === 'ALL'
-                ? "You don't have any appointments booked yet. Browse salons to book your first haircut!"
-                : `You don't have any ${filter.toLowerCase()} appointments.`}
-            </p>
+        ) : (
+          /* ── EMPTY STATE ──────────────────────────────────────────────── */
+          <div className="rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700/70 bg-white/60 dark:bg-[#0d1018]/60 py-20 px-6 text-center space-y-5">
+            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+              <Calendar className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                {filter === 'ALL' ? 'No Appointments Yet' : `No ${filter.charAt(0) + filter.slice(1).toLowerCase()} Appointments`}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                {filter === 'ALL'
+                  ? "You haven't booked any services yet. Explore premium salons and reserve your first luxury styling session."
+                  : `You don't have any ${filter.toLowerCase()} appointments at this time.`}
+              </p>
+            </div>
+            {filter === 'ALL' && (
+              <button
+                onClick={() => handleOpenBooking()}
+                className="mt-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-amber-500/25 active:scale-[0.99] transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Book First Appointment
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => handleOpenBooking()}
-            className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Book Appointment Now</span>
-          </button>
-        </div>
-      )}
+        )}
+      </main>
 
-      {/* Booking Wizard Modal */}
-      <BookingWizardModal
-        isOpen={isBookingOpen}
-        onClose={() => setIsBookingOpen(false)}
-        salon={selectedSalon}
-      />
-
-      {/* 5% CANCELLATION FEE CONFIRMATION MODAL */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          CANCELLATION MODAL
+         ═══════════════════════════════════════════════════════════════════ */}
       {selectedAptToCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-rose-500/30 p-6 sm:p-7 shadow-2xl space-y-5 text-left">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 dark:bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-3xl bg-white dark:bg-[#0f1018] border border-rose-300 dark:border-rose-500/25 p-6 sm:p-7 shadow-2xl shadow-rose-500/10 space-y-5">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-rose-500/50 to-transparent rounded-t-3xl" />
+
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/25 text-rose-500 flex items-center justify-center">
                   <AlertCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Cancellation Policy</h3>
-                  <span className="text-[11px] text-rose-400 font-semibold">5% Booking Deduction</span>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cancel Appointment</h3>
+                  <span className="text-[11px] text-rose-500 dark:text-rose-400 font-semibold">5% Booking Fee Applies</span>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedAptToCancel(null)}
-                className="text-slate-400 hover:text-white text-lg p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white text-lg p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <p className="text-slate-300 leading-relaxed">
-                Are you sure you want to cancel your appointment for <strong className="text-white">{selectedAptToCancel.serviceName}</strong> at <strong className="text-white">{selectedAptToCancel.salonName}</strong>?
+            <div className="space-y-4 text-xs">
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                Cancel <strong className="text-slate-900 dark:text-white">{selectedAptToCancel.serviceName}</strong> at{' '}
+                <strong className="text-slate-900 dark:text-white">{selectedAptToCancel.salonName}</strong>?
               </p>
 
-              {/* Breakdown Card */}
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 font-mono">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span>Booking Amount:</span>
-                  <span className="text-white font-bold">₹{selectedAptToCancel.servicePrice || 0}.00</span>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2.5 font-mono">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Booking Amount</span>
+                  <span className="text-slate-900 dark:text-white font-bold">₹{selectedAptToCancel.servicePrice || 0}.00</span>
                 </div>
-                <div className="flex items-center justify-between text-rose-400">
-                  <span>5% Cancellation Fee:</span>
+                <div className="flex items-center justify-between text-rose-500 dark:text-rose-400">
+                  <span>5% Cancellation Fee</span>
                   <span>- ₹{((selectedAptToCancel.servicePrice || 0) * 0.05).toFixed(2)}</span>
                 </div>
-                <div className="border-t border-slate-800 pt-2 flex items-center justify-between font-bold text-sm">
-                  <span className="text-emerald-400">Net Refund / Adjusted:</span>
-                  <span className="text-emerald-400">₹{((selectedAptToCancel.servicePrice || 0) * 0.95).toFixed(2)}</span>
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-2.5 flex items-center justify-between font-bold text-sm">
+                  <span className="text-emerald-600 dark:text-emerald-400">Net Refund</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">₹{((selectedAptToCancel.servicePrice || 0) * 0.95).toFixed(2)}</span>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 leading-relaxed">
-                As per salon cancellation policy, 5% of the total amount is retained to cover barber slot reservation and processing costs. The remaining 95% is refunded.
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/8 border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-300/90 leading-relaxed">
+                5% is retained to cover slot reservation costs. The remaining 95% is refunded immediately.
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setSelectedAptToCancel(null)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-white font-semibold text-xs transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-800 dark:text-white font-semibold text-xs transition-colors cursor-pointer"
               >
                 Keep Appointment
               </button>
@@ -539,48 +631,49 @@ export default function AppointmentsPage() {
                 }}
                 className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/20 transition-all cursor-pointer disabled:opacity-50"
               >
-                {cancellingId === selectedAptToCancel.id ? "Processing..." : "Confirm & Deduct 5%"}
+                {cancellingId === selectedAptToCancel.id ? 'Processing...' : 'Confirm & Deduct 5%'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* RATING & FEEDBACK MODAL */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          RATING MODAL
+         ═══════════════════════════════════════════════════════════════════ */}
       {selectedAptToRate && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 relative overflow-hidden">
-            {/* Ambient gold glow */}
-            <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="fixed inset-0 z-50 bg-black/70 dark:bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="relative bg-white dark:bg-[#0f1018] border border-amber-200 dark:border-amber-500/25 w-full max-w-lg rounded-3xl p-6 shadow-2xl shadow-amber-500/10 space-y-5 overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/50 to-transparent" />
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-amber-500/5 dark:bg-amber-500/8 rounded-full blur-2xl pointer-events-none" />
 
-            {/* Modal Header */}
-            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
+            {/* Header */}
+            <div className="relative flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                  <Star className="w-5 h-5 fill-amber-400" />
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <Star className="w-5 h-5 fill-amber-500 dark:fill-amber-400" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Rate Your Experience</h3>
-                  <span className="text-xs text-slate-400">
-                    {selectedAptToRate.salonName || 'Salon'} • {selectedAptToRate.serviceName}
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Rate Your Experience</h3>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {selectedAptToRate.salonName} • {selectedAptToRate.serviceName}
                   </span>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedAptToRate(null)}
-                className="text-slate-400 hover:text-white text-lg p-1 rounded-lg transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white text-lg p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmitRating} className="space-y-4">
-              {/* Star Selection Area */}
-              <div className="flex flex-col items-center justify-center py-2 space-y-2">
+            <form onSubmit={handleSubmitRating} className="relative space-y-5">
+              {/* Stars */}
+              <div className="flex flex-col items-center py-2 space-y-2">
                 <div className="flex items-center gap-2">
                   {[1, 2, 3, 4, 5].map((star) => {
-                    const activeScore = ratingHover || ratingScore;
-                    const isFilled = star <= activeScore;
+                    const active = ratingHover || ratingScore;
                     return (
                       <button
                         type="button"
@@ -588,21 +681,20 @@ export default function AppointmentsPage() {
                         onClick={() => setRatingScore(star)}
                         onMouseEnter={() => setRatingHover(star)}
                         onMouseLeave={() => setRatingHover(0)}
-                        className="p-1 rounded-lg hover:scale-125 transition-transform duration-150 cursor-pointer focus:outline-none"
+                        className="p-1 rounded-lg hover:scale-125 transition-transform duration-150 cursor-pointer"
                       >
                         <Star
-                          className={`w-8 h-8 transition-colors ${
-                            isFilled
-                              ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]'
-                              : 'text-slate-600 fill-transparent'
+                          className={`w-9 h-9 transition-colors duration-100 ${
+                            star <= active
+                              ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                              : 'text-slate-300 dark:text-slate-700 fill-transparent'
                           }`}
                         />
                       </button>
                     );
                   })}
                 </div>
-
-                <span className="text-xs font-bold text-amber-400">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 h-4">
                   {(ratingHover || ratingScore) === 5 && 'Exceptional • 5.0 Stars'}
                   {(ratingHover || ratingScore) === 4 && 'Very Good • 4.0 Stars'}
                   {(ratingHover || ratingScore) === 3 && 'Good Service • 3.0 Stars'}
@@ -611,30 +703,23 @@ export default function AppointmentsPage() {
                 </span>
               </div>
 
-              {/* Quick Feedback Tags */}
-              <div className="space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Quick Compliments & Highlights
+              {/* Quick Tags */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
+                  Quick Highlights
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    'Punctual & Fast',
-                    'Master Haircut',
-                    'Clean & Hygienic',
-                    'Polite Stylist',
-                    'Great Ambience',
-                    'Fair Value',
-                  ].map((tag) => {
-                    const isSelected = selectedTags.includes(tag);
+                  {['Punctual & Fast', 'Master Haircut', 'Clean & Hygienic', 'Polite Stylist', 'Great Ambience', 'Fair Value'].map((tag) => {
+                    const sel = selectedTags.includes(tag);
                     return (
                       <button
                         type="button"
                         key={tag}
                         onClick={() => handleToggleTag(tag)}
                         className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                          isSelected
+                          sel
                             ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-750 hover:text-white border border-slate-700/60'
+                            : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60'
                         }`}
                       >
                         {tag}
@@ -644,31 +729,30 @@ export default function AppointmentsPage() {
                 </div>
               </div>
 
-              {/* Feedback Textarea */}
+              {/* Feedback text */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Detailed Feedback (Visible to Salon Manager)
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 block">
+                  Detailed Feedback
                 </label>
                 <textarea
                   rows={3}
                   value={feedbackComment}
                   onChange={(e) => setFeedbackComment(e.target.value)}
-                  placeholder="Share what you enjoyed or what the salon can improve..."
-                  className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/70 focus:ring-1 focus:ring-amber-500/30 transition-all font-sans"
+                  placeholder="Share what you enjoyed or what can be improved..."
+                  className="w-full rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 p-3 text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/20 transition-all resize-none"
                 />
               </div>
 
-              <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-300 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span>Your rating and feedback will be directly visible on the salon management panel to improve service quality.</span>
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/8 border border-amber-200 dark:border-amber-500/15 text-[11px] text-amber-700 dark:text-amber-300/80 flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>Your rating will appear directly in the salon management panel.</span>
               </div>
 
-              {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => setSelectedAptToRate(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-white font-semibold text-xs transition-colors cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-800 dark:text-white font-semibold text-xs transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -678,7 +762,7 @@ export default function AppointmentsPage() {
                   className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 >
                   <Star className="w-3.5 h-3.5 fill-slate-950" />
-                  <span>{isSubmittingRating ? 'Submitting...' : 'Submit Rating & Feedback'}</span>
+                  {isSubmittingRating ? 'Submitting...' : 'Submit Rating'}
                 </button>
               </div>
             </form>
@@ -686,16 +770,15 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Success Toast */}
+      {/* ── SUCCESS TOAST ─────────────────────────────────────────────────── */}
       {ratingSuccessToast && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md p-4 rounded-2xl bg-slate-900 border border-amber-500/40 text-slate-200 shadow-2xl flex items-center gap-3 animate-bounce">
-          <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+        <div className="fixed bottom-6 right-4 sm:right-6 z-[60] max-w-sm p-4 rounded-2xl bg-white dark:bg-[#11141e] border border-amber-200 dark:border-amber-500/30 text-slate-900 dark:text-white shadow-2xl shadow-amber-500/10 flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-5 h-5" />
           </div>
-          <p className="text-xs font-medium leading-snug">{ratingSuccessToast}</p>
+          <p className="text-xs font-medium leading-snug text-slate-600 dark:text-slate-200">{ratingSuccessToast}</p>
         </div>
       )}
-
     </div>
   );
 }

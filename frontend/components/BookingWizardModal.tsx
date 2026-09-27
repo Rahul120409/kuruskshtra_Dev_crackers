@@ -67,6 +67,32 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   // Available services & staff loaded live
   const [services, setServices] = useState<SalonService[]>([]);
   const [staffMembers, setStaffMembers] = useState<SalonStaff[]>([]);
+  const [liveQueueBoard, setLiveQueueBoard] = useState<any>(null);
+
+  // Frequent polling for real-time live queue and token updates in modal flow
+  React.useEffect(() => {
+    if (!isOpen || !salon?.id) return;
+    let isSubscribed = true;
+
+    const fetchQueueBoard = async () => {
+      try {
+        const board = await customerService.getLiveQueueBoard(salon.id);
+        if (board && isSubscribed) {
+          setLiveQueueBoard(board);
+        }
+      } catch (e) {
+        // Silently handle polling errors
+      }
+    };
+
+    fetchQueueBoard();
+    const interval = setInterval(fetchQueueBoard, 3000);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [isOpen, salon?.id]);
 
   React.useEffect(() => {
     if (isOpen && salon) {
@@ -683,17 +709,18 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                 {/* Big Token Number Callout */}
                 <div className="py-6 flex flex-col items-center justify-center text-center">
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Live Digital Pass
+                    Live Digital Pass Preview
                   </span>
-                  <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-white to-purple-400 tracking-tight my-1">
-                    Ready to Issue
+                  <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-white to-amber-300 tracking-tight my-1 font-mono">
+                    #{liveQueueBoard?.nextAvailableTokenNumber || Math.max(1, Math.floor((salon.currentWaitMinutes || 0) / 10) + 1)}
                   </div>
-                  {salon.currentWaitMinutes !== undefined && (
-                    <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
-                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                      Estimated wait time: <strong className="text-white">~{salon.currentWaitMinutes} minutes</strong>
-                    </p>
-                  )}
+                  <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    Estimated wait time:{' '}
+                    <strong className="text-white">
+                      ~{typeof liveQueueBoard?.totalWaiting === 'number' ? Math.max(5, liveQueueBoard.totalWaiting * 15) : (salon.currentWaitMinutes ?? 15)} minutes
+                    </strong>
+                  </p>
                 </div>
 
                 {/* Key Ticket Details Grid */}

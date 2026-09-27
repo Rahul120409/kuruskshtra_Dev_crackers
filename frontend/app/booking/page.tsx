@@ -202,41 +202,62 @@ function FullPageBookingContent() {
     fetchRealTimeData();
   }, [salonDetails.id]);
 
-  // Real-time WebSocket listener for Live Queue Board (pure WebSocket events, zero polling)
+  // Real-time live queue board synchronization (Frequent API polling + WebSocket live push)
   useEffect(() => {
     const sId = salonDetails.id;
     if (!sId) return;
 
-    // Load initial queue board snapshot ONCE for this specific salon ID
-    if (lastLoadedSalonIdRef.current !== sId) {
-      lastLoadedSalonIdRef.current = sId;
-      customerService.getLiveQueueBoard(sId).then((board: any) => {
-        if (board) {
-          console.log("🎫 [BOOKING] Live queue snapshot loaded for salon:", sId, board);
+    let isSubscribed = true;
+
+    const fetchLiveBoard = async () => {
+      try {
+        const board = await customerService.getLiveQueueBoard(sId);
+        if (board && isSubscribed) {
           setLiveQueueBoard(board);
         }
-      }).catch((e) => {
-        console.warn("Notice: could not load initial queue board snapshot:", e);
-      });
-    }
+      } catch (e) {
+        // Silent catch for polling resilience
+      }
+    };
 
-    // 1. WebSocket topic subscription for this salon (/topic/salon/{id}/queue)
+    // 1. Immediate initial snapshot fetch
+    fetchLiveBoard();
+
+    // 2. Frequent interval polling (every 3 seconds) to ensure live token is always up-to-date
+    const pollInterval = setInterval(() => {
+      fetchLiveBoard();
+    }, 3000);
+
+    // 3. Sync immediately when window regains focus or visibility
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchLiveBoard();
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // 4. WebSocket topic subscription for this salon (/topic/salon/{id}/queue)
     const unsubSalon = queueWebSocket.subscribeToSalon(sId, (board) => {
-      if (board) {
+      if (board && isSubscribed) {
         console.log('⚡ [BOOKING WS] Live queue update received for salon:', board);
         setLiveQueueBoard(board);
       }
     });
 
-    // 2. Global topic subscription fallback (/topic/queue/live)
+    // 5. Global topic subscription fallback (/topic/queue/live)
     const unsubGlobal = queueWebSocket.subscribeToGlobal((board) => {
-      if (board && (!board.salonId || board.salonId.toLowerCase() === sId.toLowerCase())) {
+      if (board && isSubscribed && (!board.salonId || board.salonId.toLowerCase() === sId.toLowerCase())) {
         console.log('⚡ [BOOKING WS] Global queue update received for salon:', board);
         setLiveQueueBoard(board);
       }
     });
 
     return () => {
+      isSubscribed = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       unsubSalon();
       unsubGlobal();
     };

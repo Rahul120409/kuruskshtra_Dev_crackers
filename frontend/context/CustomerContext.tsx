@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, QueueToken, Notification, Hairstyle, Appointment } from '../types';
 import { customerService } from '../services/customerService';
+import { clearUserData } from '../services/customerService';
 import { authService, AuthResponse } from '../services/authService';
 import { queueWebSocket } from '../services/websocketService';
 import { pushNotificationService } from '../services/pushNotificationService';
@@ -60,10 +61,20 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     setUser(current);
   }, []);
 
+  // ── Scope all localStorage access to the current user ──────────────────────
+  // Whenever the logged-in user changes (login / logout), tell the service
+  // which user's storage partition to use.  This is the key guard that prevents
+  // User A's queue token or appointments from being visible to User B.
+  useEffect(() => {
+    (customerService as any).setUserId?.(user?.id);
+  }, [user?.id]);
+
   const refreshAppointments = async () => {
     try {
-      const storedPhone = typeof window !== 'undefined' ? localStorage.getItem('salonflow_customer_phone') : null;
-      const lookupKey = user?.id || user?.phone || storedPhone || undefined;
+      // Always use the authenticated user's ID as the lookup key.
+      // Never fall back to the last user's phone stored in localStorage —
+      // that would show another user's appointments.
+      const lookupKey = user?.id || user?.phone || undefined;
       const appts = await customerService.getAppointments(lookupKey);
       setAppointments(appts);
     } catch (e) {
@@ -198,13 +209,16 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  // Real-time WebSocket listener: updates active token instantly without polling or REST calls
+  // Real-time live token synchronization (Frequent API polling + WebSocket push)
   useEffect(() => {
     const sId = activeToken?.salonId;
     if (!sId) return;
 
-    const unsubSalon = queueWebSocket.subscribeToSalon(sId, (board) => {
-      if (activeToken && Array.isArray(board.activeQueue)) {
+    let isSubscribed = true;
+
+    const syncActiveTokenFromBoard = (board: any) => {
+      if (!board || !isSubscribed || !activeToken) return;
+      if (Array.isArray(board.activeQueue)) {
         const match = board.activeQueue.find(
           (t: any) =>
             t.tokenNumber === activeToken.tokenNumber ||
@@ -230,9 +244,28 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
           );
         }
       }
+    };
+
+    // 1. Initial snapshot fetch
+    customerService.getLiveQueueBoard(sId).then((board) => {
+      if (board) syncActiveTokenFromBoard(board);
+    }).catch(() => {});
+
+    // 2. Frequent interval polling (every 3 seconds)
+    const pollInterval = setInterval(() => {
+      customerService.getLiveQueueBoard(sId).then((board) => {
+        if (board) syncActiveTokenFromBoard(board);
+      }).catch(() => {});
+    }, 3000);
+
+    // 3. WebSocket subscription
+    const unsubSalon = queueWebSocket.subscribeToSalon(sId, (board) => {
+      syncActiveTokenFromBoard(board);
     });
 
     return () => {
+      isSubscribed = false;
+      clearInterval(pollInterval);
       if (unsubSalon) unsubSalon();
     };
   }, [activeToken?.salonId, activeToken?.tokenNumber, activeToken?.tokenId]);
@@ -266,8 +299,17 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const logoutUser = () => {
+    // Clear this user's scoped data before logging out
+    clearUserData(user?.id);
     authService.logout();
+    // Reset all in-memory state so the next user starts clean
     setUser(null);
+    setActiveToken(null);
+    setNotifications([]);
+    setAppointments([]);
+    setSelectedHairstyle(null);
+    notifiedThresholdsRef.current.clear();
+    // Redirect to home
     if (typeof window !== 'undefined') {
       window.location.href = '/';
     }

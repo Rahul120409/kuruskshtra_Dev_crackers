@@ -5,7 +5,7 @@ export function getApiBaseUrl(): string {
   const url =
     process.env.NEXT_PUBLIC_API_BASE_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
-    'http://192.168.137.218:8081';
+    'http://localhost:8081';
   return url.replace(/\/$/, '');
 }
 

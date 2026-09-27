@@ -1,4 +1,5 @@
 import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 import { getApiBaseUrl } from './apiConfig';
 
 export interface LiveQueueBoardData {
@@ -13,28 +14,28 @@ export interface LiveQueueBoardData {
   activeQueue: any[];
 }
 
-function getWebSocketUrl(): string {
+/**
+ * Returns the HTTP base URL for the SockJS endpoint.
+ * SockJS requires http:// (not ws://) — it handles the transport upgrade internally.
+ */
+function getSockJSUrl(): string {
   if (typeof window === 'undefined') return '';
-  
-  const hostname = window.location.hostname || 'localhost';
-  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
-  // 1. If running locally on localhost or 127.0.0.1, connect directly to localhost:8081
+  const hostname = window.location.hostname || 'localhost';
+
+  // 1. Local dev: always hit localhost:8081 directly
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return `${proto}//localhost:8081/ws-queue`;
+    return 'http://localhost:8081/ws-queue';
   }
-  
-  // 2. If configured via NEXT_PUBLIC_API_BASE_URL (e.g. http://192.168.137.218:8081)
+
+  // 2. If configured via env var (e.g. http://localhost:8081)
   const httpBase = getApiBaseUrl();
-  if (httpBase) {
-    if (httpBase.startsWith('https://')) {
-      return httpBase.replace('https://', 'wss://') + '/ws-queue';
-    } else if (httpBase.startsWith('http://')) {
-      return httpBase.replace('http://', 'ws://') + '/ws-queue';
-    }
+  if (httpBase && (httpBase.startsWith('http://') || httpBase.startsWith('https://'))) {
+    return httpBase.replace(/\/$/, '') + '/ws-queue';
   }
-  
-  // 3. Fallback to current browser hostname on port 8081
+
+  // 3. Fallback: same hostname, port 8081
+  const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
   return `${proto}//${hostname}:8081/ws-queue`;
 }
 
@@ -56,7 +57,7 @@ class QueueWebSocketManager {
   }
 
   public getBrokerUrl(): string {
-    return getWebSocketUrl();
+    return getSockJSUrl();
   }
 
   public onStatusChange(callback: (connected: boolean) => void): () => void {
@@ -69,7 +70,7 @@ class QueueWebSocketManager {
 
   private notifyStatus(connected: boolean) {
     this.statusListeners.forEach(cb => {
-      try { cb(connected); } catch {}
+      try { cb(connected); } catch { }
     });
   }
 
@@ -85,42 +86,47 @@ class QueueWebSocketManager {
   }
 
   private initClient() {
-    const brokerURL = getWebSocketUrl();
-    if (!brokerURL) return;
+    const sockJSUrl = getSockJSUrl();
+    if (!sockJSUrl) return;
 
-    console.log('🔌 [WebSocket STOMP] Initializing STOMP client to:', brokerURL);
+    console.log('🔌 [WebSocket STOMP] Initializing STOMP client via SockJS to:', sockJSUrl);
 
     this.client = new Client({
-      brokerURL,
-      reconnectDelay: 2000,
+      // Use SockJS as the transport factory instead of raw ws://
+      // SockJS handles the /ws-queue/info negotiation that Spring's .withSockJS() expects
+      webSocketFactory: () => new SockJS(sockJSUrl),
+      reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       debug: (str) => {
-        console.log('📡 [STOMP DEBUG]', str);
+        // Only log non-heartbeat STOMP frames to reduce noise
+        if (!str.includes('>>>') && !str.includes('<<<') && !str.startsWith('PING') && !str.startsWith('PONG')) {
+          console.log('📡 [STOMP DEBUG]', str);
+        }
       },
       onWebSocketError: (event) => {
-        console.error('❌ [WebSocket STOMP] WebSocket transport error:', event);
+        console.warn('⚠️ [WebSocket STOMP] Transport error — backend may be starting up. Will retry in 5s.', event);
       },
       onConnect: () => {
-        console.log('✅ [WebSocket STOMP] Connected successfully to queue broker:', brokerURL);
+        console.log('✅ [WebSocket STOMP] Connected successfully via SockJS:', sockJSUrl);
         this.isConnecting = false;
         this.notifyStatus(true);
-        // IMPORTANT: Clear stale subscription maps so new session sends fresh SUBSCRIBE frames
+        // Clear stale subs so fresh SUBSCRIBE frames are sent for new session
         this.activeStompSubs.clear();
-        this.subscriptions.forEach((callbacks, topic) => {
+        this.subscriptions.forEach((_callbacks, topic) => {
           this.subscribeToStompTopic(topic);
         });
       },
       onDisconnect: () => {
-        console.log('🔌 [WebSocket STOMP] Disconnected');
+        console.log('🔌 [WebSocket STOMP] Disconnected from broker.');
         this.activeStompSubs.clear();
         this.notifyStatus(false);
       },
       onStompError: (frame) => {
-        console.warn('⚠️ [WebSocket STOMP] Broker error:', frame.headers['message'], frame.body);
+        console.warn('⚠️ [WebSocket STOMP] Broker STOMP error:', frame.headers['message'], frame.body);
       },
       onWebSocketClose: () => {
-        console.log('🔌 [WebSocket STOMP] WebSocket closed. Ready for reconnect.');
+        console.log('🔌 [WebSocket STOMP] Connection closed. Auto-reconnect in 5s.');
         this.activeStompSubs.clear();
         this.notifyStatus(false);
       },
@@ -193,7 +199,7 @@ class QueueWebSocketManager {
           if (activeSub) {
             try {
               activeSub.unsubscribe();
-            } catch {}
+            } catch { }
             this.activeStompSubs.delete(topic);
           }
         }
@@ -202,7 +208,7 @@ class QueueWebSocketManager {
   }
 
   public subscribeToSalon(salonId: string, callback: (data: LiveQueueBoardData) => void): () => void {
-    if (!salonId) return () => {};
+    if (!salonId) return () => { };
     const topic = `/topic/salon/${salonId}/queue`;
     return this.subscribe(topic, callback);
   }

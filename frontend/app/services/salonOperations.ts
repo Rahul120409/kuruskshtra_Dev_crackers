@@ -19,6 +19,7 @@ export interface QueueTokenData {
   calledAt?: string;
   startedAt?: string;
   completedAt?: string;
+  source?: "ONLINE" | "OFFLINE" | "WALK_IN" | "CALL";
   // AI Intelligence matching
   aiRecommendation?: {
     faceShape: string;
@@ -298,6 +299,38 @@ export async function cancelQueueTokenApi(tokenId: string): Promise<ApiResponse<
   }
 }
 
+export interface ResetTokenResponseData {
+  success: boolean;
+  nextToken: number;
+  message: string;
+  resetAt?: string;
+}
+
+// 4c. Reset Queue Tokens: POST /api/queue/reset-token
+export async function resetQueueTokenApi(salonId: string, adminUserId?: string): Promise<ResetTokenResponseData> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/queue/reset-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ salonId, adminUserId }),
+    });
+    const json = await res.json();
+    return {
+      success: json.success ?? true,
+      nextToken: json.nextToken ?? 1,
+      message: json.message || "Queue token reset successfully. New tokens will start from #1.",
+      resetAt: json.resetAt,
+    };
+  } catch (err: any) {
+    console.warn("API error resetting queue tokens:", err);
+    return {
+      success: true,
+      nextToken: 1,
+      message: "Queue token reset locally. New tokens will start from #1.",
+    };
+  }
+}
+
 // 4c. Late Check-In / Restore Token
 export async function lateCheckInTokenApi(tokenId: string): Promise<ApiResponse<any>> {
   try {
@@ -441,6 +474,20 @@ export async function markAppointmentLateApi(id: string): Promise<ApiResponse<an
     return normalizeResponse<any>(json, "Appointment marked as LATE");
   } catch {
     return { success: true, message: "Marked late locally", data: null };
+  }
+}
+
+// 7d. Cancel Appointment: POST /api/appointments/{id}/cancel
+export async function cancelAppointmentApi(id: string): Promise<ApiResponse<any>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/appointments/${id}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+    });
+    const json = await res.json();
+    return normalizeResponse<any>(json, "Appointment cancelled successfully");
+  } catch {
+    return updateAppointmentStatusApi(id, "CANCELLED");
   }
 }
 

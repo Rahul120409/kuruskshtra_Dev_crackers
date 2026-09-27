@@ -19,12 +19,21 @@ export const WalkinQrModal: React.FC<WalkinQrModalProps> = ({ isOpen, onClose })
 
   const handleQuickJoin = async () => {
     setIsJoining(true);
+    const startTime = Date.now();
     try {
       // Default to Signature Haircut for quick walk-in
       await joinLiveQueue('srv-02');
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
       router.push('/queue');
       onClose();
     } catch (err) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
       console.error(err);
     } finally {
       setIsJoining(false);
@@ -57,7 +66,7 @@ export const WalkinQrModal: React.FC<WalkinQrModalProps> = ({ isOpen, onClose })
         <div className="mx-auto w-40 h-40 p-3 rounded-2xl bg-white flex flex-col items-center justify-center shadow-lg relative my-3">
           <div className="w-full h-full border-2 border-dashed border-zinc-900 rounded-xl flex flex-col items-center justify-center p-2 text-zinc-900">
             <QrCode className="w-20 h-20 text-slate-950 mb-1" />
-            <span className="text-[10px] font-mono font-bold tracking-widest uppercase">SALONFLOW-QR-01</span>
+            <span className="text-[10px] font-mono font-bold tracking-widest uppercase">NOVAQ-QR-01</span>
           </div>
           <div className="absolute -bottom-2.5 px-2.5 py-0.5 rounded-full bg-amber-500 text-black text-[10px] font-bold shadow">
             Koregaon Park Pune

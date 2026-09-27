@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Swal from "sweetalert2";
 import {
@@ -52,6 +52,7 @@ import {
   CheckCircle,
   Star,
   MessageSquareHeart,
+  RotateCcw,
 } from "lucide-react";
 
 import {
@@ -65,10 +66,12 @@ import {
   startQueueServiceApi,
   completeQueueServiceApi,
   cancelQueueTokenApi,
+  resetQueueTokenApi,
   joinQueueApi,
   getSalonAppointments,
   updateAppointmentStatusApi,
   checkInAppointmentApi,
+  cancelAppointmentApi,
   createAppointmentApi,
   getAllStylistsApi,
   updateStylistStatusApi,
@@ -146,7 +149,7 @@ function isHairstylistSpecialization(spec?: string): boolean {
 
 export default function SalonPortal() {
   const [activeTab, setActiveTab] = useState<
-    "dashboard" | "appointments" | "queue" | "salon_details" | "stylists" | "salon_staff" | "schedule"
+    "dashboard" | "appointments" | "reviews" | "queue" | "salon_details" | "stylists" | "salon_staff" | "schedule"
   >("dashboard");
 
   // Theme State: Dark / Light Mode
@@ -298,6 +301,8 @@ export default function SalonPortal() {
   const [walkinService, setWalkinService] = useState("Signature AI Haircut & Styling");
   const [walkinStylist, setWalkinStylist] = useState("");
   const [walkinStyle, setWalkinStyle] = useState("Textured Crop");
+  const [isIssuingWalkin, setIsIssuingWalkin] = useState<boolean>(false);
+  const [isResettingQueue, setIsResettingQueue] = useState<boolean>(false);
 
   // New Appointment Form State
   const [newAptName, setNewAptName] = useState("");
@@ -335,6 +340,8 @@ export default function SalonPortal() {
   const [queueSearch, setQueueSearch] = useState("");
   const [aptSearch, setAptSearch] = useState("");
   const [aptStatusFilter, setAptStatusFilter] = useState("ALL");
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [reviewStarFilter, setReviewStarFilter] = useState<number | "ALL">("ALL");
 
   // Sub-tabs in Hairstylists Details Tab: "roster" | "types" | "specific"
   const [stylistSubTab, setStylistSubTab] = useState<"roster" | "types" | "specific">("roster");
@@ -432,10 +439,12 @@ export default function SalonPortal() {
   }, []);
 
   // Fetch Salon Staff from Backend API: GET /api/salon-staff (salon_staff table)
-  const loadSalonStaff = async () => {
+  const loadSalonStaff = async (salonId?: string | any) => {
+    const targetId = (typeof salonId === "string" && salonId.trim().length > 0) ? salonId : (activeSalon.id || selectedSalonId);
+    if (!targetId || targetId.startsWith("sl-")) return;
     setIsLoadingSalonStaff(true);
     try {
-      const res = await getAllSalonStaffApi(activeSalon.id);
+      const res = await getAllSalonStaffApi(targetId);
       if (res && Array.isArray(res.data)) {
         setSalonStaffList(res.data);
       }
@@ -447,31 +456,37 @@ export default function SalonPortal() {
   };
 
   // Fetch Salon Appointments from Backend API: GET /api/appointments/salon/{id}
-  const loadSalonAppointments = async () => {
+  const loadSalonAppointments = async (salonId?: string | any) => {
+    const targetId = (typeof salonId === "string" && salonId.trim().length > 0) ? salonId : (activeSalon.id || selectedSalonId);
+    if (!targetId || targetId.startsWith("sl-")) return;
     setIsLoadingAppointments(true);
     try {
-      const res = await getSalonAppointments(activeSalon.id);
+      const res = await getSalonAppointments(targetId);
       if (res && Array.isArray(res.data)) {
         setAppointments(res.data);
+        showToast("Appointments refreshed!", "success");
       }
     } catch (err) {
       console.warn("Could not load salon appointments from backend API:", err);
+      showToast("Could not refresh appointments", "error");
     } finally {
       setIsLoadingAppointments(false);
     }
   };
 
   // Fetch Stylists from Backend API: GET /api/staff (seamlessly combined with salon_staff)
-  const loadStylists = async () => {
+  const loadStylists = async (salonId?: string | any) => {
+    const targetId = (typeof salonId === "string" && salonId.trim().length > 0) ? salonId : (activeSalon.id || selectedSalonId);
+    if (!targetId || targetId.startsWith("sl-")) return;
     try {
-      const res = await getAllStylistsApi(activeSalon.id);
+      const res = await getAllStylistsApi(targetId);
       let staffList: StylistData[] = [];
       if (res && Array.isArray(res.data) && res.data.length > 0) {
         staffList = res.data;
       }
 
       // Also get salon staff and merge any staff with styling specialization
-      const staffRes = await getAllSalonStaffApi(activeSalon.id);
+      const staffRes = await getAllSalonStaffApi(targetId);
       if (staffRes && Array.isArray(staffRes.data) && staffRes.data.length > 0) {
         const stylingStaff: StylistData[] = staffRes.data
           .filter((st) => isHairstylistSpecialization(st.specialization))
@@ -541,16 +556,15 @@ export default function SalonPortal() {
     }
   };
 
-  const handleSaveSchedule = async () => {
+  const handleSaveSchedule = async (customSchedule?: DayScheduleDto[]) => {
     const targetId = activeSalon.id || selectedSalonId;
-    if (!targetId) {
-      Swal.fire("Error", "No active salon selected.", "error");
-      return;
-    }
+    if (!targetId) return;
+    const scheduleToSave = customSchedule || weeklySchedule;
+    if (!scheduleToSave || scheduleToSave.length === 0) return;
     setIsSavingSchedule(true);
     try {
       const res = await updateSalonSchedule(targetId, {
-        weeklySchedule,
+        weeklySchedule: scheduleToSave,
       });
       if (res.data) {
         if (res.data.weeklySchedule) {
@@ -560,17 +574,8 @@ export default function SalonPortal() {
           setScheduleUpdatedAt(res.data.updatedAt);
         }
       }
-      showToast("Salon weekly schedule saved successfully in database!", "success");
-      Swal.fire({
-        icon: "success",
-        title: "Schedule Saved to Database",
-        text: "Weekly operating hours & shift timings saved to database in JSON format (operating_schedule).",
-        timer: 2000,
-        showConfirmButton: false,
-      });
     } catch (err: any) {
       console.error("Failed to save schedule:", err);
-      Swal.fire("Save Failed", err.message || "Could not save schedule to server.", "error");
     } finally {
       setIsSavingSchedule(false);
     }
@@ -588,6 +593,7 @@ export default function SalonPortal() {
         target.shifts = [{ fromTime: "09:00 AM", toTime: "08:00 PM" }];
       }
       updated[dayIndex] = target;
+      handleSaveSchedule(updated);
       return updated;
     });
   };
@@ -601,6 +607,7 @@ export default function SalonPortal() {
       target.shifts = currentShifts;
       target.isClosed = false;
       updated[dayIndex] = target;
+      handleSaveSchedule(updated);
       return updated;
     });
   };
@@ -616,6 +623,7 @@ export default function SalonPortal() {
         target.isClosed = true;
       }
       updated[dayIndex] = target;
+      handleSaveSchedule(updated);
       return updated;
     });
   };
@@ -638,6 +646,31 @@ export default function SalonPortal() {
       }
       target.shifts = currentShifts;
       updated[dayIndex] = target;
+      handleSaveSchedule(updated);
+      return updated;
+    });
+  };
+
+  const handleShiftStaffChange = (
+    dayIndex: number,
+    shiftIndex: number,
+    staffName: string,
+    staffId?: string
+  ) => {
+    setWeeklySchedule((prev) => {
+      const updated = [...prev];
+      const target = { ...updated[dayIndex] };
+      const currentShifts = target.shifts ? [...target.shifts] : [];
+      if (currentShifts[shiftIndex]) {
+        currentShifts[shiftIndex] = {
+          ...currentShifts[shiftIndex],
+          staffName: staffName || undefined,
+          staffId: staffId || undefined,
+        };
+      }
+      target.shifts = currentShifts;
+      updated[dayIndex] = target;
+      handleSaveSchedule(updated);
       return updated;
     });
   };
@@ -650,58 +683,59 @@ export default function SalonPortal() {
       return;
     }
 
-    setWeeklySchedule(() =>
-      baseDays.map((dayName) => {
-        if (dayName === "Sunday" && preset !== "weekend_extended") {
-          return { day: dayName, isClosed: true, shifts: [] };
-        }
-        if (preset === "standard") {
-          return {
-            day: dayName,
-            isClosed: false,
-            shifts: [{ fromTime: "09:00 AM", toTime: "08:00 PM" }],
-          };
-        }
-        if (preset === "split") {
-          return {
-            day: dayName,
-            isClosed: false,
-            shifts: [
-              { fromTime: "09:00 AM", toTime: "01:00 PM" },
-              { fromTime: "02:00 PM", toTime: "08:00 PM" },
-            ],
-          };
-        }
-        if (preset === "weekend_extended") {
-          const isWeekend = dayName === "Saturday" || dayName === "Sunday";
-          return {
-            day: dayName,
-            isClosed: false,
-            shifts: isWeekend
-              ? [{ fromTime: "08:00 AM", toTime: "10:00 PM" }]
-              : [{ fromTime: "09:00 AM", toTime: "08:00 PM" }],
-          };
-        }
-        return { day: dayName, isClosed: false, shifts: [] };
-      })
-    );
-    showToast(`Preset "${preset}" applied. Click "Save Schedule to DB" to commit.`, "info");
+    const nextSchedule: DayScheduleDto[] = baseDays.map((dayName) => {
+      if (dayName === "Sunday" && preset !== "weekend_extended") {
+        return { day: dayName, isClosed: true, shifts: [] };
+      }
+      if (preset === "standard") {
+        return {
+          day: dayName,
+          isClosed: false,
+          shifts: [{ fromTime: "09:00 AM", toTime: "08:00 PM" }],
+        };
+      }
+      if (preset === "split") {
+        return {
+          day: dayName,
+          isClosed: false,
+          shifts: [
+            { fromTime: "09:00 AM", toTime: "01:00 PM" },
+            { fromTime: "02:00 PM", toTime: "08:00 PM" },
+          ],
+        };
+      }
+      if (preset === "weekend_extended") {
+        const isWeekend = dayName === "Saturday" || dayName === "Sunday";
+        return {
+          day: dayName,
+          isClosed: false,
+          shifts: isWeekend
+            ? [{ fromTime: "08:00 AM", toTime: "10:00 PM" }]
+            : [{ fromTime: "09:00 AM", toTime: "08:00 PM" }],
+        };
+      }
+      return { day: dayName, isClosed: false, shifts: [] };
+    });
+
+    setWeeklySchedule(nextSchedule);
+    handleSaveSchedule(nextSchedule);
+    showToast(`Preset "${preset}" applied and saved!`, "success");
   };
 
   const handleCopyDayToWeekdays = (sourceDayIndex: number) => {
     const source = weeklySchedule[sourceDayIndex];
     if (!source) return;
-    setWeeklySchedule((prev) =>
-      prev.map((dayObj) => {
-        if (dayObj.day === "Sunday") return dayObj; // Keep Sunday as is
-        return {
-          day: dayObj.day,
-          isClosed: source.isClosed,
-          shifts: source.shifts ? source.shifts.map((s) => ({ ...s })) : [],
-        };
-      })
-    );
-    showToast(`Copied ${source.day}'s timing to all weekdays!`, "success");
+    const updated = weeklySchedule.map((dayObj) => {
+      if (dayObj.day === "Sunday") return dayObj; // Keep Sunday as is
+      return {
+        day: dayObj.day,
+        isClosed: source.isClosed,
+        shifts: source.shifts ? source.shifts.map((s) => ({ ...s })) : [],
+      };
+    });
+    setWeeklySchedule(updated);
+    handleSaveSchedule(updated);
+    showToast(`Copied ${source.day}'s timing to all weekdays & saved!`, "success");
   };
 
   const handleRunAiSlotSuggestions = async () => {
@@ -733,18 +767,20 @@ export default function SalonPortal() {
   };
 
   useEffect(() => {
-    loadSalonStaff();
-    loadSalonAppointments();
-    loadStylists();
-    loadSchedule();
+    if (!activeSalon.id) return;
+    const sid = activeSalon.id;
+    loadSalonStaff(sid);
+    loadSalonAppointments(sid);
+    loadStylists(sid);
+    loadSchedule(sid);
   }, [activeSalon.id]);
 
   useEffect(() => {
-    if (activeTab === "appointments") {
-      loadSalonAppointments();
+    if (activeTab === "appointments" || activeTab === "reviews") {
+      loadSalonAppointments(activeSalon.id);
     }
     if (activeTab === "schedule") {
-      loadSchedule();
+      loadSchedule(activeSalon.id);
     }
   }, [activeTab]);
 
@@ -773,23 +809,44 @@ export default function SalonPortal() {
     });
   }, [activeSalon]);
 
-  // Load backend live queue for the active salon
-  const fetchLiveSalonQueue = async (targetSalonId?: string) => {
-    const sId = targetSalonId || activeSalon.id || selectedSalonId;
-    if (!sId || sId.startsWith("sl-")) return;
+  // Fetch Live Queue from Backend API: GET /api/queue/live/{salonId}
+  const loadLiveQueue = async (salonId?: string | any) => {
+    const rawId = (typeof salonId === "string" && salonId.trim().length > 0) ? salonId : (activeSalon.id || selectedSalonId);
+    const targetId = (rawId && typeof rawId === "string" && !rawId.startsWith("sl-")) ? rawId : activeSalon.id;
+    if (!targetId || targetId.startsWith("sl-")) {
+      return;
+    }
+    setIsLoadingQueue(true);
     try {
-      const res = await getLiveQueue(sId);
-      if (res.data && res.data.activeQueue) {
-        setQueueTokens(res.data.activeQueue);
+      const res = await getLiveQueue(targetId);
+      if (res && res.data) {
+        setLiveQueueBoard(res.data);
+        if (res.data.activeQueue && Array.isArray(res.data.activeQueue)) {
+          setQueueTokens(res.data.activeQueue);
+        } else {
+          setQueueTokens([]);
+        }
+        showToast("Live queue refreshed!", "success");
+      } else {
+        showToast("Live queue is up to date", "info");
       }
-    } catch (e) {
-      console.warn("Could not refresh live queue in salon panel:", e);
+    } catch (err) {
+      console.warn("Could not load live queue board from backend API:", err);
+      showToast("Failed to refresh queue. Check connection.", "error");
+    } finally {
+      setIsLoadingQueue(false);
     }
   };
 
+  // Alias for backward compatibility across all token actions
+  const fetchLiveSalonQueue = async (targetSalonId?: string | any) => {
+    return loadLiveQueue(targetSalonId);
+  };
+
   // Load backend appointments for the active salon
-  const fetchSalonAppointments = async (targetSalonId?: string) => {
-    const sId = targetSalonId || activeSalon.id || selectedSalonId;
+  const fetchSalonAppointments = async (targetSalonId?: string | any) => {
+    const rawId = (typeof targetSalonId === "string" && targetSalonId.trim().length > 0) ? targetSalonId : (activeSalon.id || selectedSalonId);
+    const sId = (rawId && typeof rawId === "string" && !rawId.startsWith("sl-")) ? rawId : activeSalon.id;
     if (!sId || sId.startsWith("sl-")) return;
     try {
       const res = await getSalonAppointments(sId);
@@ -825,7 +882,7 @@ export default function SalonPortal() {
             if (typeof window !== "undefined") {
               localStorage.setItem("salonflow_active_salon_id", current.id);
             }
-            fetchLiveSalonQueue(current.id);
+            loadLiveQueue(current.id);
             fetchSalonAppointments(current.id);
           }
         }
@@ -835,47 +892,10 @@ export default function SalonPortal() {
       });
   }, [currentUser]);
 
-  // Fetch Live Queue from Backend API: GET /api/queue/live/{salonId}
-  const loadLiveQueue = async () => {
-    setIsLoadingQueue(true);
-    try {
-      const res = await getLiveQueueBoardApi(activeSalon.id);
-      if (res.success && res.data) {
-        setLiveQueueBoard(res.data);
-        if (res.data.activeQueue && res.data.activeQueue.length > 0) {
-          const normalized: QueueTokenData[] = res.data.activeQueue.map((t: any) => ({
-            id: t.id || t.tokenId || `tok-${t.tokenNumber}`,
-            tokenId: t.id || t.tokenId,
-            tokenNumber: t.tokenNumber,
-            salonId: t.salonId || activeSalon.id,
-            customerName: t.customerName,
-            customerPhone: t.customerPhone || "",
-            serviceName: t.serviceName || "Signature Styling",
-            servicePrice: t.servicePrice || 650,
-            staffId: t.staffId || undefined,
-            staffName: t.staffName || "Next Available Stylist",
-            status: t.status || "WAITING",
-            position: t.position || 1,
-            estimatedWait: t.estimatedWaitMinutes || t.estimatedWait || 15,
-            createdAt: t.joinedAt ? new Date(t.joinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Today",
-            calledAt: t.calledAt,
-            startedAt: t.startedAt,
-            completedAt: t.completedAt,
-          }));
-          setQueueTokens(normalized);
-        } else {
-          setQueueTokens([]);
-        }
-      }
-    } catch (err) {
-      console.warn("Could not load live queue board from backend API:", err);
-    } finally {
-      setIsLoadingQueue(false);
-    }
-  };
-
   useEffect(() => {
-    loadLiveQueue();
+    if (activeSalon.id && !activeSalon.id.startsWith("sl-")) {
+      loadLiveQueue(activeSalon.id);
+    }
   }, [activeSalon.id]);
 
   // Real-time WebSocket connection for live Queue & Appointments (No page refresh needed)
@@ -986,6 +1006,16 @@ export default function SalonPortal() {
 
   const handleCompleteService = async (token: QueueTokenData) => {
     try {
+      setQueueTokens((prev) =>
+        prev.map((t) => (t.id === token.id ? { ...t, status: "COMPLETED" as const, completedAt: "Just now" } : t))
+      );
+      setAppointments((prev) =>
+        prev.map((a) =>
+          (a.queueTokenId === token.id || a.queueTokenNumber === token.tokenNumber || a.customerName.toLowerCase() === token.customerName.toLowerCase())
+            ? { ...a, status: "COMPLETED" as const }
+            : a
+        )
+      );
       await completeQueueServiceApi(token.id);
       setActiveSalon((prev) => ({
         ...prev,
@@ -994,8 +1024,19 @@ export default function SalonPortal() {
       showToast(`Token #${token.tokenNumber} completed! Queue recalculated.`);
       await loadLiveQueue();
       fetchLiveSalonQueue();
+      await loadSalonAppointments();
+      fetchSalonAppointments();
     } catch (err: any) {
-      setQueueTokens((prev) => prev.filter((t) => t.id !== token.id));
+      setQueueTokens((prev) =>
+        prev.map((t) => (t.id === token.id ? { ...t, status: "COMPLETED" as const, completedAt: "Just now" } : t))
+      );
+      setAppointments((prev) =>
+        prev.map((a) =>
+          (a.queueTokenId === token.id || a.queueTokenNumber === token.tokenNumber || a.customerName.toLowerCase() === token.customerName.toLowerCase())
+            ? { ...a, status: "COMPLETED" as const }
+            : a
+        )
+      );
       showToast(`Token #${token.tokenNumber} completed.`);
     }
   };
@@ -1004,8 +1045,9 @@ export default function SalonPortal() {
   const confirmAction = async (
     title: string,
     text: string,
-    confirmButtonText = "Yes, Delete",
-    icon: "warning" | "question" | "info" = "warning"
+    confirmButtonText = "Yes, Cancel",
+    icon: "warning" | "question" | "info" = "warning",
+    cancelButtonText = "No, Keep"
   ) => {
     const isDark = theme === "dark";
     const result = await Swal.fire({
@@ -1016,7 +1058,7 @@ export default function SalonPortal() {
       confirmButtonColor: "#f43f5e",
       cancelButtonColor: isDark ? "#334155" : "#94a3b8",
       confirmButtonText,
-      cancelButtonText: "Cancel",
+      cancelButtonText,
       background: isDark ? "#121622" : "#ffffff",
       color: isDark ? "#f3f4f6" : "#0f172a",
       iconColor: "#f59e0b",
@@ -1025,27 +1067,37 @@ export default function SalonPortal() {
       customClass: {
         popup: "rounded-2xl border border-slate-700/50 shadow-2xl",
         title: "font-bold text-lg",
-        confirmButton: "px-4 py-2 rounded-xl font-bold shadow-md cursor-pointer",
+        confirmButton: "px-4 py-2 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md cursor-pointer",
         cancelButton: "px-4 py-2 rounded-xl font-semibold shadow-sm cursor-pointer",
       },
     });
     return result.isConfirmed;
   };
 
-  const handleCancelToken = async (tokenId: string, tokenNum: number) => {
+  const handleCancelToken = async (tokenId: string, tokenNum: number, customerName?: string) => {
+    const clientDisplay = customerName ? ` for ${customerName}` : "";
     const confirmed = await confirmAction(
       `Cancel Token #${tokenNum}?`,
-      `Are you sure you want to cancel or mark Token #${tokenNum} as No-Show?`,
-      "Yes, Cancel Token"
+      `Are you sure you want to cancel Token #${tokenNum}${clientDisplay}? This card will remain in the live queue list and be marked as CANCELLED.`,
+      "Yes, Cancel Token",
+      "warning",
+      "No, Keep Token"
     );
     if (!confirmed) return;
     try {
       await cancelQueueTokenApi(tokenId);
-      showToast(`Token #${tokenNum} cancelled.`, "info");
+      setQueueTokens((prev) =>
+        prev.map((t) => (t.id === tokenId ? { ...t, status: "CANCELLED" as const } : t))
+      );
+      showToast(`Token #${tokenNum}${clientDisplay} has been marked as CANCELLED.`, "info");
       await loadLiveQueue();
+      fetchLiveSalonQueue();
+      await loadSalonAppointments();
     } catch (err: any) {
-      setQueueTokens((prev) => prev.filter((t) => t.id !== tokenId));
-      showToast(`Token #${tokenNum} cancelled locally.`, "info");
+      setQueueTokens((prev) =>
+        prev.map((t) => (t.id === tokenId ? { ...t, status: "CANCELLED" as const } : t))
+      );
+      showToast(`Token #${tokenNum}${clientDisplay} marked as CANCELLED.`, "info");
     }
   };
 
@@ -1055,6 +1107,9 @@ export default function SalonPortal() {
       showToast("Please enter customer name", "error");
       return;
     }
+
+    setIsIssuingWalkin(true);
+    const startTime = Date.now();
 
     const priceMap: Record<string, number> = {
       "Signature AI Haircut & Styling": 650,
@@ -1085,15 +1140,98 @@ export default function SalonPortal() {
       const tokenNum = tokenData?.tokenNumber || (Math.max(...queueTokens.map((t) => t.tokenNumber), 100) + 1);
       const waitMinutes = tokenData?.estimatedWaitMinutes || 25;
 
+      // Optimistically add Walk-In appointment card so it appears in the Appointments tab instantly
+      const walkinAptCard: AppointmentData = {
+        id: tokenData?.id ? String(tokenData.id) : `apt-walkin-${Date.now()}`,
+        salonId: targetSalonId,
+        salonName: activeSalon.salonName,
+        customerName: walkinName.trim(),
+        customerPhone: walkinPhone.trim() || "Walk-In Client",
+        serviceName: walkinService || "Express Haircut & Wash",
+        servicePrice: priceMap[walkinService] || 650,
+        serviceDurationMinutes: 25,
+        staffName: walkinStylist || "Next Available Stylist",
+        staffId: matchedStylist?.id,
+        stylistName: walkinStylist || "Next Available Stylist",
+        stylistId: matchedStylist?.id,
+        appointmentDate: new Date().toISOString().split("T")[0],
+        appointmentTime: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        status: "CHECKED_IN",
+        source: "WALK_IN",
+        bookingSource: "OFFLINE",
+        queueTokenId: tokenData?.id ? String(tokenData.id) : null,
+        queueTokenNumber: tokenNum,
+        notes: `Walk-in Token #${tokenNum}`,
+        createdAt: new Date().toISOString(),
+      };
+
+      setAppointments((prev) => [walkinAptCard, ...prev.filter((a) => a.id !== walkinAptCard.id)]);
+
+      // Guarantee minimum 2-second loading duration
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
+
       showToast(`Walk-in Token #${tokenNum} issued for ${walkinName.trim()}! Wait ~${waitMinutes} mins.`);
       setShowAddWalkinModal(false);
       setWalkinName("");
       setWalkinPhone("");
       await loadLiveQueue();
       fetchLiveSalonQueue();
+      await loadSalonAppointments();
     } catch (err: any) {
+      // Guarantee minimum 2-second loading duration even on error
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
       console.error("Failed to issue walk-in token:", err);
       showToast(err.message || "Failed to issue walk-in token", "error");
+    } finally {
+      setIsIssuingWalkin(false);
+    }
+  };
+
+  const handleResetQueueTokens = async () => {
+    if (isResettingQueue) return;
+
+    const confirmed = await confirmAction(
+      "Reset Queue Tokens?",
+      "Are you sure you want to reset the queue tokens? The next token will start from 1.",
+      "Yes, Reset to #1",
+      "warning",
+      "Cancel"
+    );
+    if (!confirmed) return;
+
+    setIsResettingQueue(true);
+    try {
+      const targetSalonId = activeSalon.id || selectedSalonId;
+      const res = await resetQueueTokenApi(targetSalonId);
+
+      // Instantly update next available token counter to 1 while keeping all token entries in the list
+      setLiveQueueBoard((prev) =>
+        prev
+          ? {
+              ...prev,
+              nextAvailableTokenNumber: 1,
+            }
+          : null
+      );
+
+      showToast(res.message || "Queue token has been reset successfully. New tokens will start from #1.", "success");
+
+      // Reload live queue and appointments from backend
+      await loadLiveQueue();
+      fetchLiveSalonQueue();
+      await loadSalonAppointments();
+      fetchSalonAppointments();
+    } catch (err: any) {
+      console.error("Failed to reset queue tokens:", err);
+      showToast(err.message || "Failed to reset queue tokens", "error");
+    } finally {
+      setIsResettingQueue(false);
     }
   };
 
@@ -1257,21 +1395,29 @@ export default function SalonPortal() {
     }
   };
 
-  const handleDeleteApt = async (id: string) => {
+  const handleDeleteApt = async (id: string, customerName?: string) => {
+    const clientDisplay = customerName ? ` for ${customerName}` : "";
     const confirmed = await confirmAction(
       "Cancel Appointment?",
-      "Are you sure you want to cancel this appointment?",
-      "Yes, Cancel",
-      "warning"
+      `Are you sure you want to cancel the appointment${clientDisplay}? This card will remain in the appointments list and be marked as CANCELLED.`,
+      "Yes, Cancel Appointment",
+      "warning",
+      "No, Keep Appointment"
     );
     if (!confirmed) return;
     try {
-      await updateAppointmentStatusApi(id, "CANCELLED");
-      showToast("Appointment marked as cancelled.", "info");
+      await cancelAppointmentApi(id);
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: "CANCELLED" as const } : a))
+      );
+      showToast(`Appointment${clientDisplay} has been cancelled.`, "info");
       await loadSalonAppointments();
+      fetchSalonAppointments();
     } catch (err) {
-      setAppointments((prev) => prev.filter((a) => a.id !== id));
-      showToast("Appointment removed.", "info");
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: "CANCELLED" as const } : a))
+      );
+      showToast(`Appointment${clientDisplay} marked as cancelled.`, "info");
     }
   };
 
@@ -1894,21 +2040,129 @@ export default function SalonPortal() {
     }
   };
 
-  // Filtered lists
-  const filteredQueue = queueTokens.filter(
-    (t) =>
-      t.customerName.toLowerCase().includes(queueSearch.toLowerCase()) ||
-      t.tokenNumber.toString().includes(queueSearch) ||
-      t.serviceName.toLowerCase().includes(queueSearch.toLowerCase())
-  );
+  // Filtered and sorted Live Queue tokens:
+  // Active/In-Service/Called/Waiting/Late tokens shift to the top; Completed and Cancelled tokens shift to the bottom.
+  const filteredQueue = useMemo(() => {
+    const list = queueTokens.filter(
+      (t) =>
+        t.customerName.toLowerCase().includes(queueSearch.toLowerCase()) ||
+        t.tokenNumber.toString().includes(queueSearch) ||
+        t.serviceName.toLowerCase().includes(queueSearch.toLowerCase())
+    );
 
-  const filteredAppointments = appointments.filter((a) => {
+    const getStatusPriority = (status: string): number => {
+      const s = (status || "").toUpperCase();
+      if (s === "IN_SERVICE") return 1;
+      if (s === "CALLED") return 2;
+      if (s === "WAITING") return 3;
+      if (s === "LATE" || s === "ON_HOLD" || s === "NO_SHOW") return 4;
+      if (s === "COMPLETED") return 10;
+      if (s === "CANCELLED") return 11;
+      return 5;
+    };
+
+    return [...list].sort((a, b) => {
+      const pA = getStatusPriority(a.status);
+      const pB = getStatusPriority(b.status);
+      if (pA !== pB) {
+        return pA - pB;
+      }
+      return a.tokenNumber - b.tokenNumber;
+    });
+  }, [queueTokens, queueSearch]);
+
+  // Unify all Live Queue tokens with Appointments so that all tokens (whether confirmed, checked-in, completed, or cancelled) permanently exist and display in the Appointments Tab
+  const allAppointmentsUnified = useMemo(() => {
+    const list: AppointmentData[] = [...appointments];
+
+    for (const t of queueTokens) {
+      const matchIdx = list.findIndex(
+        (a) =>
+          (a.queueTokenId && (a.queueTokenId === t.id || (t.tokenId && a.queueTokenId === t.tokenId))) ||
+          (a.queueTokenNumber && a.queueTokenNumber === t.tokenNumber) ||
+          (a.customerName && t.customerName && a.customerName.trim().toLowerCase() === t.customerName.trim().toLowerCase())
+      );
+
+      const computedStatus: AppointmentData["status"] =
+        t.status === "COMPLETED"
+          ? "COMPLETED"
+          : t.status === "CANCELLED"
+            ? "CANCELLED"
+            : t.status === "LATE" || (t.status as string) === "ON_HOLD" || (t.status as string) === "NO_SHOW"
+              ? "LATE"
+              : "CHECKED_IN";
+
+      if (matchIdx >= 0) {
+        const existing = list[matchIdx];
+        list[matchIdx] = {
+          ...existing,
+          status:
+            existing.status === "COMPLETED"
+              ? "COMPLETED"
+              : existing.status === "CANCELLED"
+                ? "CANCELLED"
+                : computedStatus,
+          queueTokenId: existing.queueTokenId || t.id || t.tokenId,
+          queueTokenNumber: existing.queueTokenNumber || t.tokenNumber,
+          staffName: existing.staffName || t.staffName || "Floor Stylist",
+          stylistName: existing.stylistName || t.staffName || "Floor Stylist",
+          serviceName: existing.serviceName || t.serviceName || "Signature Styling",
+          servicePrice: existing.servicePrice || t.servicePrice || 650,
+        };
+      } else {
+        list.push({
+          id: t.tokenId || t.id || `apt-token-${t.tokenNumber}`,
+          salonId: t.salonId || activeSalon.id,
+          salonName: activeSalon.salonName,
+          customerName: t.customerName,
+          customerPhone: t.customerPhone || "Live Queue Client",
+          serviceName: t.serviceName || "Signature Styling",
+          servicePrice: t.servicePrice || 650,
+          serviceDurationMinutes: 25,
+          staffName: t.staffName || "Floor Stylist",
+          stylistName: t.staffName || "Floor Stylist",
+          appointmentDate: new Date().toISOString().split("T")[0],
+          appointmentTime: t.createdAt || "Today",
+          status: computedStatus,
+          source: (t.source as any) || "WALK_IN",
+          bookingSource: (t.source as any) || "OFFLINE",
+          queueTokenId: t.id,
+          queueTokenNumber: t.tokenNumber,
+          notes: `Live Queue Token #${t.tokenNumber}`,
+          createdAt: t.createdAt || new Date().toISOString(),
+        });
+      }
+    }
+    return list;
+  }, [appointments, queueTokens, activeSalon.id, activeSalon.salonName]);
+
+  const filteredAppointments = allAppointmentsUnified.filter((a) => {
     const matchesSearch =
       a.customerName.toLowerCase().includes(aptSearch.toLowerCase()) ||
       a.customerPhone.includes(aptSearch) ||
       a.serviceName.toLowerCase().includes(aptSearch.toLowerCase());
     const matchesStatus = aptStatusFilter === "ALL" || a.status === aptStatusFilter;
     return matchesSearch && matchesStatus;
+  });
+
+  const reviewedAppointments = allAppointmentsUnified.filter(
+    (a) => (a.rating !== undefined && a.rating !== null && a.rating > 0) || (a.feedback && a.feedback.trim().length > 0)
+  );
+
+  const filteredReviews = reviewedAppointments.filter((a) => {
+    const matchesSearch =
+      a.customerName.toLowerCase().includes(reviewSearch.toLowerCase()) ||
+      a.serviceName.toLowerCase().includes(reviewSearch.toLowerCase()) ||
+      ((a.stylistName || a.staffName || "").toLowerCase().includes(reviewSearch.toLowerCase())) ||
+      (a.feedback && a.feedback.toLowerCase().includes(reviewSearch.toLowerCase())) ||
+      (a.notes && a.notes.toLowerCase().includes(reviewSearch.toLowerCase()));
+    const matchesStar =
+      reviewStarFilter === "ALL"
+        ? true
+        : reviewStarFilter === 3
+          ? (a.rating !== undefined && a.rating <= 3)
+          : a.rating === reviewStarFilter;
+    return matchesSearch && matchesStar;
   });
 
   const filteredStyleTypes = styleTypes.filter((t) =>
@@ -1979,7 +2233,7 @@ export default function SalonPortal() {
             </div>
             <div>
               <span className={`font-black tracking-tight text-sm ${theme === "dark" ? "text-white" : "text-slate-900"
-                }`}>SalonFlow</span>
+                }`}>NOVAQ</span>
               <span className="text-[10px] uppercase font-bold text-amber-500 ml-1 px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20">
                 Salon Panel
               </span>
@@ -2001,10 +2255,17 @@ export default function SalonPortal() {
                     if (typeof window !== "undefined") {
                       localStorage.setItem("salonflow_active_salon_id", selected.id);
                     }
+                    // Clear stale data immediately so no cross-salon bleed
                     setAppointments([]);
                     setQueueTokens([]);
+                    setSalonStaffList([]);
+                    setStylists([]);
+                    // Reload all data for the selected salon
                     fetchLiveSalonQueue(selected.id);
                     fetchSalonAppointments(selected.id);
+                    loadSalonStaff(selected.id);
+                    loadStylists(selected.id);
+                    loadSchedule(selected.id);
                     showToast(`Active salon: ${selected.salonName}`);
                   }
                 }}
@@ -2135,7 +2396,8 @@ export default function SalonPortal() {
               <nav className="space-y-1">
                 {[
                   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, badge: `${queueTokens.length} Active` },
-                  { id: "appointments", label: "Appointments", icon: Calendar, badge: `${appointments.length}` },
+                  { id: "appointments", label: "Appointments", icon: Calendar, badge: `${allAppointmentsUnified.length}` },
+                  { id: "reviews", label: "Customer Reviews", icon: Star, badge: `${reviewedAppointments.length}` },
                   { id: "queue", label: "Live Queue Tab", icon: Layers, badge: `${waitingTokens.length} Wait` },
                   { id: "salon_details", label: "Salon Details", icon: Store },
                   { id: "schedule", label: "Operating Schedule", icon: CalendarClock, badge: "7 Days" },
@@ -2232,6 +2494,7 @@ export default function SalonPortal() {
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
               { id: "appointments", label: "Appointments", icon: Calendar },
+              { id: "reviews", label: "Reviews", icon: Star },
               { id: "queue", label: "Live Queue", icon: Layers },
               { id: "salon_details", label: "Salon Details", icon: Store },
               { id: "schedule", label: "Schedule", icon: CalendarClock },
@@ -2268,7 +2531,21 @@ export default function SalonPortal() {
                     Real-time queue monitoring, stylist utilization, and instant walk-in intake.
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleResetQueueTokens}
+                    disabled={isResettingQueue}
+                    className={`px-3 py-2 rounded-xl border font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${theme === "dark"
+                      ? "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300"
+                      : "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 shadow-sm"
+                      }`}
+                    title="Reset queue counter so next token starts from #1"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isResettingQueue ? "animate-spin text-rose-400" : "text-rose-500"}`} />
+                    <span>Reset Token</span>
+                  </button>
+
                   <button
                     onClick={() => setShowAddWalkinModal(true)}
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-bold text-xs shadow-lg shadow-amber-500/20 hover:from-amber-300 hover:to-amber-400 flex items-center gap-2 cursor-pointer transition-all"
@@ -2454,10 +2731,20 @@ export default function SalonPortal() {
 
                     <button
                       type="submit"
-                      className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-bold text-sm shadow-md shadow-amber-500/20 hover:from-amber-300 hover:to-amber-400 transition-all flex items-center justify-center gap-2 cursor-pointer pt-2"
+                      disabled={isIssuingWalkin}
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-bold text-sm shadow-md shadow-amber-500/20 hover:from-amber-300 hover:to-amber-400 transition-all flex items-center justify-center gap-2 cursor-pointer pt-2 disabled:opacity-75 disabled:cursor-not-allowed"
                     >
-                      <Plus className="w-4 h-4" />
-                      <span>Issue Token &amp; Notify</span>
+                      {isIssuingWalkin ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                          <span>Issuing Token...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4" />
+                          <span>Issue Token &amp; Notify</span>
+                        </>
+                      )}
                     </button>
                   </form>
                 </div>
@@ -2600,16 +2887,16 @@ export default function SalonPortal() {
                 <div className="flex items-center gap-2.5 shrink-0">
                   <button
                     type="button"
-                    onClick={loadSalonAppointments}
+                    onClick={() => loadSalonAppointments()}
                     disabled={isLoadingAppointments}
-                    className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${theme === "dark"
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed ${theme === "dark"
                       ? "bg-[#141926] hover:bg-[#1f273b] border-[#252f44] text-slate-300 hover:text-white"
                       : "bg-white hover:bg-slate-50 border-slate-300 text-slate-700 hover:text-slate-900"
                       }`}
                     title="Refresh appointments from backend"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isLoadingAppointments ? "animate-spin text-amber-400" : "text-amber-500"}`} />
-                    <span className="hidden sm:inline">Refresh</span>
+                    <span className="hidden sm:inline">{isLoadingAppointments ? "Refreshing..." : "Refresh"}</span>
                   </button>
 
                   <button
@@ -2628,28 +2915,28 @@ export default function SalonPortal() {
                 {[
                   {
                     label: "Total Bookings",
-                    val: appointments.length,
+                    val: allAppointmentsUnified.length,
                     icon: Calendar,
                     border: "border-sky-500/20",
                     badgeBg: "bg-sky-500/10 text-sky-400",
                   },
                   {
                     label: "Confirmed Slots",
-                    val: appointments.filter((a) => a.status === "CONFIRMED").length,
+                    val: allAppointmentsUnified.filter((a) => a.status === "CONFIRMED").length,
                     icon: Clock,
                     border: "border-blue-500/20",
                     badgeBg: "bg-blue-500/10 text-blue-400",
                   },
                   {
                     label: "Checked In Queue",
-                    val: appointments.filter((a) => a.status === "CHECKED_IN").length,
+                    val: allAppointmentsUnified.filter((a) => a.status === "CHECKED_IN").length,
                     icon: UserCheck,
                     border: "border-emerald-500/20",
                     badgeBg: "bg-emerald-500/10 text-emerald-400",
                   },
                   {
                     label: "Completed",
-                    val: appointments.filter((a) => a.status === "COMPLETED").length,
+                    val: allAppointmentsUnified.filter((a) => a.status === "COMPLETED").length,
                     icon: CheckCircle2,
                     border: "border-purple-500/20",
                     badgeBg: "bg-purple-500/10 text-purple-400",
@@ -2716,6 +3003,16 @@ export default function SalonPortal() {
                             setSelectedSalonId(chosen.id);
                             setActiveSalon(chosen);
                             localStorage.setItem("salonflow_active_salon_id", chosen.id);
+                            // Reload all salon-specific data for the newly selected salon
+                            setAppointments([]);
+                            setQueueTokens([]);
+                            setSalonStaffList([]);
+                            setStylists([]);
+                            fetchLiveSalonQueue(chosen.id);
+                            fetchSalonAppointments(chosen.id);
+                            loadSalonStaff(chosen.id);
+                            loadStylists(chosen.id);
+                            loadSchedule(chosen.id);
                             showToast(`Active branch: ${chosen.salonName}`);
                           }
                         }}
@@ -2735,7 +3032,7 @@ export default function SalonPortal() {
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
                     {["ALL", "CONFIRMED", "CHECKED_IN", "LATE", "COMPLETED", "CANCELLED"].map((status) => {
                       const isActive = aptStatusFilter === status;
-                      const count = status === "ALL" ? appointments.length : appointments.filter((a) => a.status === status).length;
+                      const count = status === "ALL" ? allAppointmentsUnified.length : allAppointmentsUnified.filter((a) => a.status === status).length;
                       return (
                         <button
                           key={status}
@@ -3081,34 +3378,428 @@ export default function SalonPortal() {
                         )}
 
                         {apt.status === "CANCELLED" && (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
-                            <XCircle className="w-3.5 h-3.5" />
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30 shrink-0">
+                            <XCircle className="w-3.5 h-3.5 text-rose-500" />
                             Cancelled
                           </span>
                         )}
 
-                          {/* Edit / Delete Buttons */}
-                          <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Edit / Cancel Buttons */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditApt(apt)}
+                            className={`p-1.5 rounded-lg transition cursor-pointer ${theme === "dark"
+                              ? "bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-white"
+                              : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200"
+                              }`}
+                            title="Edit Appointment"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          {apt.status !== "CANCELLED" && apt.status !== "COMPLETED" && (
                             <button
-                              onClick={() => handleOpenEditApt(apt)}
-                              className={`p-1.5 rounded-lg transition cursor-pointer ${theme === "dark"
-                                ? "bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-white"
-                                : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200"
-                                }`}
-                              title="Edit Appointment"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteApt(apt.id)}
-                              className={`p-1.5 rounded-lg transition cursor-pointer ${theme === "dark"
-                                ? "bg-slate-800/60 hover:bg-red-500/20 text-slate-400 hover:text-red-400"
-                                : "bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200"
-                                }`}
+                              type="button"
+                              onClick={() => handleDeleteApt(apt.id, apt.customerName)}
+                              className={`px-2.5 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                                theme === "dark"
+                                  ? "bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 hover:border-rose-500/50"
+                                  : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-sm"
+                              }`}
                               title="Cancel Appointment"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                              <span>Cancel</span>
                             </button>
+                          )}
+                        </div>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </main>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB: CUSTOMER REVIEWS & FEEDBACK
+             ========================================================================= */}
+          {activeTab === "reviews" && (
+            <div className="max-w-7xl mx-auto space-y-7 animate-fadeIn">
+              {/* Header */}
+              <header className={`flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6 transition-colors ${theme === "dark" ? "border-white/[0.06]" : "border-slate-200"
+                }`}>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="p-2.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-md shadow-amber-500/10">
+                      <Star className="w-5 h-5 fill-amber-400" />
+                    </span>
+                    <div>
+                      <h1 className={`text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-2 ${theme === "dark" ? "text-white" : "text-slate-900"
+                        }`}>
+                        Customer Reviews &amp; Feedback
+                      </h1>
+                      <p className={`mt-0.5 text-xs tracking-wide ${theme === "dark" ? "text-slate-400" : "text-slate-600"
+                        }`}>
+                        Real-time ratings, testimonials, and verified customer reviews from completed appointments.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => {
+                      loadSalonAppointments();
+                      fetchSalonAppointments();
+                    }}
+                    disabled={isLoadingAppointments}
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${theme === "dark"
+                      ? "bg-[#182030] hover:bg-[#222b3f] border-[#2e3a52] text-zinc-300 hover:text-white"
+                      : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700 shadow-sm"
+                      }`}
+                    title="Reload reviews from database"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-amber-500 ${isLoadingAppointments ? "animate-spin" : ""}`} />
+                    <span>Refresh Reviews</span>
+                  </button>
+                </div>
+              </header>
+
+              {/* 4 Scoreboard KPI Cards */}
+              {(() => {
+                const totalCount = reviewedAppointments.length;
+                const avg = totalCount > 0
+                  ? (reviewedAppointments.reduce((acc, a) => acc + (a.rating || 5), 0) / totalCount).toFixed(1)
+                  : "5.0";
+                const fiveStar = reviewedAppointments.filter((a) => (a.rating || 5) === 5).length;
+                const fourStar = reviewedAppointments.filter((a) => a.rating === 4).length;
+                const threeOrBelow = reviewedAppointments.filter((a) => a.rating !== undefined && a.rating <= 3).length;
+                const satisfaction = totalCount > 0
+                  ? Math.round(((fiveStar + fourStar) / totalCount) * 100)
+                  : 100;
+
+                return (
+                  <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* 1. Overall Average Rating */}
+                    <div className={`p-5 rounded-2xl border transition-all ${theme === "dark"
+                      ? "bg-gradient-to-br from-amber-500/15 via-[#131824] to-[#0c101a] border-amber-500/30 shadow-lg shadow-amber-500/5"
+                      : "bg-gradient-to-br from-amber-50 via-white to-amber-100/40 border-amber-300 shadow-sm"
+                      }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-500 tracking-wider uppercase">Average Rating</span>
+                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className={`text-3xl font-black font-mono ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          {avg}
+                        </span>
+                        <span className="text-xs text-amber-400 font-bold">/ 5.0</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1 text-amber-400 text-xs">
+                        {"★".repeat(Math.min(5, Math.max(1, Math.round(Number(avg)))))}
+                        <span className={`text-[11px] ml-1.5 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                          ({totalCount} {totalCount === 1 ? "review" : "reviews"})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2. Total Verified Reviews */}
+                    <div className={`p-5 rounded-2xl border transition-all ${theme === "dark"
+                      ? "bg-gradient-to-br from-sky-500/15 via-[#131824] to-[#0c101a] border-sky-500/30 shadow-lg shadow-sky-500/5"
+                      : "bg-gradient-to-br from-sky-50 via-white to-sky-100/40 border-sky-300 shadow-sm"
+                      }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-sky-500 tracking-wider uppercase">Total Reviews</span>
+                        <MessageSquareHeart className="w-4 h-4 text-sky-400" />
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className={`text-3xl font-black font-mono ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          {totalCount}
+                        </span>
+                        <span className="text-xs text-sky-400 font-semibold">Feedbacks</span>
+                      </div>
+                      <p className={`text-[11px] mt-1 truncate ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                        Verified appointment clients
+                      </p>
+                    </div>
+
+                    {/* 3. Satisfaction Rate */}
+                    <div className={`p-5 rounded-2xl border transition-all ${theme === "dark"
+                      ? "bg-gradient-to-br from-emerald-500/15 via-[#131824] to-[#0c101a] border-emerald-500/30 shadow-lg shadow-emerald-500/5"
+                      : "bg-gradient-to-br from-emerald-50 via-white to-emerald-100/40 border-emerald-300 shadow-sm"
+                      }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-500 tracking-wider uppercase">Satisfaction</span>
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className={`text-3xl font-black font-mono ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          {satisfaction}%
+                        </span>
+                        <span className="text-xs text-emerald-400 font-semibold">Positive</span>
+                      </div>
+                      <p className={`text-[11px] mt-1 truncate ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                        {fiveStar + fourStar} of {totalCount || 1} rated 4★ or 5★
+                      </p>
+                    </div>
+
+                    {/* 4. 5-Star Ratings Count */}
+                    <div className={`p-5 rounded-2xl border transition-all ${theme === "dark"
+                      ? "bg-gradient-to-br from-purple-500/15 via-[#131824] to-[#0c101a] border-purple-500/30 shadow-lg shadow-purple-500/5"
+                      : "bg-gradient-to-br from-purple-50 via-white to-purple-100/40 border-purple-300 shadow-sm"
+                      }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-500 tracking-wider uppercase">5-Star Praise</span>
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className={`text-3xl font-black font-mono ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          {fiveStar}
+                        </span>
+                        <span className="text-xs text-purple-400 font-semibold">Perfect 5★</span>
+                      </div>
+                      <p className={`text-[11px] mt-1 truncate ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                        Top tier client experiences
+                      </p>
+                    </div>
+                  </section>
+                );
+              })()}
+
+              {/* Filter and Search Bar */}
+              <div className={`p-4 rounded-2xl border flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 transition-colors ${theme === "dark"
+                ? "bg-[#0d111a] border-white/5"
+                : "bg-white border-slate-200 shadow-sm"
+                }`}>
+                {/* Search Input */}
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={reviewSearch}
+                    onChange={(e) => setReviewSearch(e.target.value)}
+                    placeholder="Search reviews by customer, service, stylist, or feedback..."
+                    className={`w-full pl-10 pr-4 py-2 rounded-xl text-xs border focus:outline-none transition-colors ${theme === "dark"
+                      ? "bg-[#141926] border-[#232a3b] text-white placeholder:text-zinc-500 focus:border-amber-500"
+                      : "bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-500"
+                      }`}
+                  />
+                  {reviewSearch && (
+                    <button
+                      onClick={() => setReviewSearch("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Star Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none text-xs shrink-0">
+                  {[
+                    { label: "All Reviews", val: "ALL" as const, count: reviewedAppointments.length },
+                    { label: "5 Stars ★", val: 5, count: reviewedAppointments.filter((a) => (a.rating || 5) === 5).length },
+                    { label: "4 Stars ★", val: 4, count: reviewedAppointments.filter((a) => a.rating === 4).length },
+                    { label: "3★ & Below", val: 3, count: reviewedAppointments.filter((a) => a.rating !== undefined && a.rating <= 3).length },
+                  ].map((filterItem) => {
+                    const isSelected = reviewStarFilter === filterItem.val;
+                    return (
+                      <button
+                        key={String(filterItem.val)}
+                        onClick={() => setReviewStarFilter(filterItem.val as any)}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all border whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${isSelected
+                          ? "bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20"
+                          : theme === "dark"
+                            ? "bg-[#141926] text-slate-400 border-[#232a3b] hover:text-white hover:border-slate-600"
+                            : "bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900 hover:bg-slate-200"
+                          }`}
+                      >
+                        <span>{filterItem.label}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isSelected
+                          ? "bg-black/20 text-black font-extrabold"
+                          : theme === "dark" ? "bg-white/10 text-slate-300" : "bg-slate-200 text-slate-700"
+                          }`}>
+                          {filterItem.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Reviewed Appointments Cards List */}
+              <main className="space-y-4">
+                {isLoadingAppointments && appointments.length === 0 ? (
+                  <div className={`p-12 text-center rounded-2xl border ${theme === "dark" ? "bg-[#0d111a] border-white/5 text-zinc-400" : "bg-white border-slate-200 text-slate-600"}`}>
+                    <RefreshCw className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-3" />
+                    <p className="font-semibold text-sm">Loading customer reviews for {activeSalon.salonName}...</p>
+                  </div>
+                ) : filteredReviews.length === 0 ? (
+                  <div className={`p-12 text-center rounded-2xl border flex flex-col items-center justify-center gap-3 ${theme === "dark" ? "bg-[#0d111a] border-white/5 text-zinc-400" : "bg-white border-slate-200 text-slate-600"}`}>
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                      <Star className="w-8 h-8 fill-amber-400/40" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className={`text-base font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        {reviewSearch || reviewStarFilter !== "ALL" ? "No Matching Reviews Found" : "No Customer Reviews Yet"}
+                      </h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto">
+                        {reviewSearch || reviewStarFilter !== "ALL"
+                          ? "Try clearing your search query or selecting 'All Reviews' filter."
+                          : "When customers complete appointments and submit star ratings and feedback, their reviewed appointment cards will appear here in real time."}
+                      </p>
+                    </div>
+                    {(reviewSearch || reviewStarFilter !== "ALL") && (
+                      <button
+                        onClick={() => {
+                          setReviewSearch("");
+                          setReviewStarFilter("ALL");
+                        }}
+                        className="px-4 py-2 rounded-xl bg-amber-500 text-black font-bold text-xs shadow-md transition-all cursor-pointer mt-1"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  filteredReviews.map((apt, idx) => {
+                    const initials = getInitials(apt.customerName);
+                    const stylistDisplayName = apt.stylistName || apt.staffName || "Floor Stylist";
+                    const ratingNum = apt.rating || 5;
+                    const starsStr = "★".repeat(Math.min(5, Math.max(1, ratingNum)));
+                    const ratingLabel = ratingNum === 5 ? "Exceptional" : ratingNum === 4 ? "Very Good" : ratingNum === 3 ? "Good" : "Needs Improvement";
+
+                    const tokenNumberDisplay =
+                      apt.queueTokenNumber ||
+                      queueTokens.find((t) => t.id === apt.queueTokenId || (t.customerName && apt.customerName && t.customerName.trim().toLowerCase() === apt.customerName.trim().toLowerCase()))?.tokenNumber ||
+                      (apt.notes && apt.notes.match(/Token #(\d+)/i) ? parseInt(apt.notes.match(/Token #(\d+)/i)![1]) : null) ||
+                      (idx + 1);
+
+                    return (
+                      <article
+                        key={apt.id}
+                        className={`border transition-all duration-300 rounded-2xl p-5 sm:p-6 flex flex-col gap-4 relative overflow-hidden group shadow-md hover:shadow-xl ${theme === "dark"
+                          ? "bg-gradient-to-br from-[#121826]/90 via-[#0e1420]/90 to-[#090d15]/95 border-white/10 hover:border-amber-500/40 backdrop-blur-md"
+                          : "bg-white border-slate-200 hover:border-amber-400"
+                          }`}
+                      >
+                        {/* Left rating highlight bar */}
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${ratingNum === 5
+                          ? "bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600"
+                          : ratingNum === 4
+                            ? "bg-gradient-to-b from-emerald-400 to-teal-500"
+                            : "bg-gradient-to-b from-sky-400 to-indigo-500"
+                          }`}></div>
+
+                        {/* Top Row: Customer Info + Rating Badge + Appointment Date */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pl-2">
+                          <div className="flex items-center gap-3">
+                            {/* Token Box */}
+                            <div className={`flex-shrink-0 flex flex-col items-center justify-center w-12 h-12 rounded-xl border text-center font-mono ${theme === "dark"
+                              ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                              : "bg-amber-50 border-amber-300 text-amber-800"
+                              }`}>
+                              <span className={`text-[8px] font-bold tracking-widest uppercase ${theme === "dark" ? "text-slate-400" : "text-amber-700"}`}>TOKEN</span>
+                              <span className="text-sm font-extrabold">#{tokenNumberDisplay}</span>
+                            </div>
+
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center font-black text-sm shadow-inner shrink-0 ${theme === "dark"
+                              ? "bg-gradient-to-br from-amber-500/20 via-[#172033] to-amber-600/30 border-2 border-amber-500/40 text-amber-300"
+                              : "bg-amber-100 border-2 border-amber-400 text-amber-900"
+                              }`}>
+                              {initials}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className={`font-black text-base sm:text-lg tracking-tight capitalize ${theme === "dark" ? "text-white" : "text-slate-900"
+                                  }`}>
+                                  {apt.customerName}
+                                </h3>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 uppercase">
+                                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                                  Verified Customer
+                                </span>
+                              </div>
+                              <p className={`text-xs flex items-center gap-2 mt-0.5 ${theme === "dark" ? "text-slate-400" : "text-slate-500"
+                                }`}>
+                                {apt.customerPhone && <span>{apt.customerPhone}</span>}
+                                {apt.customerPhone && <span>•</span>}
+                                <span className="font-mono">{apt.appointmentDate} at {apt.appointmentTime}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Prominent Rating Star Pill */}
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-bold shadow-sm ${theme === "dark"
+                              ? "bg-amber-500/15 border-amber-500/35 text-amber-300 shadow-amber-500/5"
+                              : "bg-amber-50 border-amber-300 text-amber-900"
+                              }`}>
+                              <span className="text-sm font-black font-mono">{ratingNum}.0★</span>
+                              <span className="text-amber-400 text-xs tracking-wider">{starsStr}</span>
+                              <span className={`text-[11px] font-semibold border-l pl-2 ${theme === "dark" ? "border-amber-500/30 text-amber-200" : "border-amber-300 text-amber-800"}`}>
+                                {ratingLabel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Customer Feedback Body */}
+                        <div className={`p-4 rounded-xl border pl-4 relative ${theme === "dark"
+                          ? "bg-[#090d15]/80 border-amber-500/20 text-slate-200"
+                          : "bg-amber-50/60 border-amber-200 text-slate-800"
+                          }`}>
+                          <div className="flex items-start gap-2.5">
+                            <MessageSquareHeart className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium italic leading-relaxed">
+                                "{apt.feedback || 'Client rated 5.0 stars for exceptional salon service and staff expertise.'}"
+                              </p>
+                              {apt.notes && apt.notes !== apt.feedback && (
+                                <p className={`text-[11px] font-mono ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                                  Note: {apt.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Service & Stylist Details Capsule */}
+                        <div className={`flex flex-wrap items-center justify-between gap-3 pt-3 border-t text-xs ${theme === "dark" ? "border-white/5 text-slate-400" : "border-slate-100 text-slate-600"
+                          }`}>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-400">Service:</span>
+                              <strong className={`font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                                {apt.serviceName}
+                              </strong>
+                              <span className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] ${theme === "dark" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" : "bg-amber-100 text-amber-800"}`}>
+                                ₹{apt.servicePrice}
+                              </span>
+                            </div>
+
+                            <span>•</span>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-400">Stylist:</span>
+                              <strong className={`font-bold ${theme === "dark" ? "text-amber-300" : "text-amber-900"}`}>
+                                {stylistDisplayName}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${apt.status === "COMPLETED"
+                              ? "bg-purple-500/15 text-purple-400 border border-purple-500/30"
+                              : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                              }`}>
+                              {apt.status}
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase ${theme === "dark" ? "bg-white/5 text-slate-400" : "bg-slate-100 text-slate-600"}`}>
+                              {apt.bookingSource || apt.source || "ONLINE"}
+                            </span>
                           </div>
                         </div>
                       </article>
@@ -3171,16 +3862,31 @@ export default function SalonPortal() {
                 {/* Real-time operational indicator & Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
                   <button
-                    onClick={loadLiveQueue}
+                    type="button"
+                    onClick={handleResetQueueTokens}
+                    disabled={isResettingQueue}
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed ${theme === "dark"
+                      ? "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300 hover:text-rose-200"
+                      : "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 hover:text-rose-900"
+                      }`}
+                    title="Reset queue counter so next token starts from #1"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isResettingQueue ? "animate-spin text-rose-400" : "text-rose-500"}`} />
+                    <span>{isResettingQueue ? "Resetting..." : "Reset Token"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => loadLiveQueue()}
                     disabled={isLoadingQueue}
-                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${theme === "dark"
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${theme === "dark"
                       ? "bg-[#182030] hover:bg-[#222b3f] border-[#2e3a52] text-zinc-300 hover:text-white"
                       : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700 shadow-sm"
                       }`}
                     title="Reload live queue board from backend"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 text-amber-500 ${isLoadingQueue ? "animate-spin" : ""}`} />
-                    <span>Refresh Queue</span>
+                    <span>{isLoadingQueue ? "Refreshing..." : "Refresh Queue"}</span>
                   </button>
 
                   <button
@@ -3331,13 +4037,28 @@ export default function SalonPortal() {
                           {availableStylists + busyStylists} Active Stylists on floor
                         </p>
                       </div>
-                      <button
-                        onClick={() => setShowAddWalkinModal(true)}
-                        className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Issue</span>
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleResetQueueTokens}
+                          disabled={isResettingQueue}
+                          className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${theme === "dark"
+                            ? "bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/30 text-rose-300"
+                            : "bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-700"
+                            }`}
+                          title="Reset token counter so next token starts from #1"
+                        >
+                          <RotateCcw className={`w-3 h-3 ${isResettingQueue ? "animate-spin text-rose-400" : "text-rose-500"}`} />
+                          <span>Reset #1</span>
+                        </button>
+                        <button
+                          onClick={() => setShowAddWalkinModal(true)}
+                          className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Issue</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3350,42 +4071,52 @@ export default function SalonPortal() {
                   const isInService = token.status === "IN_SERVICE";
                   const isWaiting = token.status === "WAITING";
                   const isLate = token.status === "LATE" || token.status === "ON_HOLD" || (token.status as string) === "NO_SHOW";
+                  const isCancelled = token.status === "CANCELLED";
+                  const isCompleted = token.status === "COMPLETED";
 
                   // Card border and background styling
                   const cardBorderClass =
                     theme === "dark"
-                      ? isInService
-                        ? "border-2 border-emerald-500/40 shadow-[0_0_25px_-4px_rgba(16,185,129,0.25)] bg-[#0b0f19]/80"
-                        : isCalled
-                          ? "border border-amber-500/30 hover:border-amber-500/50 bg-[#0b0f19]/70"
-                          : isLate
-                            ? "border border-orange-500/40 hover:border-orange-500/60 bg-[#140e0a]/80"
-                            : "border border-white/10 hover:border-white/20 bg-[#0b0f19]/60"
-                      : isInService
-                        ? "border-2 border-emerald-400 bg-white shadow-md"
-                        : isCalled
-                          ? "border border-amber-300 hover:border-amber-400 bg-white shadow-sm"
-                          : isLate
-                            ? "border border-orange-300 hover:border-orange-400 bg-orange-50/40 shadow-sm"
-                            : "border border-slate-200 hover:border-slate-300 bg-white shadow-sm";
+                      ? isCancelled
+                        ? "border border-rose-500/30 bg-[#160b0e]/70 opacity-80"
+                        : isInService
+                          ? "border-2 border-emerald-500/40 shadow-[0_0_25px_-4px_rgba(16,185,129,0.25)] bg-[#0b0f19]/80"
+                          : isCalled
+                            ? "border border-amber-500/30 hover:border-amber-500/50 bg-[#0b0f19]/70"
+                            : isLate
+                              ? "border border-orange-500/40 hover:border-orange-500/60 bg-[#140e0a]/80"
+                              : "border border-white/10 hover:border-white/20 bg-[#0b0f19]/60"
+                      : isCancelled
+                        ? "border border-rose-200 bg-rose-50/50 opacity-80"
+                        : isInService
+                          ? "border-2 border-emerald-400 bg-white shadow-md"
+                          : isCalled
+                            ? "border border-amber-300 hover:border-amber-400 bg-white shadow-sm"
+                            : isLate
+                              ? "border border-orange-300 hover:border-orange-400 bg-orange-50/40 shadow-sm"
+                              : "border border-slate-200 hover:border-slate-300 bg-white shadow-sm";
 
                   // Token Identifier box styling
                   const tokenBoxClass =
                     theme === "dark"
-                      ? isInService
-                        ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-400"
-                        : isCalled
-                          ? "bg-[#172033]/90 border-amber-500/30 text-amber-400"
-                          : isLate
-                            ? "bg-orange-950/40 border-orange-500/40 text-orange-400"
-                            : "bg-[#172033]/90 border-blue-500/30 text-blue-400"
-                      : isInService
-                        ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                        : isCalled
-                          ? "bg-amber-50 border-amber-300 text-amber-700"
-                          : isLate
-                            ? "bg-orange-100 border-orange-300 text-orange-800"
-                            : "bg-blue-50 border-blue-300 text-blue-700";
+                      ? isCancelled
+                        ? "bg-rose-950/40 border-rose-500/40 text-rose-400"
+                        : isInService
+                          ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-400"
+                          : isCalled
+                            ? "bg-[#172033]/90 border-amber-500/30 text-amber-400"
+                            : isLate
+                              ? "bg-orange-950/40 border-orange-500/40 text-orange-400"
+                              : "bg-[#172033]/90 border-blue-500/30 text-blue-400"
+                      : isCancelled
+                        ? "bg-rose-100 border-rose-300 text-rose-800"
+                        : isInService
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                          : isCalled
+                            ? "bg-amber-50 border-amber-300 text-amber-700"
+                            : isLate
+                              ? "bg-orange-100 border-orange-300 text-orange-800"
+                              : "bg-blue-50 border-blue-300 text-blue-700";
 
                   return (
                     <article
@@ -3405,6 +4136,13 @@ export default function SalonPortal() {
                           <div className="flex flex-wrap items-center gap-2.5">
                             <h3 className={`text-lg font-bold tracking-tight truncate ${theme === "dark" ? "text-white" : "text-slate-900"
                               }`}>{token.customerName}</h3>
+
+                            {isCancelled && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide bg-rose-500/20 border border-rose-500/40 text-rose-400 uppercase">
+                                <XCircle className="w-3 h-3 text-rose-400" />
+                                CANCELLED
+                              </span>
+                            )}
 
                             {isCalled && (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide bg-amber-500/15 border border-amber-500/40 text-amber-600 dark:text-amber-400 uppercase">
@@ -3487,78 +4225,93 @@ export default function SalonPortal() {
 
                       {/* Action Buttons */}
                       <div className="flex items-center gap-2 justify-end xl:w-1/4 flex-shrink-0">
-                        {isWaiting && (
+                        {isCancelled ? (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30 shrink-0">
+                            <XCircle className="w-4 h-4 text-rose-500" />
+                            Cancelled
+                          </span>
+                        ) : isCompleted ? (
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-500/15 text-slate-500 dark:text-slate-400 border border-slate-500/30 shrink-0">
+                            <Check className="w-4 h-4 text-slate-400" />
+                            Completed
+                          </span>
+                        ) : (
                           <>
+                            {isWaiting && (
+                              <>
+                                <button
+                                  onClick={() => handleCallNext(token)}
+                                  className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-500/20 transition-all duration-200 cursor-pointer"
+                                  type="button"
+                                  title="Call customer to chair"
+                                >
+                                  <Phone className="w-3.5 h-3.5 text-slate-950" />
+                                  <span>Call Next</span>
+                                </button>
+                                <button
+                                  onClick={() => handleMarkTokenLate(token)}
+                                  className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                                    theme === "dark"
+                                      ? "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30 text-orange-300"
+                                      : "bg-orange-50 hover:bg-orange-100 border-orange-300 text-orange-800"
+                                  }`}
+                                  type="button"
+                                  title="Customer not in lobby? Mark late / put on hold so next client is called without deleting ticket"
+                                >
+                                  <span>Skip (Late)</span>
+                                </button>
+                              </>
+                            )}
+
+                            {isLate && (
+                              <button
+                                onClick={() => handleLateCheckIn(token)}
+                                className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/20 transition-all duration-200 cursor-pointer"
+                                type="button"
+                                title="Customer has arrived! Check them in as next in line"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>Late Check-in</span>
+                              </button>
+                            )}
+
+                            {isCalled && (
+                              <button
+                                onClick={() => handleStartService(token)}
+                                className="flex-1 xl:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-slate-900 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 shadow-md transition-all duration-200 cursor-pointer"
+                                type="button"
+                              >
+                                <Play className="w-4 h-4 fill-current" />
+                                <span>Start Service</span>
+                              </button>
+                            )}
+
+                            {isInService && (
+                              <button
+                                onClick={() => handleCompleteService(token)}
+                                className="flex-1 xl:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-slate-900 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-md shadow-emerald-500/20 transition-all duration-200 cursor-pointer"
+                                type="button"
+                              >
+                                <Check className="w-4 h-4" />
+                                <span>Complete &amp; Bill</span>
+                              </button>
+                            )}
+
                             <button
-                              onClick={() => handleCallNext(token)}
-                              className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-md shadow-amber-500/20 transition-all duration-200 cursor-pointer"
                               type="button"
-                              title="Call customer to chair"
+                              onClick={() => handleCancelToken(token.id, token.tokenNumber, token.customerName)}
+                              aria-label={`Cancel Token #${token.tokenNumber}`}
+                              className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 cursor-pointer ${theme === "dark"
+                                ? "bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/30 hover:border-rose-500/50 text-rose-300"
+                                : "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700 shadow-sm"
+                                }`}
+                              title="Cancel Queue Token"
                             >
-                              <Phone className="w-3.5 h-3.5 text-slate-950" />
-                              <span>Call Next</span>
-                            </button>
-                            <button
-                              onClick={() => handleMarkTokenLate(token)}
-                              className={`px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                                theme === "dark"
-                                  ? "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30 text-orange-300"
-                                  : "bg-orange-50 hover:bg-orange-100 border-orange-300 text-orange-800"
-                              }`}
-                              type="button"
-                              title="Customer not in lobby? Mark late / put on hold so next client is called without deleting ticket"
-                            >
-                              <span>Skip (Late)</span>
+                              <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                              <span>Cancel</span>
                             </button>
                           </>
                         )}
-
-                        {isLate && (
-                          <button
-                            onClick={() => handleLateCheckIn(token)}
-                            className="flex-1 xl:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/20 transition-all duration-200 cursor-pointer"
-                            type="button"
-                            title="Customer has arrived! Check them in as next in line"
-                          >
-                            <UserCheck className="w-3.5 h-3.5" />
-                            <span>Late Check-in</span>
-                          </button>
-                        )}
-
-                        {isCalled && (
-                          <button
-                            onClick={() => handleStartService(token)}
-                            className="flex-1 xl:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-slate-900 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 shadow-md transition-all duration-200 cursor-pointer"
-                            type="button"
-                          >
-                            <Play className="w-4 h-4 fill-current" />
-                            <span>Start Service</span>
-                          </button>
-                        )}
-
-                        {isInService && (
-                          <button
-                            onClick={() => handleCompleteService(token)}
-                            className="flex-1 xl:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-slate-900 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-md shadow-emerald-500/20 transition-all duration-200 cursor-pointer"
-                            type="button"
-                          >
-                            <Check className="w-4 h-4" />
-                            <span>Complete &amp; Bill</span>
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => handleCancelToken(token.id, token.tokenNumber)}
-                          aria-label={`Delete Token ${token.tokenNumber}`}
-                          className={`p-2.5 rounded-xl border transition duration-200 cursor-pointer ${theme === "dark"
-                            ? "bg-[#172033]/80 hover:bg-red-500/20 border-white/10 hover:border-red-500/40 text-slate-400 hover:text-red-300"
-                            : "bg-slate-100 hover:bg-red-50 border-slate-200 hover:border-red-200 text-slate-500 hover:text-red-600 shadow-sm"
-                            }`}
-                          type="button"
-                          title="Delete Token"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     </article>
                   );
@@ -4378,16 +5131,17 @@ export default function SalonPortal() {
                 </div>
                 <div className="flex items-center gap-2.5 self-start sm:self-auto">
                   <button
-                    onClick={loadSalonStaff}
+                    type="button"
+                    onClick={() => loadSalonStaff()}
                     disabled={isLoadingSalonStaff}
-                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${theme === "dark"
+                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${theme === "dark"
                       ? "bg-[#182030] hover:bg-[#222b3f] border-[#2e3a52] text-zinc-300 hover:text-white"
                       : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700 shadow-sm"
                       }`}
                     title="Reload salon staff from backend"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 text-amber-500 ${isLoadingSalonStaff ? "animate-spin" : ""}`} />
-                    <span>Refresh</span>
+                    <span>{isLoadingSalonStaff ? "Refreshing..." : "Refresh"}</span>
                   </button>
                   <button
                     onClick={() => setShowAddSalonStaffModal(true)}
@@ -4641,7 +5395,7 @@ export default function SalonPortal() {
              ========================================================================= */}
           {activeTab === "schedule" && (
             <div className="space-y-6 animate-fadeIn">
-              {/* Header Title & Top Controls */}
+              {/* Header Title & Live Sync Status */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2.5">
@@ -4652,74 +5406,49 @@ export default function SalonPortal() {
                       Salon Operating Schedule &amp; Shift Timings
                     </h1>
                   </div>
-                  <p className={`text-xs mt-1.5 ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
-                    Configure weekly working days, opening/closing hours, multiple shifts per day, and sync in database (JSON format).
+                  <p className={`text-xs mt-1.5 ${theme === "dark" ? "text-zinc-400" : "text-slate-600"}`}>
+                    Configure weekly working days, opening/closing hours, staff shift assignments, and live sync with the database.
                   </p>
                 </div>
 
-                {/* Primary Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setShowJsonPreview(!showJsonPreview)}
-                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${showJsonPreview
-                        ? "bg-amber-400 text-black border-amber-400 shadow-md font-bold"
-                        : theme === "dark"
-                          ? "bg-[#161c28] border-[#252f44] text-zinc-300 hover:text-white hover:bg-[#1e2738]"
-                          : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
-                      }`}
-                  >
-                    <Code2 className="w-3.5 h-3.5" />
-                    <span>{showJsonPreview ? "Hide JSON DB View" : "View DB JSON"}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPreset("reset_default")}
-                    className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${theme === "dark"
-                        ? "bg-[#161c28] border-[#252f44] text-zinc-300 hover:text-white hover:bg-[#1e2738]"
-                        : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
-                      }`}
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Reset Defaults</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveSchedule}
-                    disabled={isSavingSchedule}
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-black font-bold text-xs shadow-lg shadow-amber-500/20 hover:from-amber-300 hover:to-amber-500 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
-                  >
-                    {isSavingSchedule ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                    <span>{isSavingSchedule ? "Saving to Database..." : "Save Schedule to DB"}</span>
-                  </button>
+                <div className={`px-3.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 self-start md:self-auto ${
+                  theme === "dark"
+                    ? "bg-[#161c28] border-emerald-500/30 text-emerald-300"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-900 shadow-sm"
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{isSavingSchedule ? "Saving changes..." : "Auto-saved & Live Synced"}</span>
                 </div>
               </div>
 
               {/* Status Banner / Metadata Pill */}
               <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs transition-colors ${theme === "dark"
                   ? "bg-gradient-to-r from-amber-500/10 via-[#121622] to-amber-500/5 border-amber-500/30 text-zinc-300"
-                  : "bg-amber-50/70 border-amber-200 text-slate-800 shadow-sm"
+                  : "bg-white border-slate-200 text-black shadow-sm"
                 }`}>
                 <div className="flex items-center gap-2.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                   <div>
-                    <span className="font-bold text-amber-400">{activeSalon.salonName}</span>
-                    <span className="mx-2 opacity-40">•</span>
-                    <span>Database Field: <code className="px-1.5 py-0.5 rounded bg-black/20 text-amber-300 font-mono text-[11px]">operating_schedule (JSON TEXT)</code></span>
+                    <span className={`font-bold ${theme === "dark" ? "text-amber-400" : "text-black font-extrabold"}`}>{activeSalon.salonName}</span>
+                    <span className={`mx-2 ${theme === "dark" ? "opacity-40" : "text-black font-bold"}`}>•</span>
+                    <span className={theme === "dark" ? "text-zinc-300" : "text-black font-bold"}>
+                      Database Field:{" "}
+                      <code className={`px-2 py-0.5 rounded font-mono text-[11px] font-bold ${
+                        theme === "dark"
+                          ? "bg-black/40 text-amber-300 border border-amber-500/30"
+                          : "bg-slate-100 text-black border border-slate-300 shadow-inner font-extrabold"
+                      }`}>
+                        operating_schedule (JSON TEXT)
+                      </code>
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 text-[11px] font-mono">
-                  <span className="opacity-70">
-                    {scheduleUpdatedAt ? `Updated: ${new Date(scheduleUpdatedAt).toLocaleString()}` : "Live Synced"}
+                  <span className={theme === "dark" ? "text-zinc-400" : "text-black font-semibold"}>
+                    {isSavingSchedule ? "Saving..." : scheduleUpdatedAt ? `Updated: ${new Date(scheduleUpdatedAt).toLocaleString()}` : "Live Synced"}
                   </span>
-                  <span className={`px-2 py-0.5 rounded-full font-bold ${theme === "dark" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  <span className={`px-2.5 py-0.5 rounded-full font-bold ${theme === "dark" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-emerald-100 text-emerald-950 border border-emerald-300"
                     }`}>
                     {weeklySchedule.filter(d => !d.isClosed).length} Days Open / 7
                   </span>
@@ -4734,7 +5463,7 @@ export default function SalonPortal() {
                     <SlidersHorizontal className="w-4 h-4" />
                     <span>Quick Schedule Presets &amp; Templates</span>
                   </div>
-                  <span className={`text-[11px] ${theme === "dark" ? "text-zinc-500" : "text-slate-400"}`}>
+                  <span className={`text-[11px] ${theme === "dark" ? "text-zinc-500" : "text-slate-500 font-medium"}`}>
                     Apply standard working shift patterns across days
                   </span>
                 </div>
@@ -4768,35 +5497,6 @@ export default function SalonPortal() {
                   </button>
                 </div>
               </div>
-
-              {/* JSON Inspector View Modal/Card (If toggled) */}
-              {showJsonPreview && (
-                <div className={`p-5 rounded-2xl border space-y-3 animate-fadeIn ${theme === "dark" ? "bg-[#0c0f17] border-amber-500/40 text-zinc-200" : "bg-slate-900 text-slate-100 border-slate-700 shadow-xl"
-                  }`}>
-                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                    <div className="flex items-center gap-2">
-                      <Code2 className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                        Database JSON Payload (`operating_schedule`)
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(JSON.stringify({ weeklySchedule }, null, 2));
-                        showToast("Schedule JSON copied to clipboard!", "success");
-                      }}
-                      className="px-3 py-1 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>Copy JSON</span>
-                    </button>
-                  </div>
-                  <pre className="text-[11px] font-mono p-3.5 rounded-xl bg-black/50 overflow-x-auto text-emerald-400 leading-relaxed max-h-64 scrollbar-thin">
-                    {JSON.stringify({ weeklySchedule }, null, 2)}
-                  </pre>
-                </div>
-              )}
 
               {/* 7 Days Weekly Schedule List */}
               {weeklySchedule.length === 0 ? (
@@ -4913,13 +5613,56 @@ export default function SalonPortal() {
                                   className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${theme === "dark" ? "bg-[#171d2b] border-[#252f44]" : "bg-slate-50 border-slate-200"
                                     }`}
                                 >
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold font-mono">
-                                      #{shiftIdx + 1}
-                                    </span>
-                                    <span className={`text-xs font-bold uppercase tracking-wider ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
-                                      {shiftIdx === 0 ? "Primary Shift" : `Split Shift ${shiftIdx + 1}`}
-                                    </span>
+                                  <div className="flex flex-col md:flex-row md:items-center gap-3">
+                                    <div className="flex items-center gap-2.5">
+                                      <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold font-mono shrink-0">
+                                        #{shiftIdx + 1}
+                                      </span>
+                                      <span className={`text-xs font-bold uppercase tracking-wider shrink-0 ${theme === "dark" ? "text-zinc-300" : "text-slate-700"}`}>
+                                        {shiftIdx === 0 ? "Primary Shift" : `Split Shift ${shiftIdx + 1}`}
+                                      </span>
+                                    </div>
+
+                                    {/* Staff / Person Assignment from Salon Staff Tab */}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <div className="flex items-center gap-1.5">
+                                        <Users className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                        <select
+                                          value={shift.staffName || ""}
+                                          onChange={(e) => {
+                                            const chosenName = e.target.value;
+                                            const found = salonStaffList.find((s) => s.name === chosenName) || stylists.find((s) => s.name === chosenName);
+                                            handleShiftStaffChange(dayIdx, shiftIdx, chosenName, found?.id);
+                                          }}
+                                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium focus:outline-none transition-colors cursor-pointer ${
+                                            theme === "dark"
+                                              ? "bg-[#0d1017] border border-[#2c374d] text-amber-300 focus:border-amber-400"
+                                              : "bg-white border border-slate-300 text-slate-800 focus:border-amber-500 shadow-sm"
+                                          }`}
+                                        >
+                                          <option value="">👤 Unassigned / All Salon Staff</option>
+                                          {salonStaffList.map((st) => (
+                                            <option key={st.id || st.name} value={st.name}>
+                                              👤 {st.name} ({st.specialization || "Staff"})
+                                            </option>
+                                          ))}
+                                          {stylists
+                                            .filter((sty) => !salonStaffList.some((s) => s.name.toLowerCase() === sty.name.toLowerCase()))
+                                            .map((sty) => (
+                                              <option key={sty.id || sty.name} value={sty.name}>
+                                                ✂️ {sty.name} ({sty.specialization || "Stylist"})
+                                              </option>
+                                            ))}
+                                        </select>
+                                      </div>
+
+                                      {shift.staffName && (
+                                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 inline-flex items-center gap-1">
+                                          <UserCheck className="w-3 h-3 text-amber-400" />
+                                          {shift.staffName}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {/* Shift Time Controls */}
@@ -4999,7 +5742,7 @@ export default function SalonPortal() {
                                   }`}
                               >
                                 <Plus className="w-3.5 h-3.5" />
-                                <span>+ Add Shift for {dayObj.day}</span>
+                                <span>Add Shift for {dayObj.day}</span>
                               </button>
                             </div>
                           )}
@@ -5009,34 +5752,6 @@ export default function SalonPortal() {
                   })}
                 </div>
               )}
-
-              {/* Bottom Sticky-like Save Bar */}
-              <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 transition-colors ${theme === "dark" ? "bg-[#0e121a] border-amber-500/30" : "bg-white border-amber-300 shadow-md"
-                }`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                    <Save className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className={`text-sm font-bold ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                      Ready to update Salon Operating Schedule?
-                    </h4>
-                    <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
-                      Changes will be immediately persisted to PostgreSQL database in JSON format.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSaveSchedule}
-                  disabled={isSavingSchedule}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 text-black font-bold text-xs shadow-lg shadow-amber-500/20 hover:from-amber-300 hover:to-amber-500 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
-                >
-                  {isSavingSchedule ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>Save All Changes to Database</span>
-                </button>
-              </div>
 
               {/* =========================================================================
                   AI SMART BOOKING SLOT SUGGESTER (Interactive Live Simulator)
@@ -5291,9 +6006,17 @@ export default function SalonPortal() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-semibold text-sm shadow-md cursor-pointer hover:from-amber-300 hover:to-amber-400"
+                  disabled={isIssuingWalkin}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-black font-semibold text-sm shadow-md cursor-pointer hover:from-amber-300 hover:to-amber-400 flex items-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed"
                 >
-                  Generate Token
+                  {isIssuingWalkin ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-black" />
+                      <span>Generating Token...</span>
+                    </>
+                  ) : (
+                    <span>Generate Token</span>
+                  )}
                 </button>
               </div>
             </form>

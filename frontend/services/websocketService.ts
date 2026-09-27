@@ -24,7 +24,7 @@ function getWebSocketUrl(): string {
   }
   
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${window.location.hostname}:8081/ws-queue`;
+  return `${proto}//${window.location.hostname}:8085/ws-queue`;
 }
 
 class QueueWebSocketManager {
@@ -48,7 +48,7 @@ class QueueWebSocketManager {
       reconnectDelay: 3000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      debug: (msg) => {
+      debug: (msg: string) => {
         if (process.env.NODE_ENV === 'development') {
           // Keep console tidy, comment out in production
         }
@@ -63,8 +63,8 @@ class QueueWebSocketManager {
       onDisconnect: () => {
         this.activeStompSubs.clear();
       },
-      onStompError: (frame) => {
-        console.warn('STOMP broker error:', frame.headers['message'], frame.body);
+      onStompError: (frame: any) => {
+        console.warn('STOMP broker error:', frame?.headers?.['message'], frame?.body);
       },
       onWebSocketClose: () => {
         this.activeStompSubs.clear();

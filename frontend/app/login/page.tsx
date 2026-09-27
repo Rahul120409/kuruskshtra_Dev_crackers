@@ -65,21 +65,30 @@ function LoginFormContent() {
         // Check user role verified from database
         const userRole = (res.user?.role || '').toUpperCase();
         setLoggedInRole(userRole);
-        const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN';
-        const isStaff = userRole === 'STAFF' || userRole === 'ROLE_STAFF' || userRole === 'SALON';
+        const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN' || userRole.includes('ADMIN');
+        const isStaff = userRole === 'STAFF' || userRole === 'ROLE_STAFF' || userRole === 'SALON' || userRole.includes('STAFF');
 
-        let targetUrl = redirectUrl;
+        let targetUrl = '/home';
         if (isAdmin) {
           targetUrl = '/admin';
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('salonflow_active_portal', 'admin');
+          }
         } else if (isStaff) {
           targetUrl = '/salon';
-        } else if (redirectUrl === '/home' || redirectUrl === '/admin') {
-          targetUrl = '/home';
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('salonflow_active_portal', 'salon');
+          }
+        } else {
+          targetUrl = redirectUrl && redirectUrl !== '/admin' && redirectUrl !== '/salon' ? redirectUrl : '/home';
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('salonflow_active_portal', 'customer');
+          }
         }
 
         setTimeout(() => {
-          router.push(targetUrl);
-        }, 600);
+          window.location.href = targetUrl;
+        }, 500);
       }
     } catch (err) {
       setErrorMessage('A network error occurred. Please try again.');
@@ -102,7 +111,7 @@ function LoginFormContent() {
             </div>
           </Link>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mt-3">
-            Sign In to SalonFlow
+            Sign In to NOVAQ
           </h1>
           <p className="text-xs text-slate-400">
             Enter your credentials to access your dashboard.

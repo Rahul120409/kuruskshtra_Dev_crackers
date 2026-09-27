@@ -201,6 +201,7 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
     setActiveToken(token);
     await refreshState();
+    await refreshAppointments();
     return token;
   };
 

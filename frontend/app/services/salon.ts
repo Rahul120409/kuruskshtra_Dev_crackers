@@ -206,6 +206,9 @@ export async function updateSalonApi(id: string, payload: Partial<CreateSalonPay
 export interface ShiftDto {
   fromTime: string;
   toTime: string;
+  staffId?: string;
+  staffName?: string;
+  shiftName?: string;
 }
 
 export interface DayScheduleDto {

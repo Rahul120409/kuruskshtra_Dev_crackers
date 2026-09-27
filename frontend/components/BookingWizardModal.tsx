@@ -693,7 +693,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="text-xs font-bold tracking-widest text-indigo-400 uppercase">
-                      SalonFlow Digital Pass
+                      NOVAQ Digital Pass
                     </span>
                   </div>
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">

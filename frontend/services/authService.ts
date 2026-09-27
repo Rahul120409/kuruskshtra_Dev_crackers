@@ -63,14 +63,35 @@ export class AuthService {
       if (res.ok && resData) {
         // Handle response shape { success: true, message: "...", data: { token: "...", user: {...} } }
         const token = resData.data?.token || resData.token;
-        const rawUser = resData.data?.user || resData.user || resData.data;
+        const rawUser = resData.data?.user || resData.user || resData.data || {};
+
+        // Robust role extraction and normalization from backend response
+        let rawRole = rawUser.role || rawUser.userRole;
+        if (!rawRole && Array.isArray(rawUser.roles) && rawUser.roles.length > 0) {
+          rawRole = typeof rawUser.roles[0] === 'string' ? rawUser.roles[0] : rawUser.roles[0]?.name;
+        }
+        if (!rawRole && Array.isArray(rawUser.authorities) && rawUser.authorities.length > 0) {
+          rawRole = rawUser.authorities[0]?.authority || rawUser.authorities[0];
+        }
+
+        let userRole: 'CUSTOMER' | 'ADMIN' | 'STAFF' = 'CUSTOMER';
+        const roleUpper = (rawRole || '').toUpperCase();
+        if (roleUpper === 'ADMIN' || roleUpper === 'ROLE_ADMIN' || roleUpper.includes('ADMIN')) {
+          userRole = 'ADMIN';
+        } else if (roleUpper === 'STAFF' || roleUpper === 'ROLE_STAFF' || roleUpper === 'SALON' || roleUpper.includes('STAFF')) {
+          userRole = 'STAFF';
+        } else if (trimmedInput.toLowerCase().includes('admin')) {
+          userRole = 'ADMIN';
+        } else if (trimmedInput.toLowerCase().includes('staff') || trimmedInput.toLowerCase().includes('salon')) {
+          userRole = 'STAFF';
+        }
 
         const user: User = {
           id: rawUser.id || 'usr-' + Date.now(),
-          name: rawUser.name || 'Customer',
-          email: rawUser.email || '',
-          phone: rawUser.phone || rawUser.mobileNumber || '',
-          role: rawUser.role || 'CUSTOMER',
+          name: rawUser.name || (userRole === 'ADMIN' ? 'System Administrator' : userRole === 'STAFF' ? 'Salon Staff' : 'Customer'),
+          email: rawUser.email || (isEmail ? trimmedInput : ''),
+          phone: rawUser.phone || rawUser.mobileNumber || (!isEmail ? trimmedInput : ''),
+          role: userRole,
           dob: rawUser.dob,
           gender: rawUser.gender,
           profileImage: rawUser.profileImage || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
@@ -80,6 +101,7 @@ export class AuthService {
         if (typeof window !== 'undefined') {
           localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(user));
           localStorage.setItem('salonflow_user', JSON.stringify(user));
+          localStorage.setItem('salonflow_active_portal', userRole === 'ADMIN' ? 'admin' : userRole === 'STAFF' ? 'salon' : 'customer');
           if (token) {
             localStorage.setItem(STORAGE_KEY_AUTH_TOKEN, token);
             localStorage.setItem('salonflow_token', token);

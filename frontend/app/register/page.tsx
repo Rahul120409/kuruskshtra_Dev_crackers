@@ -128,7 +128,7 @@ function RegisterFormContent() {
             Create Your Account
           </h1>
           <p className="text-xs text-slate-400">
-            Join SalonFlow AI for personalized styling recommendations, live queue passes, and instant booking.
+            Join NOVAQ AI for personalized styling recommendations, live queue passes, and instant booking.
           </p>
         </div>
 

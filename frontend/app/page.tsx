@@ -14,8 +14,28 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('portal') === 'admin' || params.get('admin') === 'true' || params.get('view') === 'admin') {
+      const paramPortal = params.get('portal') || params.get('view');
+      const savedUserStr = localStorage.getItem('salonflow_user') || localStorage.getItem('salonflow_auth_user');
+      const savedPortal = localStorage.getItem('salonflow_active_portal');
+
+      let userRole = '';
+      if (savedUserStr) {
+        try {
+          const u = JSON.parse(savedUserStr);
+          userRole = (u.role || '').toUpperCase();
+        } catch {}
+      }
+
+      if (
+        paramPortal === 'admin' ||
+        params.get('admin') === 'true' ||
+        userRole === 'ADMIN' ||
+        userRole === 'ROLE_ADMIN' ||
+        savedPortal === 'admin'
+      ) {
         setActivePortal('admin');
+      } else {
+        setActivePortal('customer');
       }
     }
   }, []);
@@ -26,7 +46,7 @@ export default function Home() {
         <div className="bg-slate-950 border-b border-amber-500/20 px-4 py-2.5 flex items-center justify-between text-xs text-amber-200 sticky top-20 z-30 shadow-md">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="font-semibold text-white">SalonFlow AI Enterprise Admin Portal</span>
+            <span className="font-semibold text-white">NOVAQ Enterprise Admin Portal</span>
           </div>
           <div className="flex items-center gap-3">
             <button

@@ -100,7 +100,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
 
         {/* Footer note */}
         <div className="pt-3 border-t border-zinc-800 text-[11px] text-zinc-500 text-center">
-          SalonFlow Realtime In-App Notification System (LLD Section 12)
+          NOVAQ Realtime In-App Notification System (LLD Section 12)
         </div>
       </div>
     </div>

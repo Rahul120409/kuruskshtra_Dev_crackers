@@ -1654,7 +1654,7 @@ export default function AdminPortal() {
                 <Scissors className="w-3.5 h-3.5 text-amber-500" />
               </div>
             </div>
-            <span className={`font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>SalonFlow AI</span>
+            <span className={`font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>NOVAQ</span>
           </div>
 
           <div className={`flex items-center gap-2 font-medium ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
@@ -4809,7 +4809,7 @@ export default function AdminPortal() {
                       <span>Signing In...</span>
                     ) : (
                       <>
-                        <LogIn className="w-4 h-4" /> Sign In to SalonFlow
+                        <LogIn className="w-4 h-4" /> Sign In to NOVAQ
                       </>
                     )}
                   </button>
@@ -6385,7 +6385,7 @@ export default function AdminPortal() {
             <div className="space-y-1.5">
               <h3 className={`text-lg font-bold tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>Are you sure to logout?</h3>
               <p className={`text-xs ${theme === "dark" ? "text-zinc-400" : "text-slate-500"}`}>
-                You will be signed out from your SalonFlow AI Admin Portal session. You can sign back in anytime.
+                You will be signed out from your NOVAQ Admin Portal session. You can sign back in anytime.
               </p>
             </div>
 

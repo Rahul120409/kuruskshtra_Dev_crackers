@@ -544,7 +544,7 @@ export default function ProfilePage() {
           className="w-full py-3.5 px-4 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
         >
           <LogOut className="w-4 h-4 text-rose-400" />
-          <span>Log Out of SalonFlow AI Account</span>
+          <span>Log Out of NOVAQ AI Account</span>
         </button>
       </div>
 

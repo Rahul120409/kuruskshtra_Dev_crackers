@@ -1,4 +1,8 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8081";
+export const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:8081"
+).replace(/\/$/, "");
 
 export interface RegisterPayload {
   name: string;
@@ -79,9 +83,10 @@ export async function loginUser(payload: LoginEmailPayload | LoginMobilePayload)
   return data;
 }
 
-// 3. Get All Users: GET /api/users
-export async function getAllUsersApi(): Promise<{ success: boolean; message: string; data: UserData[] }> {
-  const res = await fetch(`${API_BASE_URL}/api/users`, {
+// 3. Get All Users: GET /api/users (supports optional ?role=STAFF/ADMIN/CUSTOMER)
+export async function getAllUsersApi(role?: string): Promise<{ success: boolean; message: string; data: UserData[] }> {
+  const url = role ? `${API_BASE_URL}/api/users?role=${role}` : `${API_BASE_URL}/api/users`;
+  const res = await fetch(url, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",

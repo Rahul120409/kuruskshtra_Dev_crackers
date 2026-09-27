@@ -1,20 +1,14 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import type { Metadata } from 'next';
+import './globals.css';
+import { ThemeProvider } from '../context/ThemeContext';
+import { CustomerProvider } from '../context/CustomerContext';
+import { Navbar } from '../components/Navbar';
+import { QueueAlertBanner } from '../components/QueueAlertBanner';
+import { Footer } from '../components/Footer';
 
 export const metadata: Metadata = {
-  title: "SalonFlow AI — Admin Portal",
-  description: "Enterprise Salon Operations, Intelligence & Management Portal",
+  title: 'NovaQ — Smart Salon Queues & Haute Grooming Lounge',
+  description: 'Real-time live queue tokens, smart chair dispatch, AI hairstyle consultation, and instant bookings across premier salons with NovaQ.',
 };
 
 export default function RootLayout({
@@ -25,9 +19,53 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className="dark h-full antialiased bg-[#0b0d13] text-zinc-100"
+      suppressHydrationWarning
+      className="dark"
     >
-      <body className="min-h-full flex flex-col bg-[#0b0d13] text-zinc-100">{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Inter:wght@300;400;500;600&family=Manrope:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+          rel="stylesheet"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var saved = localStorage.getItem('salonflow_theme');
+                  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var theme = saved || (prefersDark ? 'dark' : 'light');
+                  if (theme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    document.documentElement.style.colorScheme = 'light';
+                  } else {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.style.colorScheme = 'dark';
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
+      <body className="bg-surface font-body-md text-on-surface antialiased transition-colors duration-200 min-h-screen flex flex-col">
+        <ThemeProvider>
+          <CustomerProvider>
+            <Navbar />
+            <QueueAlertBanner />
+            <main className="w-full bg-surface flex-1">
+              {children}
+            </main>
+            <Footer />
+          </CustomerProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

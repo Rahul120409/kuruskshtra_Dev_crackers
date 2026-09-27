@@ -21,6 +21,8 @@ export interface SalonData {
   activeStylists?: number;
   todayRevenue?: number;
   stateCode?: string;
+  totalWaiting?: number;
+  currentServingTokenNumber?: number | null;
 }
 
 export interface CreateSalonPayload {
@@ -85,7 +87,10 @@ export async function createSalon(payload: CreateSalonPayload): Promise<ApiRespo
     closingTime: payload.closingTime || "21:00",
   };
 
-  const res = await fetch(`${API_BASE_URL}/api/salons`, {
+  const targetUrl = `${API_BASE_URL}/api/salons`;
+  console.log(`🌐 [SERVICES: createSalon] Initiating POST ${targetUrl} with body:`, body);
+
+  const res = await fetch(targetUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -94,8 +99,13 @@ export async function createSalon(payload: CreateSalonPayload): Promise<ApiRespo
     body: JSON.stringify(body),
   });
 
+  console.log(`🌐 [SERVICES: createSalon] Received HTTP ${res.status} ${res.statusText} from ${targetUrl}`);
+
   const json = await res.json();
+  console.log("🌐 [SERVICES: createSalon] Response JSON from backend:", json);
+
   if (!res.ok) {
+    console.error("❌ [SERVICES: createSalon] Request failed with error:", json);
     throw new Error(json?.message || "Failed to create salon");
   }
   return normalizeResponse<SalonData>(json, "Salon created successfully");
@@ -103,7 +113,10 @@ export async function createSalon(payload: CreateSalonPayload): Promise<ApiRespo
 
 // 2. Get All Salons: GET /api/salons
 export async function getAllSalons(): Promise<ApiResponse<SalonData[]>> {
-  const res = await fetch(`${API_BASE_URL}/api/salons`, {
+  const targetUrl = `${API_BASE_URL}/api/salons`;
+  console.log(`🌐 [SERVICES: getAllSalons] Initiating GET ${targetUrl}...`);
+
+  const res = await fetch(targetUrl, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -111,8 +124,14 @@ export async function getAllSalons(): Promise<ApiResponse<SalonData[]>> {
     },
   });
 
+  console.log(`🌐 [SERVICES: getAllSalons] Received HTTP ${res.status} ${res.statusText}`);
+
   const json = await res.json();
+  const count = json?.data ? (Array.isArray(json.data) ? json.data.length : 1) : (Array.isArray(json) ? json.length : 0);
+  console.log(`🌐 [SERVICES: getAllSalons] Salons in database count: ${count}`, json);
+
   if (!res.ok) {
+    console.error("❌ [SERVICES: getAllSalons] Failed to retrieve salons:", json);
     throw new Error(json?.message || "Failed to retrieve salons");
   }
   return normalizeResponse<SalonData[]>(json, "Salons retrieved successfully");
@@ -182,6 +201,126 @@ export async function updateSalonApi(id: string, payload: Partial<CreateSalonPay
     throw new Error(json?.message || "Failed to update salon");
   }
   return normalizeResponse<SalonData>(json, "Salon updated successfully");
+}
+
+export interface ShiftDto {
+  fromTime: string;
+  toTime: string;
+  staffId?: string;
+  staffName?: string;
+  shiftName?: string;
+}
+
+export interface DayScheduleDto {
+  day: string;
+  isClosed?: boolean;
+  shifts?: ShiftDto[];
+}
+
+export interface SalonScheduleResponse {
+  salonId: string;
+  salonName?: string;
+  status?: string;
+  weeklySchedule: DayScheduleDto[];
+  updatedAt?: string;
+}
+
+export interface SalonScheduleRequest {
+  weeklySchedule: DayScheduleDto[];
+}
+
+export interface AiSlotSuggestionRequest {
+  salonId: string;
+  date: string;
+  serviceDurationMinutes?: number;
+  preferredStaffId?: string | null;
+}
+
+export interface SuggestedSlotDto {
+  startTime: string;
+  endTime: string;
+  crowdLevel: "LOW" | "MODERATE" | "HIGH";
+  estimatedWaitMinutes: number;
+}
+
+export interface AiSlotSuggestionResponse {
+  suggestedSlots: SuggestedSlotDto[];
+}
+
+// 6. Get Salon Schedule: GET /api/salons/{id}/schedule
+export async function getSalonSchedule(salonId: string): Promise<ApiResponse<SalonScheduleResponse>> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/salons/${salonId}/schedule`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    const json = await res.json();
+    return normalizeResponse<SalonScheduleResponse>(json, "Salon schedule retrieved successfully");
+  } catch (err: any) {
+    console.warn("getSalonSchedule network error:", err);
+    return {
+      success: false,
+      message: err.message || "Failed to load schedule from server",
+      data: {
+        salonId,
+        weeklySchedule: getDefaultWeeklySchedule(),
+      },
+    };
+  }
+}
+
+// 7. Update Salon Schedule: PUT /api/salons/{id}/schedule
+export async function updateSalonSchedule(
+  salonId: string,
+  payload: SalonScheduleRequest
+): Promise<ApiResponse<SalonScheduleResponse>> {
+  const res = await fetch(`${API_BASE_URL}/api/salons/${salonId}/schedule`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json?.message || "Failed to save schedule");
+  }
+  return normalizeResponse<SalonScheduleResponse>(json, "Salon schedule updated successfully");
+}
+
+// 8. AI Smart Booking Slot Suggestions: POST /api/ai/suggest-booking-slots
+export async function suggestBookingSlots(
+  payload: AiSlotSuggestionRequest
+): Promise<ApiResponse<AiSlotSuggestionResponse>> {
+  const res = await fetch(`${API_BASE_URL}/api/ai/suggest-booking-slots`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json?.message || "Failed to fetch AI slot suggestions");
+  }
+  return normalizeResponse<AiSlotSuggestionResponse>(json, "Smart booking slots suggested successfully");
+}
+
+export function getDefaultWeeklySchedule(): DayScheduleDto[] {
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  return days.map((day) => ({
+    day,
+    isClosed: day === "Sunday",
+    shifts: [],
+  }));
 }
 
 

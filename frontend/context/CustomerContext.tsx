@@ -29,6 +29,7 @@ interface CustomerContextType {
   joinLiveQueue: (serviceId: string, staffId?: string, hairstyleId?: string, salonId?: string) => Promise<QueueToken>;
   addAppointment: (data: Partial<Appointment>) => Promise<Appointment>;
   cancelAppointment: (id: string) => Promise<void>;
+  markAppointmentLate: (id: string) => Promise<void>;
   rateAppointment: (id: string, rating: number, feedback?: string) => Promise<boolean>;
   updateUserProfile: (updatedData: Partial<User>) => Promise<AuthResponse>;
   clearActiveToken: () => void;
@@ -380,6 +381,7 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     setActiveToken(token);
     checkAndTriggerPushAlert(token);
     await refreshState();
+    await refreshAppointments();
     return token;
   };
 
@@ -400,6 +402,18 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   const cancelAppointment = async (id: string) => {
     await customerService.cancelAppointment(id);
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'CANCELLED' as const } : a)));
+  };
+
+  const markAppointmentLate = async (id: string) => {
+    const updated = await customerService.markAppointmentLate(id);
+    const nowIso = new Date().toISOString();
+    setAppointments((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, status: 'LATE' as const, lateTimestamp: updated?.lateTimestamp || nowIso }
+          : a
+      )
+    );
   };
 
   const rateAppointment = async (id: string, rating: number, feedback?: string) => {
@@ -462,6 +476,7 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
         joinLiveQueue,
         addAppointment,
         cancelAppointment,
+        markAppointmentLate,
         rateAppointment,
         updateUserProfile,
         clearActiveToken,

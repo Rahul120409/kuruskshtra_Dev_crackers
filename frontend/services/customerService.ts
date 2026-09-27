@@ -35,6 +35,7 @@ export interface ICustomerService {
   getAppointments(customerId?: string): Promise<Appointment[]>;
   addAppointment(data: Partial<Appointment>): Promise<Appointment>;
   cancelAppointment(appointmentId: string): Promise<boolean>;
+  markAppointmentLate(appointmentId: string): Promise<any>;
   createAppointment(data: {
     salonId: string;
     serviceId?: string;
@@ -64,6 +65,7 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:
 // ─── User-scoped storage keys ──────────────────────────────────────────────
 // Each key is suffixed with the logged-in user's ID so that no data from
 // User A is ever visible to User B on the same browser/device.
+const STORAGE_KEY_TOKEN = 'salonflow_active_token';
 const STORAGE_KEY_TOKEN_PREFIX = 'salonflow_active_token';
 const STORAGE_KEY_NOTIFS = 'salonflow_notifications';
 const STORAGE_KEY_APPOINTMENTS_PREFIX = 'salonflow_appointments';
@@ -130,6 +132,11 @@ function cleanLegacyDemoStorage() {
     console.warn('Could not clean legacy demo data:', e);
   }
 }
+
+const toUuidOrNull = (id?: string): string | null => {
+  if (!id) return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null;
+};
 
 export class MockCustomerService implements ICustomerService {
   // userId is injected by CustomerContext and scopes the storage key per user
@@ -229,30 +236,37 @@ export class MockCustomerService implements ICustomerService {
     const list = this.getLocalAppointments();
     const newApt: Appointment = {
       id: data.id || 'apt-' + Date.now(),
-      customerId: data.customerId || '',
-      salonId: data.salonId || '',
-      salonName: data.salonName || 'Salon',
+      customerId: data.customerId || 'usr-cust-01',
+      customerName: data.customerName || 'Customer',
+      customerPhone: data.customerPhone || '',
+      salonId: data.salonId || 'sl-baner-01',
+      salonName: data.salonName || 'SalonFlow Studio',
       salonAddress: data.salonAddress || '',
       salonArea: data.salonArea || '',
-      serviceId: data.serviceId || '',
-      serviceName: data.serviceName || 'Custom Service',
-      servicePrice: data.servicePrice || 0,
+      serviceId: data.serviceId || 'srv-01',
+      serviceName: data.serviceName || 'Haircut & Styling',
+      servicePrice: data.servicePrice || 650,
       serviceDuration: data.serviceDuration || 30,
-      staffId: data.staffId,
-      staffName: data.staffName,
+      staffId: data.staffId || 'stf-01',
+      staffName: data.staffName || data.stylistName || 'Vikram Joshi',
+      stylistName: data.stylistName || data.staffName || 'Vikram Joshi',
       staffAvatar: data.staffAvatar,
       appointmentDate: data.appointmentDate || new Date().toISOString().split('T')[0],
       appointmentTime: data.appointmentTime || '10:00 AM',
-      status: data.status || 'CONFIRMED',
-      source: data.source || 'ONLINE',
-      bookingType: data.bookingType || 'WALK_IN',
+      status: (data.status as any) || 'CONFIRMED',
+      lateTimestamp: data.lateTimestamp,
+      cancellationFee: data.cancellationFee,
+      rating: data.rating,
+      feedback: data.feedback,
+      source: (data.source as any) || 'ONLINE',
+      bookingType: data.bookingType || 'SCHEDULED',
       tokenNumber: data.tokenNumber,
-      paymentMethod: data.paymentMethod || 'Pay at Salon Counter',
+      paymentMethod: data.paymentMethod || 'Pay at Counter',
       paymentStatus: data.paymentStatus || 'PENDING_AT_COUNTER',
+      notes: data.notes || '',
       createdAt: data.createdAt || new Date().toISOString(),
     };
-
-    const updated = [newApt, ...list];
+    const updated = [newApt, ...list.filter((a) => a.id !== newApt.id)];
     this.saveLocalAppointments(updated);
     return newApt;
   }
@@ -260,6 +274,23 @@ export class MockCustomerService implements ICustomerService {
   async cancelAppointment(appointmentId: string): Promise<boolean> {
     const list = this.getLocalAppointments();
     const updated = list.map((a) => (a.id === appointmentId ? { ...a, status: 'CANCELLED' as const } : a));
+    this.saveLocalAppointments(updated);
+    return true;
+  }
+
+  async markAppointmentLate(appointmentId: string): Promise<any> {
+    const list = this.getLocalAppointments();
+    const nowIso = new Date().toISOString();
+    const updated = list.map((a) =>
+      a.id === appointmentId ? { ...a, status: 'LATE' as const, lateTimestamp: nowIso } : a
+    );
+    this.saveLocalAppointments(updated);
+    return { status: 'LATE', lateTimestamp: nowIso };
+  }
+
+  async rateAppointment(appointmentId: string, rating: number, feedback?: string): Promise<boolean> {
+    const apts = this.getLocalAppointments();
+    const updated = apts.map((a) => (a.id === appointmentId ? { ...a, rating, feedback } : a));
     this.saveLocalAppointments(updated);
     return true;
   }
@@ -304,7 +335,8 @@ export class MockCustomerService implements ICustomerService {
       if (data.staffId) payload.staffId = toUuidOrNull(data.staffId);
       if (data.customerId) payload.userId = toUuidOrNull(data.customerId);
 
-      const res = await fetch(`${API_BASE_URL}/api/queue/join`, {
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/queue/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(payload),
@@ -340,6 +372,7 @@ export class MockCustomerService implements ICustomerService {
 
     const fallbackToken: QueueToken = {
       tokenId: 'tok-' + Date.now(),
+      id: 'tok-' + Date.now(),
       tokenNumber: (salon?.totalWaiting || 0) + 1,
       position: Math.max(1, (salon?.totalWaiting || 0) + 1),
       estimatedWait: salon?.currentWaitMinutes || 15,
@@ -372,7 +405,8 @@ export class MockCustomerService implements ICustomerService {
   } | null> {
     try {
       const cleanId = toUuidOrNull(salonId) || salonId;
-      const res = await fetch(`${API_BASE_URL}/api/queue/live/${cleanId}`);
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/api/queue/live/${cleanId}`);
       const json = await res.json();
       if (json && json.data) {
         return json.data;
@@ -389,7 +423,7 @@ export class MockCustomerService implements ICustomerService {
 
   async cancelToken(tokenId: string): Promise<boolean> {
     const current = this.getLocalToken();
-    if (current && (current.tokenId === tokenId || current.tokenNumber?.toString() === tokenId)) {
+    if (current && (current.tokenId === tokenId || current.id === tokenId || current.tokenNumber?.toString() === tokenId)) {
       current.status = 'CANCELLED';
       this.saveLocalToken(current);
     }
@@ -406,13 +440,6 @@ export class MockCustomerService implements ICustomerService {
   }
 
   async submitFeedback(feedback: Feedback): Promise<boolean> {
-    return true;
-  }
-
-  async rateAppointment(appointmentId: string, rating: number, feedback?: string): Promise<boolean> {
-    const apts = this.getLocalAppointments();
-    const updated = apts.map((a) => (a.id === appointmentId ? { ...a, rating, feedback } : a));
-    this.saveLocalAppointments(updated);
     return true;
   }
 
@@ -435,24 +462,33 @@ export class MockCustomerService implements ICustomerService {
     if (!current) {
       throw new Error('No active queue token found');
     }
+    let nextStatus: QueueStatus = current.status;
+    let nextPos = current.position;
+    let nextWait = current.estimatedWait;
 
     if (current.status === 'WAITING') {
       if (current.position > 1) {
-        current.position = 1;
-        current.estimatedWait = Math.max(0, current.estimatedWait - 10);
+        nextPos = current.position - 1;
+        nextWait = Math.max(0, current.estimatedWait - 10);
       } else {
-        current.position = 0;
-        current.estimatedWait = 0;
-        current.status = 'CALLED';
+        nextStatus = 'CALLED';
+        nextPos = 0;
+        nextWait = 0;
       }
     } else if (current.status === 'CALLED') {
-      current.status = 'IN_SERVICE';
+      nextStatus = 'IN_SERVICE';
     } else if (current.status === 'IN_SERVICE') {
-      current.status = 'COMPLETED';
+      nextStatus = 'COMPLETED';
     }
 
-    this.saveLocalToken(current);
-    return { token: current };
+    const updated: QueueToken = {
+      ...current,
+      status: nextStatus,
+      position: nextPos,
+      estimatedWait: nextWait,
+    };
+    this.saveLocalToken(updated);
+    return { token: updated };
   }
 
   async resetDemoQueue(): Promise<QueueToken | null> {
@@ -460,11 +496,6 @@ export class MockCustomerService implements ICustomerService {
     return null;
   }
 }
-
-const toUuidOrNull = (id?: string): string | null => {
-  if (!id) return null;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null;
-};
 
 export class ApiCustomerService implements ICustomerService {
   private fallback: MockCustomerService;
@@ -522,7 +553,7 @@ export class ApiCustomerService implements ICustomerService {
     } catch {
       // ignore
     }
-    return [];
+    return this.fallback.getHairstyles();
   }
 
   async getStaff(): Promise<SalonStaff[]> {
@@ -546,7 +577,7 @@ export class ApiCustomerService implements ICustomerService {
     } catch {
       // ignore
     }
-    return [];
+    return this.fallback.getStaff();
   }
 
   async joinQueue(data: {
@@ -718,7 +749,6 @@ export class ApiCustomerService implements ICustomerService {
         }),
       });
       if (res.ok) {
-        // Also update fallback mock cache
         await this.fallback.rateAppointment(appointmentId, rating, feedback);
         return true;
       }
@@ -900,6 +930,23 @@ export class ApiCustomerService implements ICustomerService {
       // ignore
     }
     return this.fallback.cancelAppointment(appointmentId);
+  }
+
+  async markAppointmentLate(appointmentId: string): Promise<any> {
+    try {
+      const res = await fetch(this.getApiUrl(`/api/appointments/${appointmentId}/late`), {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        await this.fallback.markAppointmentLate(appointmentId);
+        return json.data || json;
+      }
+    } catch {
+      // ignore
+    }
+    return this.fallback.markAppointmentLate(appointmentId);
   }
 
   advanceDemoQueue(tokenId: string) {

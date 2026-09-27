@@ -172,16 +172,16 @@ function FullPageBookingContent() {
         staffService.getStaffBySalon(currentSalonId),
       ]);
 
-      if (typesData.status === 'fulfilled' && typesData.value.length > 0) {
+      if (typesData.status === 'fulfilled') {
         setStyleTypes(typesData.value);
-        if (!typesData.value.some(t => t.id === selectedStyleTypeId)) {
+        if (typesData.value.length > 0 && !typesData.value.some(t => t.id === selectedStyleTypeId)) {
           setSelectedStyleTypeId(typesData.value[0].id);
         }
       }
 
-      if (stylesData.status === 'fulfilled' && stylesData.value.length > 0) {
+      if (stylesData.status === 'fulfilled') {
         setSpecificStyles(stylesData.value);
-        if (!stylesData.value.some(s => s.id === selectedSpecificStyleId)) {
+        if (stylesData.value.length > 0 && !stylesData.value.some(s => s.id === selectedSpecificStyleId)) {
           setSelectedSpecificStyleId(stylesData.value[0].id);
         }
       }

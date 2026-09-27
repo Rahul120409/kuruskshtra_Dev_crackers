@@ -109,20 +109,29 @@ function LoginFormContent() {
 
         const userRole = (res.user?.role || '').toUpperCase();
         setLoggedInRole(userRole);
-        const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN';
-        const isStaff = userRole === 'STAFF' || userRole === 'ROLE_STAFF' || userRole === 'SALON';
+        const isAdmin = userRole === 'ADMIN' || userRole === 'ROLE_ADMIN' || userRole.includes('ADMIN');
+        const isStaff = userRole === 'STAFF' || userRole === 'ROLE_STAFF' || userRole === 'SALON' || userRole.includes('STAFF');
 
-        let targetUrl = redirectUrl;
+        let targetUrl = '/home';
         if (isAdmin) {
           targetUrl = '/admin';
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('salonflow_active_portal', 'admin');
+          }
         } else if (isStaff) {
           targetUrl = '/salon';
-        } else if (redirectUrl === '/home' || redirectUrl === '/admin') {
-          targetUrl = '/home';
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('salonflow_active_portal', 'salon');
+          }
+        } else {
+          targetUrl = redirectUrl && redirectUrl !== '/admin' && redirectUrl !== '/salon' ? redirectUrl : '/home';
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('salonflow_active_portal', 'customer');
+          }
         }
 
         setTimeout(() => {
-          router.push(targetUrl);
+          window.location.href = targetUrl;
         }, 500);
       }
     } catch (err) {

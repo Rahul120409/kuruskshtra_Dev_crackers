@@ -115,7 +115,6 @@ class StaffService {
    */
   async getAllStaff(salonId?: string): Promise<StaffResponse[]> {
     const query = salonId ? `?salonId=${encodeURIComponent(salonId)}` : '';
-    console.log(`💈 [staffService: getAllStaff] Querying /api/staff${query}...`);
 
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/staff${query}`, {
@@ -125,11 +124,8 @@ class StaffService {
 
       if (res.ok) {
         const json = await res.json();
-        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
-        if (items && items.length > 0) {
-          console.log(`✅ [staffService: getAllStaff] Loaded ${items.length} live staff from DB:`, items);
-          return items;
-        }
+        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        return items;
       }
     } catch (err) {
       console.warn('⚠️ [staffService: getAllStaff] Could not fetch live staff:', err);
@@ -198,7 +194,6 @@ class StaffService {
    * POST /api/staff
    */
   async createStaff(payload: StaffRequest): Promise<StaffResponse> {
-    console.log('💈 [staffService: createStaff] POST /api/staff:', payload);
     const res = await fetch(`${this.getBaseUrl()}/api/staff`, {
       method: 'POST',
       headers: {
@@ -222,7 +217,6 @@ class StaffService {
    * PUT /api/staff/{id}/status
    */
   async updateStaffStatus(id: string, status: StaffStatus): Promise<StaffResponse> {
-    console.log(`💈 [staffService: updateStaffStatus] PUT /api/staff/${id}/status ->`, status);
     const res = await fetch(`${this.getBaseUrl()}/api/staff/${id}/status`, {
       method: 'PUT',
       headers: {
@@ -246,7 +240,6 @@ class StaffService {
    * PUT /api/staff/{id}
    */
   async updateStaff(id: string, payload: Partial<StaffRequest>): Promise<StaffResponse> {
-    console.log(`💈 [staffService: updateStaff] PUT /api/staff/${id}:`, payload);
     const res = await fetch(`${this.getBaseUrl()}/api/staff/${id}`, {
       method: 'PUT',
       headers: {
@@ -270,7 +263,6 @@ class StaffService {
    * DELETE /api/staff/{id}
    */
   async deleteStaff(id: string): Promise<boolean> {
-    console.log(`💈 [staffService: deleteStaff] DELETE /api/staff/${id}`);
     const res = await fetch(`${this.getBaseUrl()}/api/staff/${id}`, {
       method: 'DELETE',
       headers: {

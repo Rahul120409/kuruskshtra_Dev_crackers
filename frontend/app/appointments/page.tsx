@@ -71,11 +71,13 @@ export default function AppointmentsPage() {
     appointments,
     cancelAppointment,
     rateAppointment,
+    markAppointmentLate,
     refreshAppointments,
   } = useCustomer();
 
-  const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'LATE' | 'COMPLETED' | 'CANCELLED'>('ALL');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [markingLateId, setMarkingLateId] = useState<string | null>(null);
   const [selectedAptToCancel, setSelectedAptToCancel] = useState<Appointment | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -109,6 +111,7 @@ export default function AppointmentsPage() {
     return appointments.filter((apt) => {
       if (filter === 'ALL') return true;
       if (filter === 'ACTIVE') return apt.status === 'CONFIRMED' || apt.status === 'CHECKED_IN';
+      if (filter === 'LATE') return apt.status === 'LATE';
       if (filter === 'COMPLETED') return apt.status === 'COMPLETED';
       if (filter === 'CANCELLED') return apt.status === 'CANCELLED';
       return true;
@@ -116,6 +119,7 @@ export default function AppointmentsPage() {
   }, [appointments, filter]);
 
   const activeCount = appointments.filter((a) => a.status === 'CONFIRMED' || a.status === 'CHECKED_IN').length;
+  const lateCount = appointments.filter((a) => a.status === 'LATE').length;
   const completedCount = appointments.filter((a) => a.status === 'COMPLETED').length;
   const cancelledCount = appointments.filter((a) => a.status === 'CANCELLED').length;
 
@@ -133,6 +137,17 @@ export default function AppointmentsPage() {
       console.error('Failed to cancel appointment:', err);
     } finally {
       setCancellingId(null);
+    }
+  };
+
+  const handleMarkLate = async (aptId: string) => {
+    setMarkingLateId(aptId);
+    try {
+      await markAppointmentLate(aptId);
+    } catch (err) {
+      console.error('Failed to mark appointment late:', err);
+    } finally {
+      setMarkingLateId(null);
     }
   };
 
@@ -312,7 +327,9 @@ export default function AppointmentsPage() {
                 <div
                   key={apt.id}
                   className={`relative rounded-3xl border overflow-hidden transition-all duration-200 shadow-sm ${
-                    isLive
+                    apt.status === 'LATE'
+                      ? 'bg-gradient-to-r from-slate-50 via-white to-rose-50/30 dark:from-slate-900 dark:via-slate-900 dark:to-rose-950/30 border-rose-500/40 hover:border-rose-500/60'
+                      : isLive
                       ? 'bg-white dark:bg-gradient-to-br dark:from-[#11141e] dark:via-[#0f1320] dark:to-[#0c1028] border-amber-500/40 dark:border-amber-500/30 shadow-amber-500/8 hover:border-amber-500/60 dark:hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/10'
                       : isCancelled
                       ? 'bg-slate-50 dark:bg-[#0f1118]/80 border-slate-200 dark:border-slate-800/60 opacity-80 hover:opacity-100'
@@ -482,6 +499,16 @@ export default function AppointmentsPage() {
                       <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
                         {isLive ? (
                           <>
+                            {apt.status === 'CONFIRMED' && (
+                              <button
+                                onClick={() => handleMarkLate(apt.id)}
+                                disabled={markingLateId === apt.id}
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white shadow-md shadow-rose-500/20 hover:scale-[1.02] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                <span>{markingLateId === apt.id ? 'Marking...' : 'Mark Late'}</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => setSelectedAptToCancel(apt)}
                               className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-500/30 transition-all cursor-pointer"

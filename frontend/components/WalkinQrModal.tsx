@@ -19,12 +19,21 @@ export const WalkinQrModal: React.FC<WalkinQrModalProps> = ({ isOpen, onClose })
 
   const handleQuickJoin = async () => {
     setIsJoining(true);
+    const startTime = Date.now();
     try {
       // Default to Signature Haircut for quick walk-in
       await joinLiveQueue('srv-02');
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
       router.push('/queue');
       onClose();
     } catch (err) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 2000) {
+        await new Promise((resolve) => setTimeout(resolve, 2000 - elapsed));
+      }
       console.error(err);
     } finally {
       setIsJoining(false);

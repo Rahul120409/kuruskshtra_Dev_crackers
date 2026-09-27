@@ -245,7 +245,6 @@ class StyleService {
   }
 
   async createStyleType(payload: StyleTypeRequest): Promise<StyleTypeResponse> {
-    console.log("💈 [styleService: createStyleType] POST /api/styles/types:", payload);
     const res = await fetch(`${this.getBaseUrl()}/api/styles/types`, {
       method: 'POST',
       headers: {
@@ -259,7 +258,6 @@ class StyleService {
     if (!res.ok) {
       throw new Error(json.message || 'Failed to create style type');
     }
-    console.log("✅ [styleService: createStyleType] Created:", json.data);
     return json.data;
   }
 
@@ -298,7 +296,6 @@ class StyleService {
     if (params?.gender) query.set('gender', params.gender);
     const qs = query.toString() ? `?${query.toString()}` : '';
 
-    console.log(`💈 [styleService: getAllSpecificStyles] Querying /api/styles/specific${qs}...`);
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/styles/specific${qs}`, {
         cache: 'no-store',
@@ -307,11 +304,8 @@ class StyleService {
 
       if (res.ok) {
         const json = await res.json();
-        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
-        if (items && items.length > 0) {
-          console.log(`✅ [styleService: getAllSpecificStyles] Loaded ${items.length} live specific styles from DB:`, items);
-          return items;
-        }
+        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        return items;
       }
     } catch (err) {
       // Backend not reached, fall back to default catalog styles
@@ -321,7 +315,6 @@ class StyleService {
 
   async getSpecificStylesByType(styleTypeId: string, gender?: string): Promise<SpecificStyleResponse[]> {
     const qs = gender ? `?gender=${gender}` : '';
-    console.log(`💈 [styleService: getSpecificStylesByType] Querying /api/styles/specific/type/${styleTypeId}${qs}...`);
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/styles/specific/type/${styleTypeId}${qs}`, {
         cache: 'no-store',
@@ -330,10 +323,8 @@ class StyleService {
 
       if (res.ok) {
         const json = await res.json();
-        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
-        if (items && items.length > 0) {
-          return items;
-        }
+        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        return items;
       }
     } catch (err) {
       console.warn(`⚠️ [styleService: getSpecificStylesByType] Failed for type ${styleTypeId}:`, err);
@@ -342,7 +333,6 @@ class StyleService {
   }
 
   async getSpecificStylesByTypeCode(typeCode: string): Promise<SpecificStyleResponse[]> {
-    console.log(`💈 [styleService: getSpecificStylesByTypeCode] Querying /api/styles/specific/type-code/${typeCode}...`);
     try {
       const res = await fetch(`${this.getBaseUrl()}/api/styles/specific/type-code/${typeCode}`, {
         cache: 'no-store',
@@ -351,10 +341,8 @@ class StyleService {
 
       if (res.ok) {
         const json = await res.json();
-        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : null);
-        if (items && items.length > 0) {
-          return items;
-        }
+        const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+        return items;
       }
     } catch (err) {
       console.warn(`⚠️ [styleService: getSpecificStylesByTypeCode] Failed for code ${typeCode}:`, err);
@@ -363,7 +351,6 @@ class StyleService {
   }
 
   async createSpecificStyle(payload: SpecificStyleRequest): Promise<SpecificStyleResponse> {
-    console.log("💈 [styleService: createSpecificStyle] POST /api/styles/specific:", payload);
     const res = await fetch(`${this.getBaseUrl()}/api/styles/specific`, {
       method: 'POST',
       headers: {
@@ -377,7 +364,6 @@ class StyleService {
     if (!res.ok) {
       throw new Error(json.message || 'Failed to create specific style');
     }
-    console.log("✅ [styleService: createSpecificStyle] Created:", json.data);
     return json.data;
   }
 }

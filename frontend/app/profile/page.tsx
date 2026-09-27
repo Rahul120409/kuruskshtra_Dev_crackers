@@ -50,7 +50,7 @@ const PUNE_AREAS = [
 ];
 
 export default function ProfilePage() {
-  const { user, activeToken, logoutUser, updateUserProfile, appointments } = useCustomer();
+  const { user, activeToken, logoutUser, updateUserProfile, appointments, selectedHairstyle } = useCustomer();
 
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -822,10 +822,9 @@ export default function ProfilePage() {
             className="w-full min-h-[48px] py-3.5 px-4 rounded-2xl bg-rose-500/10 hover:bg-rose-500/15 active:bg-rose-500/20 border border-rose-500/25 hover:border-rose-500/40 text-rose-600 dark:text-rose-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
           >
             <LogOut className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0" />
-            <span>Sign Out of SalonFlow AI Account</span>
+            <span>Sign Out of NovaQ AI Account</span>
           </button>
         </div>
-
       </div>
 
     </div>

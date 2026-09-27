@@ -142,8 +142,28 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('portal') === 'admin' || params.get('admin') === 'true' || params.get('view') === 'admin') {
+      const paramPortal = params.get('portal') || params.get('view');
+      const savedUserStr = localStorage.getItem('salonflow_user') || localStorage.getItem('salonflow_auth_user');
+      const savedPortal = localStorage.getItem('salonflow_active_portal');
+
+      let userRole = '';
+      if (savedUserStr) {
+        try {
+          const u = JSON.parse(savedUserStr);
+          userRole = (u.role || '').toUpperCase();
+        } catch {}
+      }
+
+      if (
+        paramPortal === 'admin' ||
+        params.get('admin') === 'true' ||
+        userRole === 'ADMIN' ||
+        userRole === 'ROLE_ADMIN' ||
+        savedPortal === 'admin'
+      ) {
         setActivePortal('admin');
+      } else {
+        setActivePortal('landing');
       }
     }
   }, []);

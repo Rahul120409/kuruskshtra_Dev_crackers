@@ -95,7 +95,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
   }, [isOpen, salon?.id]);
 
   React.useEffect(() => {
-    if (isOpen && salon) {
+    if (isOpen) {
       customerService.getServices().then((list) => {
         if (list && list.length > 0) {
           setServices(list);
@@ -103,40 +103,61 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
             setSelectedServiceId(list[0].id);
           }
         }
-      });
-      staffService.getStaffBySalon(salon.id).then((stfs) => {
-        if (stfs && stfs.length > 0) {
-          setStaffMembers(stfs.map(st => ({
-            id: st.id,
-            name: st.name,
-            salonId: st.salonId,
-            specialization: st.specialization || 'Hair Stylist & Barber',
-            status: st.status || 'AVAILABLE',
-            avatarUrl: st.profileImage || '',
-            rating: 5.0
-          })));
-        } else {
-          staffService.getAllStaff().then((allStfs) => {
-            if (allStfs && allStfs.length > 0) {
-              setStaffMembers(allStfs.map(st => ({
-                id: st.id,
-                name: st.name,
-                salonId: st.salonId,
-                specialization: st.specialization || 'Hair Stylist & Barber',
-                status: st.status || 'AVAILABLE',
-                avatarUrl: st.profileImage || '',
-                rating: 5.0
-              })));
-            }
-          });
-        }
-      });
+      }).catch(() => {});
+
+      const targetSalonId = salon?.id;
+      if (targetSalonId) {
+        staffService.getStaffBySalon(targetSalonId).then((stfs) => {
+          if (stfs && stfs.length > 0) {
+            setStaffMembers(stfs.map(st => ({
+              id: st.id,
+              userId: st.userId || '',
+              name: st.name,
+              salonId: st.salonId,
+              specialization: st.specialization || 'Hair Stylist & Barber',
+              status: st.status || 'AVAILABLE',
+              avatarUrl: st.profileImage || '',
+              rating: 5.0
+            })));
+          } else {
+            staffService.getAllStaff().then((allStfs) => {
+              if (allStfs && allStfs.length > 0) {
+                setStaffMembers(allStfs.map(st => ({
+                  id: st.id,
+                  userId: st.userId || '',
+                  name: st.name,
+                  salonId: st.salonId,
+                  specialization: st.specialization || 'Hair Stylist & Barber',
+                  status: st.status || 'AVAILABLE',
+                  avatarUrl: st.profileImage || '',
+                  rating: 5.0
+                })));
+              }
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      } else {
+        staffService.getAllStaff().then((allStfs) => {
+          if (allStfs && allStfs.length > 0) {
+            setStaffMembers(allStfs.map(st => ({
+              id: st.id,
+              userId: st.userId || '',
+              name: st.name,
+              salonId: st.salonId,
+              specialization: st.specialization || 'Hair Stylist & Barber',
+              status: st.status || 'AVAILABLE',
+              avatarUrl: st.profileImage || '',
+              rating: 5.0
+            })));
+          }
+        }).catch(() => {});
+      }
     }
   }, [isOpen, salon]);
 
   const filteredServices = useMemo(() => {
     if (categoryFilter === 'All') return services;
-    return services.filter((s) => s.category === categoryFilter);
+    return services.filter((s: SalonService) => s.category === categoryFilter);
   }, [services, categoryFilter]);
 
   const selectedService = useMemo(() => {
@@ -147,7 +168,7 @@ export const BookingWizardModal: React.FC<BookingWizardModalProps> = ({
       description: '',
       price: 0,
       durationMinutes: 30,
-      category: 'General',
+      category: 'Haircuts' as const,
       imageUrl: '',
       isActive: true
     };

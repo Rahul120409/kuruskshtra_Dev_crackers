@@ -1335,8 +1335,11 @@ export default function CustomerHomePage() {
       <CustomerChatbotWidget
         userLocation={userLocation}
         onOpenBookingModal={(salon) => {
-          if (salon) setSelectedSalonForBooking(salon);
-          setIsBookingModalOpen(true);
+          if (salon) {
+            router.push(`/booking?salonId=${encodeURIComponent(salon.id)}&salonName=${encodeURIComponent(salon.name)}`);
+          } else {
+            router.push('/booking');
+          }
         }}
       />
 

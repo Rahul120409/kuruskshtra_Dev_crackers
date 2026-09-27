@@ -99,6 +99,7 @@ export type QueueStatus = 'WAITING' | 'CALLED' | 'IN_SERVICE' | 'COMPLETED' | 'C
 
 export interface QueueToken {
   tokenId: string;
+  id?: string;
   tokenNumber: number;
   position: number;
   estimatedWait: number; // in minutes
@@ -106,13 +107,15 @@ export interface QueueToken {
   salonId: string;
   salonName?: string;
   customerId: string;
+  customerName?: string;
+  customerPhone?: string;
   serviceId: string;
   serviceName?: string;
   servicePrice?: number;
   staffId?: string;
   staffName?: string;
   appointmentId?: string;
-  queueDate: string;
+  queueDate?: string;
   createdAt: string;
   stationNumber?: number;
   selectedHairstyleId?: string;
@@ -134,19 +137,21 @@ export interface Appointment {
   serviceDuration?: number;
   staffId?: string;
   staffName?: string;
+  stylistName?: string;
   staffAvatar?: string;
   appointmentDate: string;
   appointmentTime: string;
-  status: 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED';
+  status: 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED' | 'LATE';
+  lateTimestamp?: string;
+  cancellationFee?: number;
+  rating?: number;
+  feedback?: string;
   source: 'ONLINE' | 'WALK_IN';
   bookingType?: 'WALK_IN' | 'SCHEDULED';
   tokenNumber?: number;
   paymentMethod?: string;
   paymentStatus?: 'PAID' | 'PENDING_AT_COUNTER';
-  rating?: number;
-  feedback?: string;
-  lateTimestamp?: string;
-  cancellationFee?: number;
+  notes?: string;
   createdAt: string;
 }
 

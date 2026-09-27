@@ -27,7 +27,6 @@ function getSockJSUrl(): string {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:8081/ws-queue';
   }
-
   // 2. If configured via env var (e.g. http://localhost:8081)
   const httpBase = getApiBaseUrl();
   if (httpBase && (httpBase.startsWith('http://') || httpBase.startsWith('https://'))) {
@@ -99,9 +98,11 @@ class QueueWebSocketManager {
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       debug: (str) => {
-        // Only log non-heartbeat STOMP frames to reduce noise
-        if (!str.includes('>>>') && !str.includes('<<<') && !str.startsWith('PING') && !str.startsWith('PONG')) {
-          console.log('📡 [STOMP DEBUG]', str);
+        // Only log non-heartbeat STOMP frames to reduce noise in development
+        if (process.env.NODE_ENV === 'development') {
+          if (!str.includes('>>>') && !str.includes('<<<') && !str.startsWith('PING') && !str.startsWith('PONG')) {
+            console.log('📡 [STOMP DEBUG]', str);
+          }
         }
       },
       onWebSocketError: (event) => {
@@ -122,8 +123,8 @@ class QueueWebSocketManager {
         this.activeStompSubs.clear();
         this.notifyStatus(false);
       },
-      onStompError: (frame) => {
-        console.warn('⚠️ [WebSocket STOMP] Broker STOMP error:', frame.headers['message'], frame.body);
+      onStompError: (frame: any) => {
+        console.warn('⚠️ [WebSocket STOMP] Broker STOMP error:', frame?.headers?.['message'] || frame?.headers?.message, frame?.body);
       },
       onWebSocketClose: () => {
         console.log('🔌 [WebSocket STOMP] Connection closed. Auto-reconnect in 5s.');
